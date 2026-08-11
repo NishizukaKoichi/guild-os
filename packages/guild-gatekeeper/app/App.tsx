@@ -16,7 +16,9 @@ import type {
 import { AppShell, type AppPage } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { AskGuildPage } from "./pages/AskGuildPage";
 import { HomePage } from "./pages/HomePage";
+import { KnowledgePage } from "./pages/KnowledgePage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { useI18n } from "./i18n";
@@ -30,6 +32,7 @@ export function App({ api }: { api: GuildUiApi }) {
   const [bootstrap, setBootstrap] = useState<UiBootstrapState | null>(null);
   const [directory, setDirectory] = useState<UiDirectory | null>(null);
   const [page, setPage] = useState<AppPage>("home");
+  const [knowledgeTarget, setKnowledgeTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,9 +111,24 @@ export function App({ api }: { api: GuildUiApi }) {
       page={visiblePage}
       peopleAvailable={directory !== null}
       agentsAvailable={directory !== null}
-      onPageChange={setPage}
+      onPageChange={(nextPage) => {
+        if (nextPage === "knowledge") setKnowledgeTarget(null);
+        setPage(nextPage);
+      }}
     >
       {visiblePage === "home" ? <HomePage bootstrap={bootstrap} directory={directory} /> : null}
+      {visiblePage === "ask" ? (
+        <AskGuildPage
+          api={api}
+          onOpenKnowledge={(knowledgeId) => {
+            setKnowledgeTarget(knowledgeId);
+            setPage("knowledge");
+          }}
+        />
+      ) : null}
+      {visiblePage === "knowledge" ? (
+        <KnowledgePage api={api} directory={directory} requestedKnowledgeId={knowledgeTarget} />
+      ) : null}
       {visiblePage === "people" && directory ? (
         <PeoplePage
           bootstrap={bootstrap}

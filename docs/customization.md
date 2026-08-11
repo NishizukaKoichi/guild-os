@@ -31,9 +31,9 @@ The custom logo appears in the app chrome, sign-in screens, and browser tab on e
 | `access` | Cloudflare Access trust and administrator list | Access team issuer, application audience, and verified email list |
 | `aiGateway` | Deployment-funded model catalog | Disabled, Workers AI direct, or provider traffic through AI Gateway |
 | `context` | Context sharing boundary, snapshot KV, and optional Artifacts repositories | A stable domain label; automatic or existing KV; Git-backed collections disabled or enabled |
-| `guild` | Guild identity, Constitution defaults, quorum, retention, and Hyperdrive | Organization-specific settings and PostgreSQL connection |
+| `guild` | Guild identity, Constitution defaults, quorum, retention, Hyperdrive, and Ask Guild | Organization settings, PostgreSQL, Workers AI model, AI Gateway ID, and request limit |
 | `errorReporting` | Private explicit-issue destination | Console Reporter enabled state, environment, and release metadata |
-| `resources` | Blueprint/avatar KV and blueprint-content R2 | `null` to provision or explicit IDs/names to reuse |
+| `resources` | Blueprint/avatar KV plus blueprint and Knowledge R2 | `null` to provision or explicit IDs/names to reuse |
 | `observability` | Worker telemetry | Structured logs, invocation logs, traces, and sampling; see the [observability guide](observability.md) |
 
 Secrets are never valid values in this file. Install them interactively with Wrangler against the Worker that consumes them.
@@ -92,7 +92,8 @@ Wrangler supports [automatic provisioning](https://developers.cloudflare.com/wor
 "resources": {
   "blueprintsKvNamespaceId": null,
   "avatarsKvNamespaceId": null,
-  "blueprintContentBucket": null
+  "blueprintContentBucket": null,
+  "knowledgeFilesBucket": null
 }
 ```
 
@@ -150,6 +151,21 @@ pnpm exec wrangler secret put CF_AI_GATEWAY_API_TOKEN --name your-workshop-worke
 
 For Workers AI through the default gateway, current Cloudflare guidance calls for Account permissions `AI Gateway - Read`, `AI Gateway - Edit`, and `Workers AI - Read`. Recheck the linked guidance when enabling other providers.
 
+Ask Guild has a separate Workers AI binding on the Guild Gatekeeper. Configure it independently:
+
+```jsonc
+"guild": {
+  "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
+  "aiGatewayId": "default",
+  "askRequestsPerMinute": 20
+}
+```
+
+The limit is applied per opaque Guild Identity and Cloudflare location. It limits bursts and is not
+a billing budget; Guild- and Agent-level monetary budgets remain an Agent runtime responsibility.
+Ask calls disable AI Gateway prompt logging and cache collection. The database Chronicle stores a
+question SHA-256 and citation count, not the question or answer text.
+
 ### Observability
 
 The starter enables structured custom logs and a private console-backed Error Reporter, while invocation logs, traces, and browser reporting remain separate controls. See [Observability and error reporting](observability.md) for signal selection, sampling, triage, privacy, source maps, frontend reporting, and external destinations.
@@ -158,15 +174,20 @@ The starter enables structured custom logs and a private console-backed Error Re
 
 The deployment-owned Guild Gatekeeper lives under `packages/`, outside the `cloudflare-os` submodule. `scripts/deploy.mjs` binds it to the Workshop as `GATEKEEPER_GUILD` and keeps Context available as `GATEKEEPER_CONTEXT`.
 
-The implemented read path is:
+The implemented governed-memory path is:
 
 1. `types.d.ts` defines the API visible to TypeScript callers.
 2. `GuildSessionImpl` resolves the caller's Guild identity and effective permissions from PostgreSQL.
-3. Resource candidates are filtered by Guild, Space, and permission before any result is returned to Cloudflare OS.
+3. PostgreSQL removes unauthorized Knowledge rows before model context construction, then the domain
+   policy engine repeats the check before any text is supplied to Workers AI.
 4. `GuildGatekeeper` bootstraps the first Cloudflare OS administrator as the human Root Owner; later Humans enter only through a one-time invitation bound to Role, Space, and initial Membership state.
 5. `GuildAccount` exposes a per-user session as a singleton.
 6. `GatekeeperVendor` advertises credential-free auto-provisioning.
-7. The Workshop service binding makes the vendor available to Cloudflare OS.
+7. Canonical Knowledge can be queried through Ask Guild with source citations; drafts and denied
+   rows never enter model context.
+8. R2 uploads use pending database metadata, checksum verification, and finalization. Deletions use
+   the transactional outbox and a five-minute Cron Trigger so a transient R2 failure is retried.
+9. The Workshop service binding makes the vendor available to Cloudflare OS.
 
 Read the [package guide](../packages/guild-gatekeeper/README.md), [security model](security.md), and upstream [`write-gatekeeper` skill](https://github.com/cloudflare/cloudflare-os/blob/main/.agents/skills/write-gatekeeper/SKILL.md) before adding verified identity claims, URL-scoped resources, writes, simulations, hooks, or configurator UI. Write-capable Agent execution remains deliberately unavailable until durable approvals and explicit Agent identities are connected.
 

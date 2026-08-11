@@ -35,6 +35,9 @@ const requiredPaths = [
   "guild.level3ApprovalQuorum",
   "guild.dataRetentionDays",
   "guild.hyperdriveId",
+  "guild.askModel",
+  "guild.aiGatewayId",
+  "guild.askRequestsPerMinute",
   "observability.enabled",
   "observability.headSamplingRate",
   "observability.logs.invocationLogs",
@@ -59,6 +62,7 @@ const resourcePaths = [
   "resources.blueprintsKvNamespaceId",
   "resources.avatarsKvNamespaceId",
   "resources.blueprintContentBucket",
+  "resources.knowledgeFilesBucket",
 ];
 
 function valueAt(object, path) {
@@ -116,6 +120,7 @@ export function validateConfig(config) {
     "guild.level2ApprovalQuorum",
     "guild.level3ApprovalQuorum",
     "guild.dataRetentionDays",
+    "guild.askRequestsPerMinute",
   ].includes(path));
   for (const path of stringPaths) {
     if (typeof valueAt(config, path) !== "string") {
@@ -130,6 +135,16 @@ export function validateConfig(config) {
   if (!/^[a-f\d]{32}$/i.test(config.guild.hyperdriveId)) {
     throw new Error("Guild Hyperdrive ID must be 32 hexadecimal characters.");
   }
+  if (!/^@cf\/[a-z0-9._-]+\/[a-z0-9._-]+$/i.test(config.guild.askModel)) {
+    throw new Error("Guild Ask model must be a Workers AI @cf/provider/model identifier.");
+  }
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(config.guild.aiGatewayId)) {
+    throw new Error("Guild AI Gateway ID must use letters, numbers, underscores, or hyphens.");
+  }
+  if (config.resources.knowledgeFilesBucket !== null &&
+      !/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(config.resources.knowledgeFilesBucket)) {
+    throw new Error("Knowledge files R2 bucket must be a 3-63 character lowercase bucket name.");
+  }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
       .test(config.guild.id)) {
     throw new Error("Guild ID must be a UUID.");
@@ -138,11 +153,15 @@ export function validateConfig(config) {
     "guild.level2ApprovalQuorum",
     "guild.level3ApprovalQuorum",
     "guild.dataRetentionDays",
+    "guild.askRequestsPerMinute",
   ]) {
     const value = valueAt(config, path);
     if (!Number.isSafeInteger(value) || value <= 0) {
       throw new Error(`Guild deployment value must be a positive integer: ${path}`);
     }
+  }
+  if (config.guild.askRequestsPerMinute > 10_000) {
+    throw new Error("Guild Ask request limit cannot exceed 10,000 requests per minute.");
   }
   const workerNames = Object.entries(config.workers)
     .filter(([key]) => key !== "errorReporter" || config.errorReporting.enabled)
@@ -371,11 +390,26 @@ export function generateConfigs(config, bases) {
     GUILD_LEVEL2_QUORUM: String(config.guild.level2ApprovalQuorum),
     GUILD_LEVEL3_QUORUM: String(config.guild.level3ApprovalQuorum),
     GUILD_RETENTION_DAYS: String(config.guild.dataRetentionDays),
+    GUILD_ASK_MODEL: config.guild.askModel,
+    GUILD_AI_GATEWAY_ID: config.guild.aiGatewayId,
   };
   guildGatekeeper.hyperdrive = [{
     binding: "HYPERDRIVE",
     id: config.guild.hyperdriveId,
   }];
+  guildGatekeeper.ai = { binding: "AI" };
+  guildGatekeeper.r2_buckets = [{
+    binding: "KNOWLEDGE_FILES",
+    ...(config.resources.knowledgeFilesBucket
+      ? { bucket_name: config.resources.knowledgeFilesBucket }
+      : {}),
+  }];
+  guildGatekeeper.ratelimits = [{
+    name: "ASK_RATE_LIMITER",
+    namespace_id: String(Number.parseInt(config.guild.id.replaceAll("-", "").slice(0, 8), 16) + 1),
+    simple: { limit: config.guild.askRequestsPerMinute, period: 60 },
+  }];
+  guildGatekeeper.triggers = { crons: ["*/5 * * * *"] };
 
   if (errorReporter) {
     setCommon(errorReporter, config, config.workers.errorReporter.name);

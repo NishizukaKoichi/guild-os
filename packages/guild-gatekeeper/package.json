@@ -8,7 +8,9 @@
     "build:app": "vite build",
     "build": "pnpm build:app && tsc",
     "types:check": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.vite.json --noEmit && pnpm build:app && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@gadgets/workshop-shared": "workspace:*",

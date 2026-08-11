@@ -82,6 +82,8 @@ export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "identity.manage",
   "membership.manage",
   "role.manage",
+  "knowledge.approve",
+  "decision.approve",
   "agent.manage",
   "agent.approve",
   "agent.stop",

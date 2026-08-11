@@ -6,6 +6,11 @@ const migrationUrl = new URL("../migrations/0001_guild_core.sql", import.meta.ur
 const productMigrationUrl = new URL("../migrations/0002_product_v1.sql", import.meta.url);
 const governanceMigrationUrl = new URL("../migrations/0003_identity_governance.sql", import.meta.url);
 const identityIntegrityMigrationUrl = new URL("../migrations/0004_identity_profile_integrity.sql", import.meta.url);
+const knowledgeMigrationUrl = new URL("../migrations/0006_knowledge_lifecycle.sql", import.meta.url);
+const knowledgeFileReuseMigrationUrl = new URL("../migrations/0007_knowledge_file_version_reuse.sql", import.meta.url);
+const humanApprovalMigrationUrl = new URL("../migrations/0008_human_approval_boundary.sql", import.meta.url);
+const knowledgeFilePolicyMigrationUrl = new URL("../migrations/0009_knowledge_file_policy_history.sql", import.meta.url);
+const knowledgeSecurityLockMigrationUrl = new URL("../migrations/0010_published_knowledge_security_lock.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -75,5 +80,23 @@ describe("Guild PostgreSQL migration", () => {
     expect(sql).toContain("agent_tool_ids_valid");
     expect(sql).toContain("identity_membership_pair");
     expect(sql).toContain("identity_agent_profile_pair");
+  });
+
+  it("keeps Knowledge versions, reviews, and file boundaries durable", async () => {
+    const sql = await readFile(fileURLToPath(knowledgeMigrationUrl), "utf8");
+    expect(sql).toContain("knowledge_one_working_version_idx");
+    expect(sql).toContain("knowledge_version_immutable_content");
+    expect(sql).toContain("knowledge_review_no_update_or_delete");
+    expect(sql).toContain("knowledge_file_boundary");
+    expect(sql).toContain("ALTER TABLE knowledge_reviews FORCE ROW LEVEL SECURITY");
+    const reuseSql = await readFile(fileURLToPath(knowledgeFileReuseMigrationUrl), "utf8");
+    expect(reuseSql).toContain("A file cannot cross Knowledge records");
+    const approvalSql = await readFile(fileURLToPath(humanApprovalMigrationUrl), "utf8");
+    expect(approvalSql).toContain("'knowledge.approve', 'decision.approve'");
+    const policySql = await readFile(fileURLToPath(knowledgeFilePolicyMigrationUrl), "utf8");
+    expect(policySql).toContain("immutable security boundary from its original upload");
+    expect(policySql).toContain("A file cannot cross Knowledge records");
+    const securityLockSql = await readFile(fileURLToPath(knowledgeSecurityLockMigrationUrl), "utf8");
+    expect(securityLockSql).toContain("Published Knowledge security boundary is immutable");
   });
 });

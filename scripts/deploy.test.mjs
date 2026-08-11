@@ -38,12 +38,16 @@ const validConfig = {
     level3ApprovalQuorum: 2,
     dataRetentionDays: 2555,
     hyperdriveId: "abcdef0123456789abcdef0123456789",
+    askModel: "@cf/meta/llama-3.1-8b-instruct-fast",
+    aiGatewayId: "default",
+    askRequestsPerMinute: 20,
   },
   errorReporting: { enabled: true, environment: "production", release: "abc123" },
   resources: {
     blueprintsKvNamespaceId: "blueprints-kv-id",
     avatarsKvNamespaceId: "avatars-kv-id",
     blueprintContentBucket: "cloudflare-os-blueprints",
+    knowledgeFilesBucket: "acme-guild-knowledge",
   },
   observability: {
     enabled: true,
@@ -119,6 +123,14 @@ test("rejects destructive or malformed deployment values", () => {
   const invalidQuorum = structuredClone(validConfig);
   invalidQuorum.guild.level3ApprovalQuorum = 0;
   assert.throws(() => validateConfig(invalidQuorum), /positive integer/i);
+
+  const invalidAskLimit = structuredClone(validConfig);
+  invalidAskLimit.guild.askRequestsPerMinute = 0;
+  assert.throws(() => validateConfig(invalidAskLimit), /positive integer/i);
+
+  const excessiveAskLimit = structuredClone(validConfig);
+  excessiveAskLimit.guild.askRequestsPerMinute = 10_001;
+  assert.throws(() => validateConfig(excessiveAskLimit), /cannot exceed/i);
 
   const invalidTraceSampling = structuredClone(validConfig);
   invalidTraceSampling.observability.traces.headSamplingRate = 2;
@@ -203,11 +215,24 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     GUILD_LEVEL2_QUORUM: "1",
     GUILD_LEVEL3_QUORUM: "2",
     GUILD_RETENTION_DAYS: "2555",
+    GUILD_ASK_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+    GUILD_AI_GATEWAY_ID: "default",
   });
   assert.deepEqual(generated.guildGatekeeper.hyperdrive, [{
     binding: "HYPERDRIVE",
     id: validConfig.guild.hyperdriveId,
   }]);
+  assert.deepEqual(generated.guildGatekeeper.ai, { binding: "AI" });
+  assert.deepEqual(generated.guildGatekeeper.r2_buckets, [{
+    binding: "KNOWLEDGE_FILES",
+    bucket_name: "acme-guild-knowledge",
+  }]);
+  assert.deepEqual(generated.guildGatekeeper.ratelimits, [{
+    name: "ASK_RATE_LIMITER",
+    namespace_id: "26156863",
+    simple: { limit: 20, period: 60 },
+  }]);
+  assert.deepEqual(generated.guildGatekeeper.triggers, { crons: ["*/5 * * * *"] });
   assert.equal(generated.errorReporter.name, "acme-cloudflare-os-errors");
   assert.deepEqual(generated.workshop.observability.logs, {
     invocation_logs: false,
@@ -304,6 +329,7 @@ test("generates binding-only storage for automatic provisioning", async () => {
     blueprintsKvNamespaceId: null,
     avatarsKvNamespaceId: null,
     blueprintContentBucket: null,
+    knowledgeFilesBucket: null,
   };
 
   const generated = generateConfigs(config, await baseConfigs());
@@ -314,4 +340,5 @@ test("generates binding-only storage for automatic provisioning", async () => {
   ]);
   assert.deepEqual(generated.workshop.r2_buckets, [{ binding: "BLUEPRINT_CONTENT" }]);
   assert.deepEqual(generated.context.kv_namespaces, [{ binding: "CONTEXT_COLLECTIONS" }]);
+  assert.deepEqual(generated.guildGatekeeper.r2_buckets, [{ binding: "KNOWLEDGE_FILES" }]);
 });

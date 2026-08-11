@@ -17,12 +17,17 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
 - Authorized administrators can create and edit custom Roles and hierarchical Spaces. Delegated
   Roles cannot exceed the administrator's global authority, and machine identities cannot receive
   human-only permissions.
+- Authorized members can create multilingual Knowledge drafts, create immutable revisions, attach
+  R2 files, propose review, approve or request changes, publish, acknowledge, deprecate, and archive.
+- Ask Guild searches only permission-filtered Canonical Knowledge and returns versioned citations.
+- Failed or interrupted R2 cleanup remains in the PostgreSQL outbox and is retried by a five-minute
+  Cron Trigger.
 - `GuildSession.getOverview()` checks Guild authorization, removes unauthorized Spaces, requests an
   observation authorization, and only then returns data to the agent or Gadget.
 - A Guild observation cannot be shared with another Workshop account by default.
 
-The Gatekeeper management UI exposes identity, Membership, Role, and Space administration. Its
-Agent action catalog remains empty, so unfinished Agent execution and external-write operations
+The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, and Ask Guild.
+Its Agent action catalog remains empty, so unfinished Agent execution and external-write operations
 cannot appear or be invoked.
 
 ## Package layout
@@ -33,6 +38,7 @@ cannot appear or be invoked.
 | `src/bootstrap.ts` | First-admin bootstrap and application-page rendering |
 | `src/authorization.ts` | PostgreSQL snapshot loading and permission-filtered Guild reads |
 | `src/management-api.ts` | Account-bound management RPC, invitation hashing, and write authorization |
+| `src/knowledge-service.ts` | Knowledge policy, R2 lifecycle, Ask context construction, and cleanup |
 | `src/session.ts` | Observation-authorized `GuildSession` RPC |
 | `src/guild.ts` | Cloudflare Gatekeeper, account, verifier, and vendor adapters |
 | `app/` | Sandboxed management iframe source |
@@ -56,12 +62,19 @@ The Worker receives a Hyperdrive binding and uses `@guild-os/postgres`. Every op
 transaction, sets `app.guild_id` transaction-locally, and is subject to PostgreSQL row-level
 security. Database credentials stay inside the Hyperdrive configuration.
 
+Knowledge list and search queries apply the active Identity, Membership, Role, Space,
+classification, visibility, owner, and explicit-share boundary in PostgreSQL. The service repeats
+domain authorization before content is returned or supplied to Workers AI. File reads additionally
+check the immutable security boundary captured when the file was uploaded.
+
 ## Build and verify
 
 ```sh
 pnpm build:app
 pnpm test
 pnpm types:check
+DATABASE_URL=postgresql://... pnpm test:integration
+pnpm test:e2e
 pnpm exec wrangler deploy --dry-run
 ```
 

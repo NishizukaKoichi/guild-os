@@ -88,7 +88,7 @@ describe("Guild governance", () => {
       .not.toThrow();
     expect(() => assertRoleAssignableToIdentity({
       ...snapshot.roles[2]!,
-      permissions: ["identity.manage"],
+      permissions: ["knowledge.approve"],
     }, snapshot.identities[5]!)).toThrowError(
       expect.objectContaining({ code: "PERMISSION_DENIED" }),
     );

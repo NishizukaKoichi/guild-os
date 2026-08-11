@@ -57,14 +57,15 @@ product requirement must be resolved explicitly rather than silently weakened.
   Membership lifecycle writes, and a sandboxed responsive management UI.
 - PostgreSQL 17 integration verification applies migrations twice using a non-superuser owner, then
   proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
-- Role/Space editors, Knowledge retrieval, Work/Decision/Inbox/Chronicle screens, and Agent write
-  workflows are not yet implemented.
+- Role/Space editors and governed Knowledge/Ask Guild are implemented. Knowledge includes immutable
+  versions, human approval, multilingual content, R2 files, acknowledgement, retirement, citations,
+  SQL-before-model authorization, rate limiting, and durable file cleanup.
+- Work/Decision/Inbox/Chronicle screens and Agent write workflows are not yet implemented.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Add Role and Space commands and scoped People views.
-2. Add permission-filtered Knowledge retrieval with citations.
-3. Add the first explicit Agent identity and one Level 2 write workflow with durable approval,
+1. Add Goal, Project, Quest, Step, Decision, Inbox, Announcement, and Chronicle product flows.
+2. Add the first explicit Agent identity and one Level 2 write workflow with durable approval,
    idempotency, limits, and a kill switch.
-4. Verify the complete owner-to-agent demo before production deployment.
+3. Verify the complete owner-to-agent demo before production deployment.

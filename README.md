@@ -33,14 +33,18 @@ Implemented and tested:
 - Sandboxed, mobile-responsive Home, People, Agents, invitation, offboarding, and Settings UI
 - Human, Agent, and Service registration with scoped Role assignment and lifecycle controls
 - Custom Role and hierarchical Space administration with database-enforced invariants
+- Governed Knowledge creation, immutable versions, human review, publication, deprecation,
+  acknowledgement, and multilingual content
+- R2 attachments with per-file authorization, checksums, two-phase upload, and durable cleanup
+- Ask Guild over permission-filtered Canonical Knowledge with citations and per-Identity rate limits
 - English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
 
 Not exposed as finished product features yet:
 
 - Scoped People views for non-global administrators
-- Knowledge, Work, Decisions, Inbox, and Chronicle management screens
-- Knowledge semantic search and citations
+- Work, Decisions, Inbox, and Chronicle management screens
+- Semantic search index beyond the current PostgreSQL full-text retrieval
 - Agent write actions, approval quorum execution, Workflows, and kill-switch UI
 - Guild federation
 
@@ -79,7 +83,8 @@ See [architecture](docs/architecture.md), [security](docs/security.md), and the
 - Workers, KV, R2, Browser Rendering, and Dynamic Worker Loaders
 - A Cloudflare Access self-hosted application for the Workshop hostname
 
-AI is optional for deployment. Agents require a configured model before they can run.
+Workers AI access is required for Ask Guild. Additional Agent models and external providers remain
+optional until Agent execution is enabled.
 
 ## Local setup
 
@@ -121,6 +126,8 @@ integration verification uses the same command:
 
 ```sh
 DATABASE_URL=postgresql://... pnpm --filter @guild-os/postgres test:integration
+DATABASE_URL=postgresql://... pnpm --filter @guild-os/gatekeeper test:integration
+pnpm --filter @guild-os/gatekeeper test:e2e
 ```
 
 Create a Hyperdrive configuration for the migrated database from the Cloudflare dashboard. Copy the
@@ -135,7 +142,8 @@ Edit `deployment.jsonc`:
 3. Set the Cloudflare Access issuer, audience, and narrow administrator list.
 4. Generate a stable Guild UUID with `node -e "console.log(crypto.randomUUID())"`.
 5. Set the Guild name, purpose, first Space, approval quorums, retention period, and Hyperdrive ID.
-6. Configure AI Gateway only when the deployment will fund models.
+6. Select the Workers AI model, AI Gateway ID, and per-Identity Ask Guild rate limit.
+7. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
 
 The first Workshop administrator who opens **Guild** initializes the database and becomes Root
 Owner. Keep the Access policy restricted to that person until initialization is complete. The Root

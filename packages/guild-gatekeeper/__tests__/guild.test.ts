@@ -41,10 +41,54 @@ describe("guild-gatekeeper", () => {
     }, async () => {
       calls.push("load");
       return overview;
-    });
+    }, async () => []);
 
     await expect(session.getOverview()).resolves.toEqual(overview);
     expect(calls).toEqual(["load", "authorize"]);
+  });
+
+  it("returns permission-filtered Knowledge only after observation authorization", async () => {
+    const calls: string[] = [];
+    const result = [{
+      knowledgeId: "knowledge-id",
+      version: 3,
+      title: "Safety policy",
+      summary: "Approved guidance",
+      content: "Use the reviewed procedure.",
+      spaceId: "space-id",
+    }];
+    const session = new GuildSessionImpl({
+      async authorizeObservation() {
+        calls.push("authorize");
+      },
+    }, async () => {
+      throw new Error("unused");
+    }, async (query, locale) => {
+      calls.push(`filter:${query}:${locale}`);
+      return result;
+    });
+
+    await expect(session.searchKnowledge("procedure", "ja")).resolves.toEqual(result);
+    expect(calls).toEqual(["filter:procedure:ja", "authorize"]);
+  });
+
+  it("does not return filtered Knowledge when observation authorization is denied", async () => {
+    const session = new GuildSessionImpl({
+      async authorizeObservation() {
+        throw new Error("observation denied");
+      },
+    }, async () => {
+      throw new Error("unused");
+    }, async () => [{
+      knowledgeId: "knowledge-id",
+      version: 1,
+      title: "Restricted",
+      summary: "Restricted",
+      content: "Restricted",
+      spaceId: null,
+    }]);
+
+    await expect(session.searchKnowledge("restricted")).rejects.toThrow("observation denied");
   });
 
   it("creates high-entropy invitation tokens and stores only deterministic hashes", async () => {

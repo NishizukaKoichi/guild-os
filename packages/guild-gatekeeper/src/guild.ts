@@ -33,6 +33,7 @@ import {
 } from "./config.js";
 import { GuildSessionImpl } from "./session.js";
 import { GuildManagementApiImpl } from "./management-api.js";
+import { searchKnowledgeForSession } from "./knowledge-service.js";
 import type { GuildSession } from "./types.js";
 import TYPES_CODE from "./types-code.js";
 
@@ -69,6 +70,12 @@ export class GuildGatekeeper
     return new GuildSessionImpl(
       approvalQueue.dup(),
       () => loadGuildOverview(this.env, this.ctx.props.accountId),
+      (query, locale) => searchKnowledgeForSession(
+        this.env,
+        this.ctx.props.accountId,
+        query,
+        locale,
+      ),
     );
   }
 

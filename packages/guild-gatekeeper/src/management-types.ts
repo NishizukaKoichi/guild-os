@@ -4,8 +4,12 @@ import type {
   Classification,
   IdentityKind,
   IdentityStatus,
+  KnowledgeReviewVerdict,
+  KnowledgeState,
+  LocalizedText,
   MembershipState,
   Permission,
+  Visibility,
 } from "@guild-os/domain";
 
 export interface UiBootstrapState {
@@ -163,6 +167,147 @@ export interface CreateServiceRequest {
   spaceId: string | null;
 }
 
+export interface UiKnowledgeCapabilities {
+  edit: boolean;
+  propose: boolean;
+  review: boolean;
+  startRevision: boolean;
+  archive: boolean;
+  deprecate: boolean;
+  uploadFile: boolean;
+  deleteFile: boolean;
+}
+
+export interface UiKnowledgeSummary {
+  id: string;
+  spaceId: string | null;
+  ownerIdentityId: string;
+  state: KnowledgeState;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+  currentVersion: number;
+  canonicalVersion: number | null;
+  title: LocalizedText;
+  summary: LocalizedText;
+  sourceIds: readonly string[];
+  createdByIdentityId: string;
+  reviewDueAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  capabilities: UiKnowledgeCapabilities;
+}
+
+export interface UiKnowledgeVersion {
+  version: number;
+  state: KnowledgeState;
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  sourceIds: readonly string[];
+  createdByIdentityId: string;
+  createdAt: string;
+}
+
+export interface UiKnowledgeReview {
+  id: string;
+  version: number;
+  reviewerIdentityId: string;
+  verdict: KnowledgeReviewVerdict;
+  reason: string;
+  createdAt: string;
+}
+
+export interface UiKnowledgeFile {
+  id: string;
+  knowledgeVersion: number;
+  ownerIdentityId: string;
+  originalName: string;
+  mediaType: string;
+  byteSize: number;
+  sha256: string;
+  status: "pending" | "ready" | "failed" | "deleted";
+  position: number;
+  createdAt: string;
+}
+
+export interface UiKnowledgeDetail extends UiKnowledgeSummary {
+  acknowledged: boolean;
+  versions: readonly UiKnowledgeVersion[];
+  reviews: readonly UiKnowledgeReview[];
+  files: readonly UiKnowledgeFile[];
+}
+
+export interface UiKnowledgePage {
+  items: readonly UiKnowledgeSummary[];
+  nextCursor: string | null;
+  canCreate: boolean;
+}
+
+export interface UiKnowledgePageRequest {
+  cursor?: string | null;
+}
+
+export interface KnowledgeContentRequest {
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  sourceIds: readonly string[];
+}
+
+export interface KnowledgeMetadataRequest {
+  spaceId: string | null;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+  reviewDueAt: string | null;
+}
+
+export interface CreateKnowledgeRequest extends KnowledgeContentRequest, KnowledgeMetadataRequest {
+  changeNote: string;
+}
+
+export interface SaveKnowledgeDraftRequest extends KnowledgeContentRequest, KnowledgeMetadataRequest {
+  knowledgeId: string;
+  expectedVersion: number;
+  changeNote: string;
+}
+
+export interface KnowledgeTransitionRequest {
+  knowledgeId: string;
+  expectedVersion: number;
+}
+
+export interface ReviewKnowledgeRequest extends KnowledgeTransitionRequest {
+  verdict: KnowledgeReviewVerdict;
+  reason: string;
+}
+
+export interface UploadKnowledgeFileRequest extends KnowledgeTransitionRequest {
+  originalName: string;
+  mediaType: string;
+  bytes: Uint8Array;
+}
+
+export interface AskGuildRequest {
+  question: string;
+  locale: AppLocale;
+}
+
+export interface AskGuildCitation {
+  knowledgeId: string;
+  version: number;
+  title: string;
+  summary: string;
+  spaceId: string | null;
+}
+
+export interface AskGuildResponse {
+  answer: string;
+  citations: readonly AskGuildCitation[];
+  inferred: boolean;
+}
+
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
@@ -187,5 +332,19 @@ export interface GuildUiApi {
     identityId: string,
     nextState: "active" | "suspended" | "departed",
   ): Promise<void>;
+  getKnowledgePage(request?: UiKnowledgePageRequest): Promise<UiKnowledgePage>;
+  getKnowledge(knowledgeId: string): Promise<UiKnowledgeDetail>;
+  createKnowledge(input: CreateKnowledgeRequest): Promise<string>;
+  saveKnowledgeDraft(input: SaveKnowledgeDraftRequest): Promise<number>;
+  startKnowledgeRevision(input: KnowledgeTransitionRequest): Promise<number>;
+  proposeKnowledge(input: KnowledgeTransitionRequest): Promise<void>;
+  reviewKnowledge(input: ReviewKnowledgeRequest): Promise<void>;
+  archiveKnowledge(input: KnowledgeTransitionRequest): Promise<void>;
+  deprecateKnowledge(input: KnowledgeTransitionRequest): Promise<void>;
+  acknowledgeKnowledge(input: KnowledgeTransitionRequest): Promise<void>;
+  uploadKnowledgeFile(input: UploadKnowledgeFileRequest): Promise<UiKnowledgeFile>;
+  downloadKnowledgeFile(fileId: string): Promise<Blob>;
+  deleteKnowledgeFile(input: KnowledgeTransitionRequest & { fileId: string }): Promise<void>;
+  askGuild(input: AskGuildRequest): Promise<AskGuildResponse>;
   setPreferredLocale(locale: AppLocale): Promise<void>;
 }

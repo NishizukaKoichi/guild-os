@@ -61,6 +61,24 @@ Guild data request reloads active Identity and Membership state and therefore de
 
 ## Model context
 
+Ask Guild queries only Canonical Knowledge. PostgreSQL first applies active Membership, Role,
+hierarchical Space, classification, visibility, owner, and explicit-share predicates. The domain
+policy engine then repeats authorization on each returned candidate before its text can enter model
+context. Filtering a fixed top-N result after retrieval is prohibited because denied rows could
+crowd out permitted evidence even when their text is later removed.
+
+The Workers AI call disables AI Gateway prompt logging and cache collection. Chronicle stores only
+the question SHA-256 and citation count. A per-Identity rate-limit binding is checked after evidence
+authorization and before model invocation. Citations identify the exact Knowledge version supplied
+to the model; a no-evidence response does not call the model.
+
+Knowledge security metadata may change only before its first Canonical publication, while saving a
+new immutable draft version. The writer must be authorized against both the old and proposed
+boundary. PostgreSQL locks Space, visibility, classification, and explicit shares after publication;
+a different boundary requires a new Knowledge record and review. Each R2 file also retains its
+upload-time boundary, and reading it requires authorization against both the current Knowledge and
+the immutable file boundary.
+
 Knowledge and Space metadata are authorization-filtered before they are returned through the
 Gatekeeper. The agent catalog is bounded by Cloudflare OS and contains only permitted Spaces. The
 Gatekeeper asks the Workshop to authorize each observation before returning data to a Gadget or
@@ -89,6 +107,12 @@ Additional triggers enforce one root Space, acyclic Space ancestry, immutable Id
 nonempty Roles, valid Agent limits and tools, and the pairing between an active Agent profile, its
 Agent Identity, and active Membership. These checks repeat domain validation so direct SQL cannot
 create an authorization state that the application refuses.
+
+R2 uploads are two-phase: a pending PostgreSQL row is committed before bytes are written, and only
+then becomes ready. Draft publication, archival, and version replacement reject pending uploads.
+Unlinks and failed uploads create a transactional outbox item before cleanup. The Worker retries
+idempotent R2 deletion on a Cron Trigger and recovers abandoned processing leases, so an R2 outage
+does not make deleted files visible or lose the cleanup obligation.
 
 ## Secrets
 

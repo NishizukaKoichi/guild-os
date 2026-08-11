@@ -16,8 +16,22 @@ export interface GuildOverview {
   spaces: GuildSpaceSummary[];
 }
 
+export interface GuildKnowledgeSearchResult {
+  knowledgeId: string;
+  version: number;
+  title: string;
+  summary: string;
+  content: string;
+  spaceId: string | null;
+}
+
 /** Read-only capability supplied to an agent or Gadget for the current Guild account. */
 export interface GuildSession {
   /** Returns membership, global permissions, and Space metadata after observation authorization. */
   getOverview(): Promise<GuildOverview>;
+  /** Searches only Canonical Knowledge visible to the current Guild identity. */
+  searchKnowledge(
+    query: string,
+    locale?: "en" | "ja" | "zh-CN",
+  ): Promise<GuildKnowledgeSearchResult[]>;
 }

@@ -26,20 +26,32 @@ import {
 } from "@guild-os/postgres";
 import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
+import { GuildKnowledgeService } from "./knowledge-service.js";
 import type {
+  AskGuildRequest,
+  AskGuildResponse,
   AssignRoleRequest,
   ClaimInvitationInput,
   CreateAgentRequest,
+  CreateKnowledgeRequest,
   CreateRoleRequest,
   CreateServiceRequest,
   CreateSpaceRequest,
   GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
+  KnowledgeTransitionRequest,
+  ReviewKnowledgeRequest,
+  SaveKnowledgeDraftRequest,
   UiBootstrapState,
   UiDirectory,
   UiDirectoryRequest,
+  UiKnowledgeDetail,
+  UiKnowledgeFile,
+  UiKnowledgePage,
+  UiKnowledgePageRequest,
   UpdateRoleRequest,
+  UploadKnowledgeFileRequest,
 } from "./management-types.js";
 
 const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -627,6 +639,64 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         });
       },
     );
+  }
+
+  getKnowledgePage(request: UiKnowledgePageRequest = {}): Promise<UiKnowledgePage> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).getPage(request);
+  }
+
+  getKnowledge(knowledgeId: string): Promise<UiKnowledgeDetail> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).getKnowledge(knowledgeId);
+  }
+
+  createKnowledge(input: CreateKnowledgeRequest): Promise<string> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).create(input);
+  }
+
+  saveKnowledgeDraft(input: SaveKnowledgeDraftRequest): Promise<number> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).saveDraft(input);
+  }
+
+  startKnowledgeRevision(input: KnowledgeTransitionRequest): Promise<number> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).startRevision(input);
+  }
+
+  proposeKnowledge(input: KnowledgeTransitionRequest): Promise<void> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).propose(input);
+  }
+
+  reviewKnowledge(input: ReviewKnowledgeRequest): Promise<void> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).review(input);
+  }
+
+  archiveKnowledge(input: KnowledgeTransitionRequest): Promise<void> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).archive(input);
+  }
+
+  deprecateKnowledge(input: KnowledgeTransitionRequest): Promise<void> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).deprecate(input);
+  }
+
+  acknowledgeKnowledge(input: KnowledgeTransitionRequest): Promise<void> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).acknowledge(input);
+  }
+
+  uploadKnowledgeFile(input: UploadKnowledgeFileRequest): Promise<UiKnowledgeFile> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).uploadFile(input);
+  }
+
+  downloadKnowledgeFile(fileId: string): Promise<Blob> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).downloadFile(fileId);
+  }
+
+  deleteKnowledgeFile(
+    input: KnowledgeTransitionRequest & { fileId: string },
+  ): Promise<void> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).deleteFile(input);
+  }
+
+  askGuild(input: AskGuildRequest): Promise<AskGuildResponse> {
+    return new GuildKnowledgeService(this.#env, this.#accountId).ask(input);
   }
 
   async setPreferredLocale(locale: AppLocale): Promise<void> {

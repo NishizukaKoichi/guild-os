@@ -70,7 +70,12 @@
     "level2ApprovalQuorum": 1,
     "level3ApprovalQuorum": 1,
     "dataRetentionDays": 2555,
-    "hyperdriveId": "<HYPERDRIVE_ID>"
+    "hyperdriveId": "<HYPERDRIVE_ID>",
+
+    // Ask Guild uses the Worker AI binding. The default gateway is created on first use.
+    "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
+    "aiGatewayId": "default",
+    "askRequestsPerMinute": 20
   },
 
   // Explicit backend issue reports go to a private Worker that emits structured console errors.
@@ -87,7 +92,8 @@
   "resources": {
     "blueprintsKvNamespaceId": null,
     "avatarsKvNamespaceId": null,
-    "blueprintContentBucket": null
+    "blueprintContentBucket": null,
+    "knowledgeFilesBucket": null
   },
 
   // Structured custom logs stay enabled. Invocation logs and traces are separate volume controls.

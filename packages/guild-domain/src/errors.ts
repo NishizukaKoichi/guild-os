@@ -12,6 +12,7 @@ export type GuildErrorCode =
   | "AGENT_ROOT_FORBIDDEN"
   | "AGENT_STOPPED"
   | "AGENT_LIMIT_EXCEEDED"
+  | "RATE_LIMITED"
   | "INVALID_KNOWLEDGE_TRANSITION";
 
 export class GuildDomainError extends Error {

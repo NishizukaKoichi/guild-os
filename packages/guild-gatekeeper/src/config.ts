@@ -12,7 +12,19 @@ export type GuildEnv = Cloudflare.Env & {
   GUILD_LEVEL2_QUORUM: string;
   GUILD_LEVEL3_QUORUM: string;
   GUILD_RETENTION_DAYS: string;
+  GUILD_ASK_MODEL: string;
+  GUILD_AI_GATEWAY_ID: string;
   HYPERDRIVE: { connectionString: string };
+  KNOWLEDGE_FILES: R2Bucket;
+  ASK_RATE_LIMITER: RateLimit;
+  AI: {
+    run(
+      model: string,
+      input: Readonly<Record<string, unknown>>,
+      options?: Readonly<Record<string, unknown>>,
+    ): Promise<unknown>;
+    readonly aiGatewayLogId?: string;
+  };
 };
 
 export type GuildAccountProps = {

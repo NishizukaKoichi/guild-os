@@ -15,6 +15,11 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0003_identity_governance.sql",
     "0004_identity_profile_integrity.sql",
     "0005_fix_identity_pair_triggers.sql",
+    "0006_knowledge_lifecycle.sql",
+    "0007_knowledge_file_version_reuse.sql",
+    "0008_human_approval_boundary.sql",
+    "0009_knowledge_file_policy_history.sql",
+    "0010_published_knowledge_security_lock.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -24,4 +29,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[2].sql, /role_binding_machine_boundary/);
   assert.match(migrations[3].sql, /identity_agent_profile_pair/);
   assert.match(migrations[4].sql, /CREATE OR REPLACE FUNCTION/);
+  assert.match(migrations[5].sql, /CREATE TABLE knowledge_reviews/);
+  assert.match(migrations[6].sql, /A file cannot cross Knowledge records/);
+  assert.match(migrations[7].sql, /knowledge\.approve/);
 });

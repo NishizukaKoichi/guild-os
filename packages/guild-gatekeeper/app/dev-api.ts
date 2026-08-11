@@ -5,6 +5,8 @@ import type {
   IssuedInvitation,
   UiBootstrapState,
   UiDirectory,
+  UiKnowledgeDetail,
+  UiKnowledgeFile,
 } from "../src/management-types";
 import { PERMISSIONS } from "@guild-os/domain";
 
@@ -16,6 +18,7 @@ const adminRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9e";
 const memberRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9f";
 const rootSpaceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa0";
 const researchSpaceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa1";
+const knowledgeId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa3";
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -133,6 +136,75 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     nextIdentityCursor: null,
     nextInvitationCursor: null,
   };
+
+  const fullKnowledgeCapabilities = {
+    edit: false,
+    propose: false,
+    review: false,
+    startRevision: mode === "root",
+    archive: false,
+    deprecate: mode === "root",
+    uploadFile: false,
+    deleteFile: false,
+  };
+  let knowledge: UiKnowledgeDetail[] = [{
+    id: knowledgeId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    state: "canonical",
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    currentVersion: 2,
+    canonicalVersion: 2,
+    title: { en: "Research intake procedure", ja: "調査受付手順" },
+    summary: {
+      en: "How the Guild records and verifies a new research request.",
+      ja: "Guildが新しい調査依頼を記録し検証する方法です。",
+    },
+    sourceIds: [],
+    createdByIdentityId: rootId,
+    reviewDueAt: "2027-02-01T00:00:00.000Z",
+    createdAt: "2026-08-10T02:00:00.000Z",
+    updatedAt: "2026-08-12T01:30:00.000Z",
+    capabilities: fullKnowledgeCapabilities,
+    acknowledged: false,
+    versions: [{
+      version: 2,
+      state: "canonical",
+      title: { en: "Research intake procedure", ja: "調査受付手順" },
+      summary: {
+        en: "How the Guild records and verifies a new research request.",
+        ja: "Guildが新しい調査依頼を記録し検証する方法です。",
+      },
+      body: {
+        en: "Record the request in the Research Space. Confirm its owner, expected outcome, classification, and source before assigning work.",
+        ja: "依頼をResearch Spaceへ記録し、仕事を割り当てる前に責任者、期待する成果、機密区分、出典を確認します。",
+      },
+      sourceIds: [],
+      createdByIdentityId: rootId,
+      createdAt: "2026-08-12T01:30:00.000Z",
+    }, {
+      version: 1,
+      state: "deprecated",
+      title: { en: "Research request notes", ja: "調査依頼メモ" },
+      summary: { en: "Initial draft.", ja: "初版です。" },
+      body: { en: "Write down the request.", ja: "依頼を書き留めます。" },
+      sourceIds: [],
+      createdByIdentityId: rootId,
+      createdAt: "2026-08-10T02:00:00.000Z",
+    }],
+    reviews: [{
+      id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa4",
+      version: 2,
+      reviewerIdentityId: rootId,
+      verdict: "approve",
+      reason: "The scope and verification steps are explicit.",
+      createdAt: "2026-08-12T01:30:00.000Z",
+    }],
+    files: [],
+  }];
+  const fileBodies = new Map<string, Blob>();
 
   return {
     async getBootstrap() {
@@ -313,6 +385,230 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         agentProfiles: directory.agentProfiles.map((profile) => profile.identityId === identityId
           ? { ...profile, status: nextState === "active" ? "active" : "stopped" }
           : profile),
+      };
+    },
+    async getKnowledgePage() {
+      return {
+        items: knowledge.map(({ versions: _versions, reviews: _reviews, files: _files, ...summary }) => summary),
+        nextCursor: null,
+        canCreate: mode === "root",
+      };
+    },
+    async getKnowledge(requestedKnowledgeId) {
+      const item = knowledge.find((candidate) => candidate.id === requestedKnowledgeId);
+      if (!item) throw new Error("Knowledge was not found.");
+      return item;
+    },
+    async createKnowledge(input) {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      knowledge = [{
+        id,
+        spaceId: input.spaceId,
+        ownerIdentityId: bootstrap.accountId,
+        state: "draft",
+        visibility: input.visibility,
+        classification: input.classification,
+        allowedIdentityIds: input.allowedIdentityIds,
+        currentVersion: 1,
+        canonicalVersion: null,
+        title: input.title,
+        summary: input.summary,
+        sourceIds: input.sourceIds,
+        createdByIdentityId: bootstrap.accountId,
+        reviewDueAt: input.reviewDueAt,
+        createdAt: now,
+        updatedAt: now,
+        capabilities: {
+          edit: true, propose: true, review: false, startRevision: false,
+          archive: true, deprecate: false, uploadFile: true, deleteFile: true,
+        },
+        acknowledged: false,
+        versions: [{
+          version: 1,
+          state: "draft",
+          title: input.title,
+          summary: input.summary,
+          body: input.body,
+          sourceIds: input.sourceIds,
+          createdByIdentityId: bootstrap.accountId,
+          createdAt: now,
+        }],
+        reviews: [],
+        files: [],
+      }, ...knowledge];
+      return id;
+    },
+    async saveKnowledgeDraft(input) {
+      const item = knowledge.find((candidate) => candidate.id === input.knowledgeId);
+      if (!item || item.currentVersion !== input.expectedVersion || item.state !== "draft") {
+        throw new Error("Knowledge changed since it was loaded.");
+      }
+      const version = Math.max(...item.versions.map((candidate) => candidate.version)) + 1;
+      const now = new Date().toISOString();
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId ? {
+        ...candidate,
+        currentVersion: version,
+        spaceId: input.spaceId,
+        visibility: input.visibility,
+        classification: input.classification,
+        allowedIdentityIds: input.allowedIdentityIds,
+        reviewDueAt: input.reviewDueAt,
+        title: input.title,
+        summary: input.summary,
+        sourceIds: input.sourceIds,
+        updatedAt: now,
+        versions: [{
+          version,
+          state: "draft" as const,
+          title: input.title,
+          summary: input.summary,
+          body: input.body,
+          sourceIds: input.sourceIds,
+          createdByIdentityId: bootstrap.accountId,
+          createdAt: now,
+        }, ...candidate.versions.map((previous) => previous.state === "draft"
+          ? { ...previous, state: "archived" as const }
+          : previous)],
+      } : candidate);
+      return version;
+    },
+    async startKnowledgeRevision(input) {
+      const item = knowledge.find((candidate) => candidate.id === input.knowledgeId);
+      if (!item || item.currentVersion !== input.expectedVersion || item.state !== "canonical") {
+        throw new Error("Only Canonical Knowledge can start a revision.");
+      }
+      const canonical = item.versions.find((version) => version.version === item.canonicalVersion);
+      if (!canonical) throw new Error("Canonical version is missing.");
+      const version = Math.max(...item.versions.map((candidate) => candidate.version)) + 1;
+      const now = new Date().toISOString();
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId ? {
+        ...candidate,
+        state: "draft",
+        currentVersion: version,
+        capabilities: {
+          edit: true, propose: true, review: false, startRevision: false,
+          archive: true, deprecate: false, uploadFile: true, deleteFile: true,
+        },
+        versions: [{ ...canonical, version, state: "draft", createdAt: now }, ...candidate.versions],
+      } : candidate);
+      return version;
+    },
+    async proposeKnowledge(input) {
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId ? {
+        ...candidate,
+        state: "proposed",
+        capabilities: {
+          ...candidate.capabilities,
+          edit: false, propose: false, review: mode === "root", archive: mode === "root",
+          uploadFile: false, deleteFile: false,
+        },
+        versions: candidate.versions.map((version) => version.version === input.expectedVersion
+          ? { ...version, state: "proposed" as const }
+          : version),
+      } : candidate);
+    },
+    async reviewKnowledge(input) {
+      const nextState = input.verdict === "approve" ? "canonical" as const : "draft" as const;
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId ? {
+        ...candidate,
+        state: nextState,
+        canonicalVersion: input.verdict === "approve" ? input.expectedVersion : candidate.canonicalVersion,
+        reviews: [{
+          id: crypto.randomUUID(),
+          version: input.expectedVersion,
+          reviewerIdentityId: bootstrap.accountId,
+          verdict: input.verdict,
+          reason: input.reason,
+          createdAt: new Date().toISOString(),
+        }, ...candidate.reviews],
+        versions: candidate.versions.map((version) => version.version === input.expectedVersion
+          ? { ...version, state: nextState }
+          : version.state === "canonical" && input.verdict === "approve"
+            ? { ...version, state: "deprecated" as const }
+            : version),
+        capabilities: input.verdict === "approve" ? fullKnowledgeCapabilities : {
+          edit: true, propose: true, review: false, startRevision: false,
+          archive: true, deprecate: false, uploadFile: true, deleteFile: true,
+        },
+      } : candidate);
+    },
+    async archiveKnowledge(input) {
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId ? {
+        ...candidate,
+        state: candidate.canonicalVersion === null ? "archived" : "canonical",
+        currentVersion: candidate.canonicalVersion ?? input.expectedVersion,
+        capabilities: candidate.canonicalVersion === null ? {
+          edit: false, propose: false, review: false, startRevision: false,
+          archive: false, deprecate: false, uploadFile: false, deleteFile: false,
+        } : fullKnowledgeCapabilities,
+        versions: candidate.versions.map((version) => version.version === input.expectedVersion
+          ? { ...version, state: "archived" as const }
+          : version),
+      } : candidate);
+    },
+    async deprecateKnowledge(input) {
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId ? {
+        ...candidate,
+        state: "deprecated",
+        versions: candidate.versions.map((version) => version.version === input.expectedVersion
+          ? { ...version, state: "deprecated" as const }
+          : version),
+        capabilities: { ...fullKnowledgeCapabilities, startRevision: false, deprecate: false, archive: true },
+      } : candidate);
+    },
+    async acknowledgeKnowledge(input) {
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId
+        ? { ...candidate, acknowledged: true }
+        : candidate);
+    },
+    async uploadKnowledgeFile(input) {
+      const id = crypto.randomUUID();
+      const file: UiKnowledgeFile = {
+        id,
+        knowledgeVersion: input.expectedVersion,
+        ownerIdentityId: bootstrap.accountId,
+        originalName: input.originalName,
+        mediaType: input.mediaType,
+        byteSize: input.bytes.byteLength,
+        sha256: "d".repeat(64),
+        status: "ready",
+        position: 0,
+        createdAt: new Date().toISOString(),
+      };
+      fileBodies.set(id, new Blob([new Uint8Array(input.bytes).buffer], { type: input.mediaType }));
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId
+        ? { ...candidate, files: [...candidate.files, file] }
+        : candidate);
+      return file;
+    },
+    async downloadKnowledgeFile(fileId) {
+      const file = fileBodies.get(fileId);
+      if (!file) return new Blob(["Fictional Guild OS demo attachment."], { type: "text/plain" });
+      return file;
+    },
+    async deleteKnowledgeFile(input) {
+      fileBodies.delete(input.fileId);
+      knowledge = knowledge.map((candidate) => candidate.id === input.knowledgeId
+        ? { ...candidate, files: candidate.files.filter((file) => file.id !== input.fileId) }
+        : candidate);
+    },
+    async askGuild(input) {
+      const source = knowledge[0]!;
+      const title = source.title[input.locale] ?? source.title.ja ?? source.title.en ?? "Knowledge";
+      const summary = source.summary[input.locale] ?? source.summary.ja ?? source.summary.en ?? "";
+      return {
+        answer: input.locale === "ja"
+          ? `調査依頼はResearch Spaceへ記録し、責任者・成果・機密区分・出典を確認してから割り当てます。[K1]`
+          : `Record the request in the Research Space, then verify its owner, outcome, classification, and source before assignment. [K1]`,
+        inferred: true,
+        citations: [{
+          knowledgeId: source.id,
+          version: source.canonicalVersion ?? source.currentVersion,
+          title,
+          summary,
+          spaceId: source.spaceId,
+        }],
       };
     },
     async setPreferredLocale(locale) {

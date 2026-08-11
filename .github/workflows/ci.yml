@@ -52,6 +52,11 @@ jobs:
           pnpm lint
           pnpm types:check
 
+      - name: Verify Guild browser workflows
+        run: |
+          pnpm --filter @guild-os/gatekeeper exec playwright install --with-deps chromium
+          pnpm --filter @guild-os/gatekeeper test:e2e
+
       - name: Create non-superuser database owner
         env:
           PGPASSWORD: postgres
@@ -68,3 +73,4 @@ jobs:
           pnpm db:migrate
           pnpm db:migrate
           pnpm --filter @guild-os/postgres test:integration
+          pnpm --filter @guild-os/gatekeeper test:integration

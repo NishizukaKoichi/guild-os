@@ -18,6 +18,7 @@ export type Visibility = (typeof VISIBILITIES)[number];
 export type Classification = (typeof CLASSIFICATIONS)[number];
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
 export type RiskLevel = 0 | 1 | 2 | 3;
+export type LocalizedText = Partial<Record<AppLocale, string>>;
 
 export interface Guild {
   id: string;
@@ -91,10 +92,37 @@ export interface SecuredResource {
 
 export interface KnowledgeRecord extends SecuredResource {
   state: KnowledgeState;
-  title: string;
-  summary: string;
-  version: number;
+  title: LocalizedText;
+  summary: LocalizedText;
+  currentVersion: number;
+  canonicalVersion: number | null;
   sourceIds: readonly string[];
+}
+
+export interface KnowledgeVersion {
+  guildId: string;
+  knowledgeId: string;
+  version: number;
+  state: KnowledgeState;
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  sourceIds: readonly string[];
+  createdByIdentityId: string;
+  createdAt: string;
+}
+
+export type KnowledgeReviewVerdict = "approve" | "request_changes";
+
+export interface KnowledgeReview {
+  id: string;
+  guildId: string;
+  knowledgeId: string;
+  version: number;
+  reviewerIdentityId: string;
+  verdict: KnowledgeReviewVerdict;
+  reason: string;
+  createdAt: string;
 }
 
 export interface AgentLimits {
