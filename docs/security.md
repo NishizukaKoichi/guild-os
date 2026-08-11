@@ -89,6 +89,21 @@ rejected results cannot be rewritten. An approved Decision can be superseded onl
 approved Decision with the exact same authorization boundary, preserving access rather than
 silently broadening or narrowing it.
 
+Announcement management is human-only. Draft creation and edits require `announcement.manage` on
+both the current and proposed boundary. Publication freezes title, body, Space, target Role,
+visibility, classification, explicit shares, and expiry. Recipient selection is one SQL operation
+over active Human Identities with `preboarding` or `active` Membership, adequate clearance,
+`announcement.read`, matching Space ancestry, optional target Role, and visibility access. The
+publisher is excluded, and a per-recipient deduplication key makes retries safe.
+
+Inbox and Chronicle queries do not trust the fact that a recipient or auditor once had access.
+Each row stores the originating resource's security boundary, and PostgreSQL re-evaluates current
+Identity, Membership, Role, Space, clearance, ownership, and explicit-share authority before the
+row leaves the database. The Gatekeeper then repeats domain authorization. Suspending a member or
+removing a Role therefore hides prior Inbox and Chronicle rows immediately without deleting the
+historical record. Inbox payload and security columns are immutable; only its recipient can change
+the read timestamp. Chronicle remains fully append-only.
+
 Knowledge and Space metadata are authorization-filtered before they are returned through the
 Gatekeeper. The agent catalog is bounded by Cloudflare OS and contains only permitted Spaces. The
 Gatekeeper asks the Workshop to authorize each observation before returning data to a Gadget or

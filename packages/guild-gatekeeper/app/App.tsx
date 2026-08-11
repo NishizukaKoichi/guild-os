@@ -17,8 +17,10 @@ import { AppShell, type AppPage } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { AskGuildPage } from "./pages/AskGuildPage";
+import { ChroniclePage } from "./pages/ChroniclePage";
 import { DecisionsPage } from "./pages/DecisionsPage";
 import { HomePage } from "./pages/HomePage";
+import { InboxPage } from "./pages/InboxPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -100,7 +102,10 @@ export function App({ api }: { api: GuildUiApi }) {
     );
   }
 
-  const visiblePage = (page === "people" || page === "agents") && !directory ? "home" : page;
+  const visiblePage = (
+    ((page === "people" || page === "agents") && !directory) ||
+    (page === "chronicle" && bootstrap.membershipState !== "active")
+  ) ? "home" : page;
   const activeBootstrap = bootstrap;
 
   async function refreshDirectory() {
@@ -119,6 +124,7 @@ export function App({ api }: { api: GuildUiApi }) {
       }}
     >
       {visiblePage === "home" ? <HomePage bootstrap={bootstrap} directory={directory} /> : null}
+      {visiblePage === "inbox" ? <InboxPage api={api} directory={directory} /> : null}
       {visiblePage === "ask" ? (
         <AskGuildPage
           api={api}
@@ -232,6 +238,7 @@ export function App({ api }: { api: GuildUiApi }) {
           }}
         />
       ) : null}
+      {visiblePage === "chronicle" ? <ChroniclePage api={api} directory={directory} /> : null}
       {visiblePage === "settings" ? (
         <SettingsPage
           directory={directory}

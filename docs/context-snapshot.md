@@ -68,12 +68,16 @@ product requirement must be resolved explicitly rather than silently weakened.
   immutable proposals, Constitution-defined human quorum, evidence references, dissent,
   security-boundary-preserving supersession, Inbox fan-out, Chronicle evidence, and responsive
   browser flows.
-- Inbox/Announcement/Chronicle screens and Agent write workflows are not yet implemented.
+- Governed Announcements, Inbox read state, Knowledge-update notifications, and Chronicle queries
+  are implemented with SQL-before-service authorization, current-authority revocation, set-based
+  fan-out, immutable payloads, keyset pagination, and responsive browser flows.
+- Agent write workflows are not yet implemented.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Add Inbox, Announcement, and Chronicle product flows.
-2. Add one Level 2 Agent write workflow with durable approval,
+1. Add one Level 2 Agent write workflow with durable approval,
    idempotency, limits, and a kill switch.
-3. Verify the complete owner-to-agent demo before production deployment.
+2. Complete threat modeling, backup/restore rehearsal, and full local verification.
+3. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
+   smoke test.

@@ -22,6 +22,7 @@ export const PROJECT_STATUSES = ["planned", "active", "blocked", "completed", "c
 export const QUEST_STATUSES = ["backlog", "ready", "in_progress", "blocked", "completed", "cancelled"] as const;
 export const STEP_STATUSES = ["pending", "in_progress", "completed", "skipped"] as const;
 export const DECISION_STATUSES = ["draft", "proposed", "approved", "rejected", "superseded"] as const;
+export const ANNOUNCEMENT_STATUSES = ["draft", "published", "archived"] as const;
 
 export const PERMISSIONS = [
   "guild.read",
@@ -89,6 +90,7 @@ export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "role.manage",
   "knowledge.approve",
   "decision.approve",
+  "announcement.manage",
   "agent.manage",
   "agent.approve",
   "agent.stop",
@@ -177,4 +179,13 @@ export const DECISION_TRANSITIONS = {
 } as const satisfies Record<
   (typeof DECISION_STATUSES)[number],
   readonly (typeof DECISION_STATUSES)[number][]
+>;
+
+export const ANNOUNCEMENT_TRANSITIONS = {
+  draft: ["published", "archived"],
+  published: ["archived"],
+  archived: [],
+} as const satisfies Record<
+  (typeof ANNOUNCEMENT_STATUSES)[number],
+  readonly (typeof ANNOUNCEMENT_STATUSES)[number][]
 >;

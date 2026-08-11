@@ -181,8 +181,9 @@ export class GuildPostgresRepository {
     await this.#connection.query(
       `INSERT INTO chronicle_events
          (id, guild_id, actor_identity_id, action, subject_type, subject_id,
-          correlation_id, occurred_at, details)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+          correlation_id, occurred_at, details, space_id, owner_identity_id,
+          visibility, classification, allowed_identity_ids)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14::uuid[])`,
       [
         event.id,
         event.guildId,
@@ -193,6 +194,11 @@ export class GuildPostgresRepository {
         event.correlationId,
         event.occurredAt,
         JSON.stringify(event.details),
+        event.spaceId,
+        event.ownerIdentityId,
+        event.visibility,
+        event.classification,
+        event.allowedIdentityIds ?? [],
       ],
     );
   }

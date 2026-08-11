@@ -27,6 +27,9 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
 - Authorized Humans can create and revise Decision drafts, propose immutable options and evidence,
   and review them under the Constitution quorum. Approval must converge on one option; rejection
   records dissent. Approved Decisions can only be superseded inside the same security boundary.
+- Authorized Humans can draft and publish Role/Space Announcements. Publication atomically creates
+  deduplicated recipient Inbox rows, while current authority is rechecked before either Inbox or
+  Chronicle evidence is returned.
 - Failed or interrupted R2 cleanup remains in the PostgreSQL outbox and is retried by a five-minute
   Cron Trigger.
 - `GuildSession.getOverview()` checks Guild authorization, removes unauthorized Spaces, requests an
@@ -34,8 +37,8 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
 - A Guild observation cannot be shared with another Workshop account by default.
 
 The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, Ask Guild, Work,
-and Decisions. Its Agent action catalog remains empty, so unfinished Agent execution and external-write
-operations cannot appear or be invoked.
+Decisions, Inbox, Announcements, and Chronicle. Its Agent action catalog remains empty, so unfinished
+Agent execution and external-write operations cannot appear or be invoked.
 
 ## Package layout
 
@@ -48,6 +51,7 @@ operations cannot appear or be invoked.
 | `src/knowledge-service.ts` | Knowledge policy, R2 lifecycle, Ask context construction, and cleanup |
 | `src/work-service.ts` | Work input validation, authorization, assignment, and UI projections |
 | `src/decision-service.ts` | Decision validation, authorization, proposal, review, and supersession |
+| `src/communication-service.ts` | Announcement lifecycle, Inbox state, and authorized Chronicle queries |
 | `src/session.ts` | Observation-authorized `GuildSession` RPC |
 | `src/guild.ts` | Cloudflare Gatekeeper, account, verifier, and vendor adapters |
 | `app/` | Sandboxed management iframe source |

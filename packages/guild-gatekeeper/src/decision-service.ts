@@ -275,7 +275,7 @@ export class GuildDecisionService {
           options: optionWrites(input),
           actorIdentityId: this.#accountId,
           ownerIdentityId: this.#accountId,
-          chronicleEvent: this.#event("decision.created", id, { status: "draft" }),
+          chronicleEvent: this.#event("decision.created", id, { status: "draft" }, resource),
         });
       },
     );
@@ -293,11 +293,8 @@ export class GuildDecisionService {
         const repository = new GuildDecisionRepository(connection, this.#env.GUILD_ID);
         const current = await repository.getDecision(input.decisionId);
         await this.#authorize(connection, current, "decision.propose");
-        await this.#authorize(
-          connection,
-          this.#newResource(input.decisionId, current.ownerIdentityId, input),
-          "decision.propose",
-        );
+        const proposed = this.#newResource(input.decisionId, current.ownerIdentityId, input);
+        await this.#authorize(connection, proposed, "decision.propose");
         await this.#assertReferences(connection, input.allowedIdentityIds, input.sourceIds);
         return repository.saveDraft({
           ...input,
@@ -306,7 +303,7 @@ export class GuildDecisionService {
           actorIdentityId: this.#accountId,
           chronicleEvent: this.#event("decision.draft.updated", input.decisionId, {
             expectedVersion: input.expectedVersion,
-          }),
+          }, proposed),
         });
       },
     );
@@ -329,7 +326,7 @@ export class GuildDecisionService {
           requiredApprovals: snapshot.constitution.level2ApprovalQuorum,
           chronicleEvent: this.#event("decision.proposed", input.decisionId, {
             requiredApprovals: snapshot.constitution.level2ApprovalQuorum,
-          }),
+          }, decision),
         });
       },
     );
@@ -360,7 +357,7 @@ export class GuildDecisionService {
           chronicleEvent: this.#event("decision.reviewed", input.decisionId, {
             verdict: input.verdict,
             selectedOptionId: input.selectedOptionId,
-          }),
+          }, decision),
         });
       },
     );
@@ -390,7 +387,7 @@ export class GuildDecisionService {
           actorIdentityId: this.#accountId,
           chronicleEvent: this.#event("decision.superseded", input.decisionId, {
             replacementDecisionId: input.replacementDecisionId,
-          }),
+          }, decision),
         });
       },
     );
@@ -493,6 +490,7 @@ export class GuildDecisionService {
     action: string,
     subjectId: string,
     details: Readonly<Record<string, string | number | boolean | null>>,
+    resource: SecuredResource,
   ) {
     return makeChronicleEvent(
       this.#env.GUILD_ID,
@@ -501,6 +499,7 @@ export class GuildDecisionService {
       "decision",
       subjectId,
       { ...details, source: "guild-ui" },
+      resource,
     );
   }
 }

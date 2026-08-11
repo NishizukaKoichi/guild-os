@@ -582,6 +582,7 @@ export class GuildKnowledgeRepository {
           WHERE guild_id = $1 AND id = $2`,
         [this.#guildId, input.knowledgeId],
       );
+      await this.#notifyCanonicalReaders(row, input.actorIdentityId);
     }
     await this.#chronicle.appendChronicle(input.chronicleEvent);
   }
@@ -1058,6 +1059,68 @@ export class GuildKnowledgeRepository {
     const row = result.rows[0];
     if (!row) throw new GuildDomainError("INVALID_INPUT", "Knowledge was not found.");
     return row;
+  }
+
+  async #notifyCanonicalReaders(row: KnowledgeRow, actorIdentityId: string): Promise<void> {
+    await this.#connection.query(
+      `WITH eligible_recipients AS (
+         SELECT DISTINCT identity_row.id, identity_row.preferred_locale
+           FROM identities identity_row
+           JOIN memberships membership_row
+             ON membership_row.guild_id = identity_row.guild_id
+            AND membership_row.identity_id = identity_row.id
+           JOIN guilds guild_row ON guild_row.id = identity_row.guild_id
+          WHERE identity_row.guild_id = $1
+            AND identity_row.id <> $8
+            AND identity_row.kind = 'human'
+            AND identity_row.status = 'active'
+            AND membership_row.state IN ('preboarding', 'active')
+            AND CASE $3::text
+                  WHEN 'public' THEN 0 WHEN 'internal' THEN 1
+                  WHEN 'confidential' THEN 2 WHEN 'restricted' THEN 3
+                END <= CASE membership_row.clearance
+                  WHEN 'public' THEN 0 WHEN 'internal' THEN 1
+                  WHEN 'confidential' THEN 2 WHEN 'restricted' THEN 3
+                END
+            AND ($4::text NOT IN ('private', 'restricted')
+              OR identity_row.id = $5 OR identity_row.id = ANY($6::uuid[]))
+            AND (guild_row.root_owner_identity_id = identity_row.id OR EXISTS (
+              SELECT 1 FROM role_bindings binding_row
+              JOIN role_permissions permission_row
+                ON permission_row.guild_id = binding_row.guild_id
+               AND permission_row.role_id = binding_row.role_id
+             WHERE binding_row.guild_id = identity_row.guild_id
+               AND binding_row.identity_id = identity_row.id
+               AND permission_row.permission = 'knowledge.read'
+               AND (binding_row.space_id IS NULL
+                 OR $2::uuid IS NOT NULL
+                    AND guild_runtime.space_contains($1, binding_row.space_id, $2::uuid))
+            ))
+       )
+       INSERT INTO inbox_notifications
+         (id, guild_id, recipient_identity_id, kind, title, body,
+          resource_type, resource_id, space_id, owner_identity_id, visibility,
+          classification, allowed_identity_ids, deduplication_key)
+       SELECT gen_random_uuid(), $1, recipient.id, 'knowledge_update',
+              COALESCE($7::jsonb ->> recipient.preferred_locale, $7::jsonb ->> 'ja',
+                       $7::jsonb ->> 'en', $7::jsonb ->> 'zh-CN', 'Knowledge updated'),
+              '', 'knowledge', $9, $2, $5, $4, $3, $6::uuid[], $10
+         FROM eligible_recipients recipient
+       ON CONFLICT (guild_id, recipient_identity_id, deduplication_key)
+         WHERE deduplication_key IS NOT NULL DO NOTHING`,
+      [
+        this.#guildId,
+        row.space_id,
+        row.classification,
+        row.visibility,
+        row.owner_identity_id,
+        row.allowed_identity_ids,
+        JSON.stringify(row.title),
+        actorIdentityId,
+        row.id,
+        `knowledge:${row.id}:v${row.current_version}`,
+      ],
+    );
   }
 
   async #loadVersion(knowledgeId: string, version: number): Promise<KnowledgeVersion> {

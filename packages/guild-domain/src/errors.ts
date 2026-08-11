@@ -15,7 +15,8 @@ export type GuildErrorCode =
   | "RATE_LIMITED"
   | "INVALID_KNOWLEDGE_TRANSITION"
   | "INVALID_WORK_TRANSITION"
-  | "INVALID_DECISION_TRANSITION";
+  | "INVALID_DECISION_TRANSITION"
+  | "INVALID_ANNOUNCEMENT_TRANSITION";
 
 export class GuildDomainError extends Error {
   readonly code: GuildErrorCode;

@@ -25,6 +25,9 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0013_decision_governance.sql",
     "0014_decision_approval_scale.sql",
     "0015_decision_terminal_integrity.sql",
+    "0016_communications_and_chronicle.sql",
+    "0017_chronicle_search_tokens.sql",
+    "0018_archived_announcement_provenance.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -41,4 +44,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[12].sql, /Decision approval quorum has not been reached/);
   assert.match(migrations[13].sql, /decisions_approval_count_check CHECK \(approval_count >= 0\)/);
   assert.match(migrations[14].sql, /A terminal Decision result is immutable/);
+  assert.match(migrations[15].sql, /Inbox notification payload is immutable/);
+  assert.match(migrations[16].sql, /translate\(action, '\._-'/);
+  assert.match(migrations[17].sql, /OR status = 'archived'/);
 });

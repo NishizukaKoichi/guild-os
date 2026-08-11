@@ -12,6 +12,11 @@ function event(guildId: string, actorIdentityId: string): ChronicleEvent {
   return {
     id: randomUUID(),
     guildId,
+    spaceId: null,
+    ownerIdentityId: actorIdentityId,
+    visibility: "guild",
+    classification: "restricted",
+    allowedIdentityIds: [],
     actorIdentityId,
     action: "guild.initialized",
     subjectType: "guild",

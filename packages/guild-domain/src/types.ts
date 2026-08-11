@@ -1,4 +1,5 @@
 import type {
+  ANNOUNCEMENT_STATUSES,
   CLASSIFICATIONS,
   DECISION_STATUSES,
   GOAL_STATUSES,
@@ -28,6 +29,7 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type QuestStatus = (typeof QUEST_STATUSES)[number];
 export type StepStatus = (typeof STEP_STATUSES)[number];
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
 export type LocalizedText = Partial<Record<AppLocale, string>>;
 
 export interface Guild {
@@ -227,6 +229,39 @@ export interface DecisionApproval {
   createdAt: string;
 }
 
+export interface Announcement extends SecuredResource {
+  targetRoleId: string | null;
+  creatorIdentityId: string;
+  title: string;
+  body: string;
+  status: AnnouncementStatus;
+  publishedAt: string | null;
+  expiresAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InboxNotificationKind =
+  | "announcement"
+  | "mention"
+  | "quest"
+  | "approval"
+  | "knowledge_update"
+  | "agent_question"
+  | "system";
+
+export interface InboxNotification extends SecuredResource {
+  recipientIdentityId: string;
+  kind: InboxNotificationKind;
+  title: string;
+  body: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export interface AgentLimits {
   currency: string;
   maxBudgetMinor: number;
@@ -286,9 +321,7 @@ export interface ApprovalRequirement {
   reason: string;
 }
 
-export interface ChronicleEvent {
-  id: string;
-  guildId: string;
+export interface ChronicleEvent extends SecuredResource {
   actorIdentityId: string;
   action: string;
   subjectType: string;

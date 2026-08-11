@@ -1,4 +1,4 @@
-import type { ChronicleEvent } from "@guild-os/domain";
+import type { ChronicleEvent, SecuredResource } from "@guild-os/domain";
 
 export function makeChronicleEvent(
   guildId: string,
@@ -7,10 +7,16 @@ export function makeChronicleEvent(
   subjectType: string,
   subjectId: string,
   details: ChronicleEvent["details"],
+  resource: SecuredResource | null = null,
 ): ChronicleEvent {
   return {
     id: crypto.randomUUID(),
     guildId,
+    spaceId: resource?.spaceId ?? null,
+    ownerIdentityId: resource?.ownerIdentityId ?? actorIdentityId,
+    visibility: resource?.visibility ?? "guild",
+    classification: resource?.classification ?? "restricted",
+    allowedIdentityIds: resource?.allowedIdentityIds ?? [],
     actorIdentityId,
     action,
     subjectType,

@@ -29,12 +29,15 @@ import type { GuildEnv } from "./config.js";
 import { GuildKnowledgeService } from "./knowledge-service.js";
 import { GuildWorkService } from "./work-service.js";
 import { GuildDecisionService } from "./decision-service.js";
+import { GuildCommunicationService } from "./communication-service.js";
 import type {
+  AnnouncementTransitionRequest,
   AskGuildRequest,
   AskGuildResponse,
   AssignRoleRequest,
   ClaimInvitationInput,
   CreateAgentRequest,
+  CreateAnnouncementRequest,
   CreateDecisionRequest,
   CreateGoalRequest,
   CreateKnowledgeRequest,
@@ -49,19 +52,29 @@ import type {
   IssueInvitationInput,
   IssuedInvitation,
   KnowledgeTransitionRequest,
+  MarkInboxReadRequest,
+  PublishAnnouncementResponse,
   ReviewKnowledgeRequest,
   ReviewDecisionRequest,
   ReviewDecisionResponse,
   SaveKnowledgeDraftRequest,
+  SaveAnnouncementDraftRequest,
   SaveDecisionDraftRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
+  UiAnnouncement,
+  UiAnnouncementPage,
+  UiAnnouncementPageRequest,
+  UiChroniclePage,
+  UiChroniclePageRequest,
   UiDirectory,
   UiDirectoryRequest,
   UiKnowledgeDetail,
   UiKnowledgeFile,
   UiKnowledgePage,
   UiKnowledgePageRequest,
+  UiInboxPage,
+  UiInboxPageRequest,
   UiDecisionDetail,
   UiDecisionPage,
   UiDecisionPageRequest,
@@ -777,6 +790,48 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   supersedeDecision(input: SupersedeDecisionRequest): Promise<number> {
     return new GuildDecisionService(this.#env, this.#accountId).supersede(input);
+  }
+
+  getAnnouncementPage(request: UiAnnouncementPageRequest = {}): Promise<UiAnnouncementPage> {
+    return new GuildCommunicationService(this.#env, this.#accountId).getAnnouncementPage(request);
+  }
+
+  getAnnouncement(announcementId: string): Promise<UiAnnouncement> {
+    return new GuildCommunicationService(this.#env, this.#accountId).getAnnouncement(announcementId);
+  }
+
+  createAnnouncement(input: CreateAnnouncementRequest): Promise<string> {
+    return new GuildCommunicationService(this.#env, this.#accountId).createAnnouncement(input);
+  }
+
+  saveAnnouncementDraft(input: SaveAnnouncementDraftRequest): Promise<number> {
+    return new GuildCommunicationService(this.#env, this.#accountId).saveAnnouncementDraft(input);
+  }
+
+  publishAnnouncement(
+    input: AnnouncementTransitionRequest,
+  ): Promise<PublishAnnouncementResponse> {
+    return new GuildCommunicationService(this.#env, this.#accountId).publishAnnouncement(input);
+  }
+
+  archiveAnnouncement(input: AnnouncementTransitionRequest): Promise<number> {
+    return new GuildCommunicationService(this.#env, this.#accountId).archiveAnnouncement(input);
+  }
+
+  getInboxPage(request: UiInboxPageRequest = {}): Promise<UiInboxPage> {
+    return new GuildCommunicationService(this.#env, this.#accountId).getInboxPage(request);
+  }
+
+  markInboxRead(input: MarkInboxReadRequest): Promise<string | null> {
+    return new GuildCommunicationService(this.#env, this.#accountId).markInboxRead(input);
+  }
+
+  markAllInboxRead(): Promise<number> {
+    return new GuildCommunicationService(this.#env, this.#accountId).markAllInboxRead();
+  }
+
+  getChroniclePage(request: UiChroniclePageRequest = {}): Promise<UiChroniclePage> {
+    return new GuildCommunicationService(this.#env, this.#accountId).getChroniclePage(request);
   }
 
   async setPreferredLocale(locale: AppLocale): Promise<void> {

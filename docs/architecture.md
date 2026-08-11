@@ -62,10 +62,20 @@ Proposal freezes content, evidence, options, and the authorization boundary. Onl
 Humans can review, and approval requires the Constitution quorum to converge on one option.
 Notifications are inserted with one set-based query rather than one application call per approver.
 
+Communications follow the same module boundary. `guild-domain/announcement.ts` owns Announcement
+content and lifecycle validation; `guild-postgres/announcement.ts`, `inbox.ts`, and
+`chronicle-query.ts` own permission-prefiltered keyset reads and atomic writes;
+`guild-gatekeeper/communication-service.ts` validates transport input and repeats domain
+authorization; the Inbox and Chronicle pages own presentation state only. Announcement publication
+freezes the audience, inserts recipient notifications with one deduplicated SQL statement, and
+records Chronicle evidence in the same transaction. Inbox and Chronicle rows retain the source
+security boundary but always require the reader's current Membership, Role, Space, and clearance.
+
 ## Source-of-truth rules
 
 - PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge
-  metadata and versions, Work, Decisions, Agent policies, Agent runs, and Chronicle events.
+  metadata and versions, Work, Decisions, Announcements, Inbox state, Agent policies, Agent runs,
+  and Chronicle events.
 - R2 owns immutable file bodies addressed by checksums. PostgreSQL stores their metadata and links.
 - Vectorize or `pgvector` is a rebuildable search index. Search results are filtered by authorized
   Guild, Space, visibility, classification, and lifecycle state before model context construction.

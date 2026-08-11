@@ -364,7 +364,7 @@ export class GuildWorkService {
           id,
           actorIdentityId: this.#accountId,
           ownerIdentityId: this.#accountId,
-          chronicleEvent: this.#event("goal.created", "goal", id, { status: "draft" }),
+          chronicleEvent: this.#event("goal.created", "goal", id, { status: "draft" }, resource),
         });
       },
     );
@@ -383,7 +383,8 @@ export class GuildWorkService {
         const repository = new GuildWorkRepository(connection, this.#env.GUILD_ID);
         const parent = await repository.getGoal(input.goalId);
         await this.#authorize(connection, parent, "work.create");
-        await this.#authorize(connection, this.#newResource(id, input), "work.create");
+        const resource = this.#newResource(id, input);
+        await this.#authorize(connection, resource, "work.create");
         await this.#assertReferences(connection, input.allowedIdentityIds, input.sourceIds);
         await repository.createProject({
           ...input,
@@ -393,7 +394,7 @@ export class GuildWorkService {
           chronicleEvent: this.#event("project.created", "project", id, {
             goalId: input.goalId,
             status: "planned",
-          }),
+          }, resource),
         });
       },
     );
@@ -426,7 +427,7 @@ export class GuildWorkService {
             projectId: input.projectId,
             assigneeIdentityId: input.assigneeIdentityId,
             status: "ready",
-          }),
+          }, resource),
         });
       },
     );
@@ -454,7 +455,7 @@ export class GuildWorkService {
             questId: input.questId,
             assigneeIdentityId: input.assigneeIdentityId,
             status: "pending",
-          }),
+          }, quest),
         });
       },
     );
@@ -480,7 +481,7 @@ export class GuildWorkService {
             chronicleEvent: this.#event("goal.status.changed", "goal", input.id, {
               from: resource.status,
               to: input.status,
-            }),
+            }, resource),
           });
         }
         if (input.kind === "project") {
@@ -494,7 +495,7 @@ export class GuildWorkService {
             chronicleEvent: this.#event("project.status.changed", "project", input.id, {
               from: resource.status,
               to: input.status,
-            }),
+            }, resource),
           });
         }
         if (input.kind === "quest") {
@@ -508,7 +509,7 @@ export class GuildWorkService {
             chronicleEvent: this.#event("quest.status.changed", "quest", input.id, {
               from: resource.status,
               to: input.status,
-            }),
+            }, resource),
           });
         }
         assertStepStatus(input.status);
@@ -522,7 +523,7 @@ export class GuildWorkService {
           chronicleEvent: this.#event("step.status.changed", "step", input.id, {
             from: step.status,
             to: input.status,
-          }),
+          }, resource),
         });
       },
     );
@@ -547,7 +548,7 @@ export class GuildWorkService {
           actorIdentityId: this.#accountId,
           chronicleEvent: this.#event(`${input.kind}.assigned`, input.kind, input.id, {
             assigneeIdentityId: input.assigneeIdentityId,
-          }),
+          }, resource),
         };
         return input.kind === "quest"
           ? repository.assignQuest(assignment)
@@ -648,6 +649,7 @@ export class GuildWorkService {
     subjectType: string,
     subjectId: string,
     details: Readonly<Record<string, string | number | boolean | null>>,
+    resource: SecuredResource,
   ) {
     return makeChronicleEvent(
       this.#env.GUILD_ID,
@@ -656,6 +658,7 @@ export class GuildWorkService {
       subjectType,
       subjectId,
       { ...details, source: "guild-ui" },
+      resource,
     );
   }
 }

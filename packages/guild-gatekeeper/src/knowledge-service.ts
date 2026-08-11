@@ -640,6 +640,7 @@ export class GuildKnowledgeService {
             "knowledge",
             knowledgeId,
             { state: "draft", source: "guild-ui" },
+            resource,
           ),
         });
       },
@@ -708,6 +709,7 @@ export class GuildKnowledgeService {
                 JSON.stringify(detail.allowedIdentityIds) !== JSON.stringify(input.allowedIdentityIds),
               source: "guild-ui",
             },
+            proposedResource,
           ),
         });
       },
@@ -735,7 +737,7 @@ export class GuildKnowledgeService {
   async review(input: ReviewKnowledgeRequest): Promise<void> {
     validateTransition(input);
     assertKnowledgeReview(input.verdict, input.reason);
-    await this.#authorizedMutation("knowledge.approve", input, (repository) => repository.review({
+    await this.#authorizedMutation("knowledge.approve", input, (repository, detail) => repository.review({
       ...input,
       reviewId: crypto.randomUUID(),
       actorIdentityId: this.#accountId,
@@ -746,6 +748,7 @@ export class GuildKnowledgeService {
         "knowledge",
         input.knowledgeId,
         { version: input.expectedVersion, verdict: input.verdict, source: "guild-ui" },
+        detail,
       ),
     }));
   }
@@ -774,6 +777,7 @@ export class GuildKnowledgeService {
             "knowledge",
             input.knowledgeId,
             { version: input.expectedVersion, source: "guild-ui" },
+            detail,
           ),
         };
         if (detail.state === "deprecated") {
@@ -817,6 +821,7 @@ export class GuildKnowledgeService {
             "knowledge",
             input.knowledgeId,
             { version: input.expectedVersion, source: "guild-ui" },
+            detail,
           ),
         );
       },
@@ -865,6 +870,7 @@ export class GuildKnowledgeService {
               byteSize: input.bytes.byteLength,
               source: "guild-ui",
             },
+            detail,
           ),
         });
       },
@@ -895,6 +901,7 @@ export class GuildKnowledgeService {
               "file",
               fileId,
               { byteSize: input.bytes.byteLength, source: "guild-ui" },
+              pending,
             ),
           ),
       );
@@ -914,6 +921,7 @@ export class GuildKnowledgeService {
               "file",
               fileId,
               { source: "guild-ui" },
+              pending,
             ),
           ),
       ).catch(() => null);
@@ -994,6 +1002,7 @@ export class GuildKnowledgeService {
             "file",
             input.fileId,
             { knowledgeId: input.knowledgeId, version: input.expectedVersion, source: "guild-ui" },
+            file,
           ),
         );
       },
@@ -1136,7 +1145,7 @@ export class GuildKnowledgeService {
     ) => Promise<T>,
   ): Promise<T> {
     validateTransition(input);
-    return this.#authorizedMutation(permission, input, (repository) => operation(repository, {
+    return this.#authorizedMutation(permission, input, (repository, detail) => operation(repository, {
       ...input,
       actorIdentityId: this.#accountId,
       chronicleEvent: makeChronicleEvent(
@@ -1146,6 +1155,7 @@ export class GuildKnowledgeService {
         "knowledge",
         input.knowledgeId,
         { version: input.expectedVersion, source: "guild-ui" },
+        detail,
       ),
     }));
   }

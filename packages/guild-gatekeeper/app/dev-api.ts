@@ -4,10 +4,13 @@ import type {
   IssueInvitationInput,
   IssuedInvitation,
   UiBootstrapState,
+  UiAnnouncement,
+  UiChronicleEvent,
   UiDirectory,
   UiDecisionDetail,
   UiKnowledgeDetail,
   UiKnowledgeFile,
+  UiInboxNotification,
   UiGoal,
   UiProject,
   UiQuest,
@@ -27,6 +30,8 @@ import {
   assertDecisionOptions,
   assertDecisionReview,
   assertDecisionTransition,
+  assertAnnouncementContent,
+  assertAnnouncementTransition,
 } from "@guild-os/domain";
 
 const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
@@ -46,6 +51,9 @@ const pendingStepId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab4";
 const decisionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac0";
 const decisionOptionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac1";
 const alternativeOptionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac2";
+const announcementId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad0";
+const inboxApprovalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad1";
+const inboxKnowledgeId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad2";
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -377,6 +385,138 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     }],
     approvals: [],
   }];
+  const announcementCapabilities = (status: UiAnnouncement["status"]) => ({
+    edit: mode === "root" && status === "draft",
+    publish: mode === "root" && status === "draft",
+    archive: mode === "root" && status !== "archived",
+  });
+  let announcements: UiAnnouncement[] = [{
+    id: announcementId,
+    spaceId: researchSpaceId,
+    targetRoleId: memberRoleId,
+    ownerIdentityId: rootId,
+    creatorIdentityId: rootId,
+    title: "Research review window opens Monday",
+    body: "Submit active research notes by Friday so the review group can verify sources before the Monday session.",
+    status: "published",
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    publishedAt: "2026-08-12T02:30:00.000Z",
+    expiresAt: "2026-08-31T23:59:00.000Z",
+    version: 2,
+    createdAt: "2026-08-12T02:25:00.000Z",
+    updatedAt: "2026-08-12T02:30:00.000Z",
+    capabilities: announcementCapabilities("published"),
+  }];
+  let inbox: UiInboxNotification[] = [{
+    id: inboxApprovalId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: memberId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    recipientIdentityId: rootId,
+    kind: "approval",
+    title: "Adopt a citation requirement for Agent research",
+    body: "A Decision is waiting for Human review.",
+    resourceType: "decision",
+    resourceId: decisionId,
+    readAt: null,
+    createdAt: "2026-08-12T02:20:00.000Z",
+  }, {
+    id: inboxKnowledgeId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    recipientIdentityId: rootId,
+    kind: "knowledge_update",
+    title: "Research intake procedure",
+    body: "Version 2 is now Canonical.",
+    resourceType: "knowledge",
+    resourceId: knowledgeId,
+    readAt: "2026-08-12T02:00:00.000Z",
+    createdAt: "2026-08-12T01:30:00.000Z",
+  }];
+  let chronicleSequence = 1003;
+  let chronicleEvents: UiChronicleEvent[] = [{
+    sequence: "1003",
+    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ae3",
+    spaceId: researchSpaceId,
+    ownerIdentityId: memberId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    actorIdentityId: rootId,
+    actorDisplayName: "Avery Morgan",
+    action: "decision.proposed",
+    subjectType: "decision",
+    subjectId: decisionId,
+    correlationId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555af3",
+    occurredAt: "2026-08-12T02:20:00.000Z",
+    details: { requiredApprovals: 1, source: "guild-ui" },
+  }, {
+    sequence: "1002",
+    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ae2",
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    actorIdentityId: rootId,
+    actorDisplayName: "Avery Morgan",
+    action: "knowledge.canonical",
+    subjectType: "knowledge",
+    subjectId: knowledgeId,
+    correlationId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555af2",
+    occurredAt: "2026-08-12T01:30:00.000Z",
+    details: { version: 2, verdict: "approve", source: "guild-ui" },
+  }, {
+    sequence: "1001",
+    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ae1",
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    actorIdentityId: agentId,
+    actorDisplayName: "Research Synthesizer",
+    action: "quest.status.changed",
+    subjectType: "quest",
+    subjectId: questId,
+    correlationId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555af1",
+    occurredAt: "2026-08-12T01:00:00.000Z",
+    details: { from: "ready", to: "in_progress", source: "agent-run" },
+  }];
+
+  function appendDemoChronicle(
+    action: string,
+    subjectType: string,
+    subjectId: string,
+    boundary: Pick<UiAnnouncement, "spaceId" | "ownerIdentityId" | "visibility" | "classification" | "allowedIdentityIds">,
+    details: UiChronicleEvent["details"],
+  ): void {
+    chronicleSequence += 1;
+    chronicleEvents = [{
+      sequence: String(chronicleSequence),
+      id: crypto.randomUUID(),
+      spaceId: boundary.spaceId,
+      ownerIdentityId: boundary.ownerIdentityId,
+      visibility: boundary.visibility,
+      classification: boundary.classification,
+      allowedIdentityIds: boundary.allowedIdentityIds,
+      actorIdentityId: bootstrap.accountId,
+      actorDisplayName: "Avery Morgan",
+      action,
+      subjectType,
+      subjectId,
+      correlationId: crypto.randomUUID(),
+      occurredAt: now(),
+      details,
+    }, ...chronicleEvents];
+  }
 
   function assertCurrentVersion(current: number, expected: number): void {
     if (current !== expected) throw new Error("Work changed since it was loaded.");
@@ -1205,6 +1345,177 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         })
         : candidate);
       return version;
+    },
+    async getAnnouncementPage() {
+      return {
+        items: announcements,
+        nextCursor: null,
+        manageableSpaceIds: mode === "root" ? directory.spaces.map((space) => space.id) : [],
+        canCreateGuildWide: mode === "root",
+      };
+    },
+    async getAnnouncement(requestedAnnouncementId) {
+      const announcement = announcements.find((candidate) => candidate.id === requestedAnnouncementId);
+      if (!announcement) throw new Error("Announcement was not found.");
+      return announcement;
+    },
+    async createAnnouncement(input) {
+      if (mode !== "root") throw new Error("This identity cannot manage Announcements.");
+      assertAnnouncementContent(input.title, input.body);
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      const announcement: UiAnnouncement = {
+        ...input,
+        id,
+        ownerIdentityId: bootstrap.accountId,
+        creatorIdentityId: bootstrap.accountId,
+        status: "draft",
+        publishedAt: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: announcementCapabilities("draft"),
+      };
+      announcements = [announcement, ...announcements];
+      appendDemoChronicle(
+        "announcement.created",
+        "announcement",
+        id,
+        announcement,
+        { status: "draft", source: "guild-ui" },
+      );
+      return id;
+    },
+    async saveAnnouncementDraft(input) {
+      if (mode !== "root") throw new Error("This identity cannot manage Announcements.");
+      assertAnnouncementContent(input.title, input.body);
+      const current = announcements.find((candidate) => candidate.id === input.announcementId);
+      if (!current || current.status !== "draft" || current.version !== input.expectedVersion) {
+        throw new Error("Announcement changed since it was loaded.");
+      }
+      const version = current.version + 1;
+      let updated: UiAnnouncement | null = null;
+      announcements = announcements.map((candidate) => candidate.id === current.id ? (updated = {
+        ...candidate,
+        spaceId: input.spaceId,
+        targetRoleId: input.targetRoleId,
+        title: input.title,
+        body: input.body,
+        visibility: input.visibility,
+        classification: input.classification,
+        allowedIdentityIds: input.allowedIdentityIds,
+        expiresAt: input.expiresAt,
+        version,
+        updatedAt: now(),
+        capabilities: announcementCapabilities("draft"),
+      }) : candidate);
+      if (updated) appendDemoChronicle(
+        "announcement.draft.updated",
+        "announcement",
+        current.id,
+        updated,
+        { expectedVersion: input.expectedVersion, source: "guild-ui" },
+      );
+      return version;
+    },
+    async publishAnnouncement(input) {
+      if (mode !== "root") throw new Error("This identity cannot publish Announcements.");
+      const current = announcements.find((candidate) => candidate.id === input.announcementId);
+      if (!current || current.version !== input.expectedVersion) {
+        throw new Error("Announcement changed since it was loaded.");
+      }
+      assertAnnouncementTransition(current.status, "published");
+      const version = current.version + 1;
+      const timestamp = now();
+      const updated: UiAnnouncement = {
+        ...current,
+        status: "published",
+        publishedAt: timestamp,
+        version,
+        updatedAt: timestamp,
+        capabilities: announcementCapabilities("published"),
+      };
+      announcements = announcements.map((candidate) => candidate.id === current.id ? updated : candidate);
+      appendDemoChronicle(
+        "announcement.published",
+        "announcement",
+        current.id,
+        updated,
+        { recipientCount: 2, source: "guild-ui" },
+      );
+      return { version, recipientCount: 2 };
+    },
+    async archiveAnnouncement(input) {
+      if (mode !== "root") throw new Error("This identity cannot archive Announcements.");
+      const current = announcements.find((candidate) => candidate.id === input.announcementId);
+      if (!current || current.version !== input.expectedVersion) {
+        throw new Error("Announcement changed since it was loaded.");
+      }
+      assertAnnouncementTransition(current.status, "archived");
+      const version = current.version + 1;
+      const updated: UiAnnouncement = {
+        ...current,
+        status: "archived",
+        publishedAt: current.publishedAt ?? now(),
+        version,
+        updatedAt: now(),
+        capabilities: announcementCapabilities("archived"),
+      };
+      announcements = announcements.map((candidate) => candidate.id === current.id ? updated : candidate);
+      appendDemoChronicle(
+        "announcement.archived",
+        "announcement",
+        current.id,
+        updated,
+        { source: "guild-ui" },
+      );
+      return version;
+    },
+    async getInboxPage(request = {}) {
+      const items = inbox.filter((notification) =>
+        notification.recipientIdentityId === bootstrap.accountId &&
+        (!request.kind || notification.kind === request.kind) &&
+        (!request.unreadOnly || notification.readAt === null));
+      return {
+        items,
+        unreadCount: inbox.filter((notification) =>
+          notification.recipientIdentityId === bootstrap.accountId && notification.readAt === null).length,
+        nextCursor: null,
+      };
+    },
+    async markInboxRead(input) {
+      const notification = inbox.find((candidate) =>
+        candidate.id === input.notificationId && candidate.recipientIdentityId === bootstrap.accountId);
+      if (!notification) throw new Error("Inbox notification was not found.");
+      const readAt = input.read ? notification.readAt ?? now() : null;
+      inbox = inbox.map((candidate) => candidate.id === notification.id
+        ? { ...candidate, readAt }
+        : candidate);
+      return readAt;
+    },
+    async markAllInboxRead() {
+      const unread = inbox.filter((notification) =>
+        notification.recipientIdentityId === bootstrap.accountId && notification.readAt === null);
+      const timestamp = now();
+      const unreadIds = new Set(unread.map((notification) => notification.id));
+      inbox = inbox.map((notification) => unreadIds.has(notification.id)
+        ? { ...notification, readAt: timestamp }
+        : notification);
+      return unread.length;
+    },
+    async getChroniclePage(request = {}) {
+      const search = request.search?.trim().toLocaleLowerCase("en-US") ?? "";
+      const from = request.occurredFrom ? Date.parse(request.occurredFrom) : null;
+      const to = request.occurredTo ? Date.parse(request.occurredTo) : null;
+      return {
+        items: chronicleEvents.filter((event) =>
+          (!search || `${event.action} ${event.subjectType}`.toLocaleLowerCase("en-US").includes(search)) &&
+          (!request.actorIdentityId || event.actorIdentityId === request.actorIdentityId) &&
+          (!request.subjectType || event.subjectType === request.subjectType) &&
+          (from === null || Date.parse(event.occurredAt) >= from) &&
+          (to === null || Date.parse(event.occurredAt) <= to)),
+        nextCursor: null,
+      };
     },
     async setPreferredLocale(locale) {
       bootstrap = { ...bootstrap, preferredLocale: locale };

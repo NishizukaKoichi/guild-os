@@ -1,5 +1,6 @@
 import type {
   AgentLimits,
+  Announcement,
   AppLocale,
   Classification,
   Decision,
@@ -9,6 +10,8 @@ import type {
   GoalStatus,
   IdentityKind,
   IdentityStatus,
+  InboxNotification,
+  InboxNotificationKind,
   KnowledgeReviewVerdict,
   KnowledgeState,
   LocalizedText,
@@ -21,6 +24,7 @@ import type {
   Step,
   StepStatus,
   Visibility,
+  ChronicleEvent,
 } from "@guild-os/domain";
 
 export interface UiBootstrapState {
@@ -487,6 +491,93 @@ export interface SupersedeDecisionRequest extends DecisionTransitionRequest {
   replacementDecisionId: string;
 }
 
+export interface UiAnnouncementCapabilities {
+  edit: boolean;
+  publish: boolean;
+  archive: boolean;
+}
+
+export interface UiAnnouncement extends Omit<Announcement, "guildId"> {
+  capabilities: UiAnnouncementCapabilities;
+}
+
+export interface UiAnnouncementPage {
+  items: readonly UiAnnouncement[];
+  nextCursor: string | null;
+  manageableSpaceIds: readonly string[];
+  canCreateGuildWide: boolean;
+}
+
+export interface UiAnnouncementPageRequest {
+  cursor?: string | null;
+}
+
+export interface AnnouncementResourceRequest {
+  spaceId: string | null;
+  targetRoleId: string | null;
+  title: string;
+  body: string;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+  expiresAt: string | null;
+}
+
+export type CreateAnnouncementRequest = AnnouncementResourceRequest;
+
+export interface SaveAnnouncementDraftRequest extends AnnouncementResourceRequest {
+  announcementId: string;
+  expectedVersion: number;
+}
+
+export interface AnnouncementTransitionRequest {
+  announcementId: string;
+  expectedVersion: number;
+}
+
+export interface PublishAnnouncementResponse {
+  version: number;
+  recipientCount: number;
+}
+
+export type UiInboxNotification = Omit<InboxNotification, "guildId">;
+
+export interface UiInboxPage {
+  items: readonly UiInboxNotification[];
+  unreadCount: number;
+  nextCursor: string | null;
+}
+
+export interface UiInboxPageRequest {
+  cursor?: string | null;
+  kind?: InboxNotificationKind | null;
+  unreadOnly?: boolean;
+}
+
+export interface MarkInboxReadRequest {
+  notificationId: string;
+  read: boolean;
+}
+
+export interface UiChronicleEvent extends Omit<ChronicleEvent, "guildId"> {
+  sequence: string;
+  actorDisplayName: string;
+}
+
+export interface UiChroniclePage {
+  items: readonly UiChronicleEvent[];
+  nextCursor: string | null;
+}
+
+export interface UiChroniclePageRequest {
+  cursor?: string | null;
+  search?: string | null;
+  actorIdentityId?: string | null;
+  subjectType?: string | null;
+  occurredFrom?: string | null;
+  occurredTo?: string | null;
+}
+
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
@@ -540,5 +631,15 @@ export interface GuildUiApi {
   proposeDecision(input: DecisionTransitionRequest): Promise<number>;
   reviewDecision(input: ReviewDecisionRequest): Promise<ReviewDecisionResponse>;
   supersedeDecision(input: SupersedeDecisionRequest): Promise<number>;
+  getAnnouncementPage(request?: UiAnnouncementPageRequest): Promise<UiAnnouncementPage>;
+  getAnnouncement(announcementId: string): Promise<UiAnnouncement>;
+  createAnnouncement(input: CreateAnnouncementRequest): Promise<string>;
+  saveAnnouncementDraft(input: SaveAnnouncementDraftRequest): Promise<number>;
+  publishAnnouncement(input: AnnouncementTransitionRequest): Promise<PublishAnnouncementResponse>;
+  archiveAnnouncement(input: AnnouncementTransitionRequest): Promise<number>;
+  getInboxPage(request?: UiInboxPageRequest): Promise<UiInboxPage>;
+  markInboxRead(input: MarkInboxReadRequest): Promise<string | null>;
+  markAllInboxRead(): Promise<number>;
+  getChroniclePage(request?: UiChroniclePageRequest): Promise<UiChroniclePage>;
   setPreferredLocale(locale: AppLocale): Promise<void>;
 }

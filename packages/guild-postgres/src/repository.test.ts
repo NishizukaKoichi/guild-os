@@ -53,6 +53,11 @@ function chronicleEvent(): ChronicleEvent {
   return {
     id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9d",
     guildId,
+    spaceId: null,
+    ownerIdentityId: rootId,
+    visibility: "guild",
+    classification: "restricted",
+    allowedIdentityIds: [],
     actorIdentityId: rootId,
     action: "guild.initialized",
     subjectType: "guild",

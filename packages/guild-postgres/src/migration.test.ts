@@ -16,6 +16,9 @@ const workConcurrencyMigrationUrl = new URL("../migrations/0012_work_parent_conc
 const decisionGovernanceMigrationUrl = new URL("../migrations/0013_decision_governance.sql", import.meta.url);
 const decisionApprovalScaleMigrationUrl = new URL("../migrations/0014_decision_approval_scale.sql", import.meta.url);
 const decisionTerminalIntegrityMigrationUrl = new URL("../migrations/0015_decision_terminal_integrity.sql", import.meta.url);
+const communicationsMigrationUrl = new URL("../migrations/0016_communications_and_chronicle.sql", import.meta.url);
+const chronicleSearchMigrationUrl = new URL("../migrations/0017_chronicle_search_tokens.sql", import.meta.url);
+const announcementProvenanceMigrationUrl = new URL("../migrations/0018_archived_announcement_provenance.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -120,5 +123,18 @@ describe("Guild PostgreSQL migration", () => {
     const decisionTerminalSql = await readFile(fileURLToPath(decisionTerminalIntegrityMigrationUrl), "utf8");
     expect(decisionTerminalSql).toContain("A terminal Decision result is immutable");
     expect(decisionTerminalSql).toContain("must preserve the original security boundary");
+    const communicationsSql = await readFile(fileURLToPath(communicationsMigrationUrl), "utf8");
+    expect(communicationsSql).toContain("Published Announcement content and audience are immutable");
+    expect(communicationsSql).toContain("Inbox notification payload is immutable");
+    expect(communicationsSql).toContain("chronicle_search_idx");
+    expect(communicationsSql).toContain("'announcement.manage'");
+    const chronicleSearchSql = await readFile(fileURLToPath(chronicleSearchMigrationUrl), "utf8");
+    expect(chronicleSearchSql).toContain("translate(action, '._-', '   ')");
+    const announcementProvenanceSql = await readFile(
+      fileURLToPath(announcementProvenanceMigrationUrl),
+      "utf8",
+    );
+    expect(announcementProvenanceSql).toContain("OR status = 'archived'");
+    expect(announcementProvenanceSql).toContain("published_at IS NULL AND expires_at > created_at");
   });
 });

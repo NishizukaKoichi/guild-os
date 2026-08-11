@@ -41,13 +41,15 @@ Implemented and tested:
   Inbox notifications, optimistic concurrency, and Chronicle evidence
 - Governed Decisions with evidence, immutable proposals, Constitution-defined human approval
   quorum, dissent records, and security-boundary-preserving supersession
+- Governed Role/Space Announcements with immutable publication, set-based recipient delivery,
+  deduplicated Inbox notifications, and recipient-controlled read state
+- Permission-prefiltered Chronicle search with actor, subject, date, and normalized action filters
 - English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
 
 Not exposed as finished product features yet:
 
 - Scoped People views for non-global administrators
-- Inbox and Chronicle management screens
 - Semantic search index beyond the current PostgreSQL full-text retrieval
 - Agent write actions, approval quorum execution, Workflows, and kill-switch UI
 - Guild federation

@@ -362,7 +362,7 @@ export class GuildDecisionRepository {
     );
     const version = result.rows[0]?.version;
     if (!version) throw new Error("Decision changed since it was loaded.");
-    await this.#notifyEligibleApprovers(decision);
+    await this.#notifyEligibleApprovers(decision, version);
     await this.#chronicle.appendChronicle(input.chronicleEvent);
     return version;
   }
@@ -423,7 +423,7 @@ export class GuildDecisionRepository {
     const version = result.rows[0]?.version;
     if (!version) throw new Error("Decision changed since it was loaded.");
     if (status !== "proposed") {
-      await this.#notify(decision.proposerIdentityId, "approval", decision.title, "decision", decision.id);
+      await this.#notify(decision.proposerIdentityId, decision, version);
     }
     await this.#chronicle.appendChronicle(input.chronicleEvent);
     return { version, status, approvalCount };
@@ -483,14 +483,24 @@ export class GuildDecisionRepository {
     return result.rows[0]?.count ?? 0;
   }
 
-  async #notifyEligibleApprovers(decision: Decision): Promise<void> {
+  async #notifyEligibleApprovers(decision: Decision, version: number): Promise<void> {
     await this.#connection.query(
       `WITH ${this.#eligibleApproversCte()}
        INSERT INTO inbox_notifications
-         (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id)
-       SELECT gen_random_uuid(), $1, approver.id, 'approval', $7, '', 'decision', $8
-         FROM eligible_approvers approver`,
-      [...this.#eligibleApproverParameters(decision), decision.title, decision.id],
+         (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id,
+          space_id, owner_identity_id, visibility, classification, allowed_identity_ids,
+          deduplication_key)
+       SELECT gen_random_uuid(), $1, approver.id, 'approval', $7, '', 'decision', $8,
+              $2, $5, $4, $3, $6::uuid[], $9
+         FROM eligible_approvers approver
+       ON CONFLICT (guild_id, recipient_identity_id, deduplication_key)
+         WHERE deduplication_key IS NOT NULL DO NOTHING`,
+      [
+        ...this.#eligibleApproverParameters(decision),
+        decision.title,
+        decision.id,
+        `decision-approval:${decision.id}:v${version}`,
+      ],
     );
   }
 
@@ -546,16 +556,31 @@ export class GuildDecisionRepository {
 
   async #notify(
     recipientIdentityId: string,
-    kind: "approval" | "system",
-    title: string,
-    resourceType: string,
-    resourceId: string,
+    decision: Decision,
+    version: number,
   ): Promise<void> {
     await this.#connection.query(
       `INSERT INTO inbox_notifications
-         (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id)
-       VALUES ($1, $2, $3, $4, $5, '', $6, $7)`,
-      [crypto.randomUUID(), this.#guildId, recipientIdentityId, kind, title, resourceType, resourceId],
+         (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id,
+          space_id, owner_identity_id, visibility, classification, allowed_identity_ids,
+          deduplication_key)
+       VALUES ($1, $2, $3, 'approval', $4, '', 'decision', $5,
+               $6, $7, $8, $9, $10::uuid[], $11)
+       ON CONFLICT (guild_id, recipient_identity_id, deduplication_key)
+         WHERE deduplication_key IS NOT NULL DO NOTHING`,
+      [
+        crypto.randomUUID(),
+        this.#guildId,
+        recipientIdentityId,
+        decision.title,
+        decision.id,
+        decision.spaceId,
+        decision.ownerIdentityId,
+        decision.visibility,
+        decision.classification,
+        decision.allowedIdentityIds ?? [],
+        `decision-outcome:${decision.id}:v${version}`,
+      ],
     );
   }
 

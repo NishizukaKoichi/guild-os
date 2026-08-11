@@ -13,6 +13,7 @@ import {
   type ProjectStatus,
   type Quest,
   type QuestStatus,
+  type SecuredResource,
   type Step,
   type StepStatus,
   type Visibility,
@@ -480,7 +481,15 @@ export class GuildWorkRepository {
       ],
     );
     if (input.assigneeIdentityId) {
-      await this.#notifyAssignment(input.assigneeIdentityId, "quest", input.id, input.title);
+      await this.#notifyAssignment(input.assigneeIdentityId, "quest", input.id, input.title, 1, {
+        id: input.id,
+        guildId: this.#guildId,
+        spaceId: input.spaceId,
+        ownerIdentityId: input.ownerIdentityId,
+        visibility: input.visibility,
+        classification: input.classification,
+        allowedIdentityIds: input.allowedIdentityIds,
+      });
     }
     await this.#chronicle.appendChronicle(input.chronicleEvent);
   }
@@ -518,7 +527,14 @@ export class GuildWorkRepository {
       ],
     );
     if (input.assigneeIdentityId) {
-      await this.#notifyAssignment(input.assigneeIdentityId, "step", input.id, input.title);
+      await this.#notifyAssignment(
+        input.assigneeIdentityId,
+        "step",
+        input.id,
+        input.title,
+        1,
+        quest,
+      );
     }
     await this.#chronicle.appendChronicle(input.chronicleEvent);
     return position;
@@ -577,12 +593,15 @@ export class GuildWorkRepository {
   ): Promise<number> {
     this.#assertEvent(input.chronicleEvent, input.actorIdentityId, kind, input.id);
     const table = `${kind}s`;
-    const row = await this.#connection.query<{ title: string; version: number }>(
-      `SELECT title, version FROM ${table} WHERE guild_id = $1 AND id = $2 FOR UPDATE`,
-      [this.#guildId, input.id],
-    );
-    const work = row.rows[0];
-    if (!work) throw new GuildDomainError("INVALID_INPUT", `${kind} was not found.`);
+    let work: Quest | Step;
+    let boundary: Quest;
+    if (kind === "quest") {
+      boundary = await this.getQuest(input.id, true);
+      work = boundary;
+    } else {
+      work = await this.getStep(input.id, true);
+      boundary = await this.getQuest(work.questId, true);
+    }
     this.#assertExpectedVersion(work.version, input.expectedVersion);
     const result = await this.#connection.query<{ version: number }>(
       `UPDATE ${table} SET assignee_identity_id = $3, version = version + 1
@@ -592,7 +611,14 @@ export class GuildWorkRepository {
     const version = result.rows[0]?.version;
     if (!version) throw new Error(`${kind} changed since it was loaded.`);
     if (input.assigneeIdentityId) {
-      await this.#notifyAssignment(input.assigneeIdentityId, kind, input.id, work.title);
+      await this.#notifyAssignment(
+        input.assigneeIdentityId,
+        kind,
+        input.id,
+        work.title,
+        version,
+        boundary,
+      );
     }
     await this.#chronicle.appendChronicle(input.chronicleEvent);
     return version;
@@ -652,12 +678,31 @@ export class GuildWorkRepository {
     resourceType: "quest" | "step",
     resourceId: string,
     title: string,
+    version: number,
+    boundary: SecuredResource,
   ): Promise<void> {
     await this.#connection.query(
       `INSERT INTO inbox_notifications
-         (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id)
-       VALUES ($1, $2, $3, 'quest', $4, '', $5, $6)`,
-      [crypto.randomUUID(), this.#guildId, recipientIdentityId, title, resourceType, resourceId],
+         (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id,
+          space_id, owner_identity_id, visibility, classification, allowed_identity_ids,
+          deduplication_key)
+       VALUES ($1, $2, $3, 'quest', $4, '', $5, $6, $7, $8, $9, $10, $11::uuid[], $12)
+       ON CONFLICT (guild_id, recipient_identity_id, deduplication_key)
+         WHERE deduplication_key IS NOT NULL DO NOTHING`,
+      [
+        crypto.randomUUID(),
+        this.#guildId,
+        recipientIdentityId,
+        title,
+        resourceType,
+        resourceId,
+        boundary.spaceId,
+        boundary.ownerIdentityId,
+        boundary.visibility,
+        boundary.classification,
+        boundary.allowedIdentityIds ?? [],
+        `assignment:${resourceType}:${resourceId}:v${version}`,
+      ],
     );
   }
 

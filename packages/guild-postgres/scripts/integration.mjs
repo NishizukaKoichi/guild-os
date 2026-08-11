@@ -68,8 +68,8 @@ async function bootstrapGuild(label) {
     await client.query(
       `INSERT INTO chronicle_events
          (id, guild_id, actor_identity_id, action, subject_type, subject_id,
-          correlation_id, occurred_at, details)
-       VALUES ($1, $2, $3, 'guild.initialized', 'guild', $2, $4, now(), '{}'::jsonb)`,
+          correlation_id, occurred_at, details, owner_identity_id)
+       VALUES ($1, $2, $3, 'guild.initialized', 'guild', $2, $4, now(), '{}'::jsonb, $3)`,
       [eventId, guildId, rootIdentityId, correlationId],
     );
   });

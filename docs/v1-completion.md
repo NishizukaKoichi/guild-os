@@ -15,8 +15,8 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 | 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Domain lifecycle; database-enforced hierarchy, Space containment, optimistic versions, and Human/Agent assignment; permission-prefiltered services; responsive management UI; PostgreSQL, Gatekeeper, and full hierarchy E2E tests | Production Hyperdrive assignment and Chronicle smoke |
 | 7 | Agent Plan, approval, one external write | Not started | Risk/quorum and authority intersection policy | Workflow, connector, idempotent write, approval UI/E2E |
 | 8 | Formal Decision with evidence and approvals | Partial | Permission-prefiltered commands and views; immutable proposal; Constitution quorum; append-only human reviews; same-option approval; evidence; dissent; exact-boundary supersession; PostgreSQL, Gatekeeper, and responsive E2E tests | Production Hyperdrive Decision lifecycle and notification smoke |
-| 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Isolated tables and indexes | Commands, delivery fan-out, views, read state E2E |
-| 10 | Chronicle all important Human/Agent actions | Partial | Immutable/RLS table; bootstrap/invitation/membership events | Chronicle query UI and complete action coverage assertions |
+| 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Human-only draft/publish/archive lifecycle; immutable audience; set-based Role/Space fan-out; deduplication; Knowledge-update fan-out; current-authority Inbox reads; responsive UI and E2E | Production Hyperdrive delivery and read-state smoke |
+| 10 | Chronicle all important Human/Agent actions | Partial | Immutable/RLS table; resource-boundary snapshots; SQL-prefiltered actor/subject/date/action search; management UI; covered Human actions through Decisions and communications | Agent-run action coverage and production Chronicle smoke |
 | 11 | Human departure and Agent stop revoke access/tokens immediately | Partial | Human, Agent, and Service lifecycle disables access; Agent stop revokes Connectors and kills unfinished runs in one transaction; PostgreSQL tests | Workflow cancellation and production cached-capability smoke |
 | 12 | Agent budget/time/step/retry limits and Kill Switch | Partial | Domain and database limit policy, Agent configuration UI, and stopped-profile constraints | Runtime enforcement, Workflow termination, run-level kill UI, over-limit E2E |
 
@@ -50,6 +50,11 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   Constitution quorum, and terminal results cannot be rewritten. Supersession requires an approved
   replacement with the exact same boundary. Approver counting and Inbox fan-out remain set-based
   and are integration-tested above twenty eligible reviewers.
+- Announcement publication freezes content and audience, then delivers recipient Inbox rows with a
+  set-based, deduplicated SQL statement. Knowledge publication uses the same scalable delivery
+  pattern. Inbox and Chronicle reads re-evaluate current Membership, Role, Space, clearance,
+  visibility, ownership, and explicit sharing before rows leave PostgreSQL; revocation tests prove
+  old notifications disappear without rewriting history.
 - Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
-  states plus the complete Knowledge, Ask, Goal-to-Step Work, and Decision paths have Playwright
-  interaction and overflow checks.
+  states plus the complete Knowledge, Ask, Goal-to-Step Work, Decision, Announcement, Inbox, and
+  Chronicle paths have Playwright interaction and overflow checks.

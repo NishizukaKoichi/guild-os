@@ -1,7 +1,9 @@
 import {
   BookOpen,
   Bot,
+  History,
   Home,
+  Inbox as InboxIcon,
   Languages,
   Menu,
   MessageCircleQuestion,
@@ -16,7 +18,17 @@ import { useState, type ReactNode } from "react";
 import type { UiBootstrapState } from "../../src/management-types";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
-export type AppPage = "home" | "ask" | "knowledge" | "work" | "decisions" | "people" | "agents" | "settings";
+export type AppPage =
+  | "home"
+  | "inbox"
+  | "ask"
+  | "knowledge"
+  | "work"
+  | "decisions"
+  | "people"
+  | "agents"
+  | "chronicle"
+  | "settings";
 
 interface AppShellProps {
   bootstrap: UiBootstrapState;
@@ -39,6 +51,7 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = [
     { id: "home" as const, label: t("nav.home"), icon: Home },
+    { id: "inbox" as const, label: t("nav.inbox"), icon: InboxIcon },
     { id: "ask" as const, label: t("nav.ask"), icon: MessageCircleQuestion },
     { id: "knowledge" as const, label: t("nav.knowledge"), icon: BookOpen },
     { id: "work" as const, label: t("nav.work"), icon: ListTodo },
@@ -48,6 +61,9 @@ export function AppShell({
       : []),
     ...(agentsAvailable
       ? [{ id: "agents" as const, label: t("nav.agents"), icon: Bot }]
+      : []),
+    ...(bootstrap.membershipState === "active"
+      ? [{ id: "chronicle" as const, label: t("nav.chronicle"), icon: History }]
       : []),
     { id: "settings" as const, label: t("nav.settings"), icon: Settings },
   ];
