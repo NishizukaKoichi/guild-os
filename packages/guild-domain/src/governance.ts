@@ -6,6 +6,7 @@ import type {
   AuthorizationSnapshot,
   Constitution,
   Identity,
+  IdentityStatus,
   MembershipState,
   RiskLevel,
 } from "./types.js";
@@ -32,11 +33,23 @@ export function assertMembershipTransition(
   identityId: string,
   nextState: MembershipState,
 ): void {
-  if (identityId === snapshot.guild.rootOwnerIdentityId &&
-      ["suspended", "departed"].includes(nextState)) {
+  if (identityId === snapshot.guild.rootOwnerIdentityId && nextState !== "active") {
     throw new GuildDomainError(
       "ROOT_OWNER_PROTECTED",
       "Transfer Root ownership before suspending or departing the current Root Owner.",
+    );
+  }
+}
+
+export function assertIdentityStatusTransition(
+  snapshot: AuthorizationSnapshot,
+  identityId: string,
+  nextStatus: IdentityStatus,
+): void {
+  if (identityId === snapshot.guild.rootOwnerIdentityId && nextStatus !== "active") {
+    throw new GuildDomainError(
+      "ROOT_OWNER_PROTECTED",
+      "Transfer Root ownership before disabling the current Root Owner.",
     );
   }
 }

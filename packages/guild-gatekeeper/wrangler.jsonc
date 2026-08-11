@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "custom-gatekeeper",
+  "name": "guild-gatekeeper",
   "main": ".wrangler/validate/src/index.ts",
   "build": {
     "command": "pnpm exec capnweb-validate build --out .wrangler/validate",
@@ -11,13 +11,24 @@
   "migrations": [
     {
       "tag": "v0",
-      "new_sqlite_classes": ["CustomGatekeeper"]
+      "new_sqlite_classes": ["GuildGatekeeper"]
     }
   ],
   "vars": {
-    "CUSTOM_NAME": "Example organization",
-    "CUSTOM_MESSAGE": "Replace this with information useful to your organization."
+    "GUILD_ID": "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a",
+    "GUILD_NAME": "Example Guild",
+    "GUILD_PURPOSE": "Coordinate people and agents around shared memory and governed work.",
+    "GUILD_ROOT_SPACE_NAME": "Guild",
+    "GUILD_LEVEL2_QUORUM": "1",
+    "GUILD_LEVEL3_QUORUM": "1",
+    "GUILD_RETENTION_DAYS": "2555"
   },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "00000000000000000000000000000000"
+    }
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,

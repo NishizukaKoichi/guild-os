@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: guild_os
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d guild_os"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install wrapper dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install pinned Cloudflare OS dependencies
+        run: pnpm --dir cloudflare-os install --frozen-lockfile
+
+      - name: Verify build, tests, lint, and types
+        run: |
+          pnpm build
+          pnpm test
+          pnpm lint
+          pnpm types:check
+
+      - name: Create non-superuser database owner
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d guild_os -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE guild_app LOGIN PASSWORD 'guild_app' NOSUPERUSER NOBYPASSRLS;
+          ALTER DATABASE guild_os OWNER TO guild_app;
+          SQL
+
+      - name: Apply and verify PostgreSQL schema
+        env:
+          DATABASE_URL: postgresql://guild_app:guild_app@127.0.0.1:5432/guild_os
+        run: |
+          pnpm db:migrate
+          pnpm db:migrate
+          pnpm --filter @guild-os/postgres test:integration

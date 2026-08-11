@@ -1,237 +1,173 @@
-import {
-  PERMISSIONS,
-  assertSnapshotIntegrity,
-  type AgentLimits,
-  type AgentProfile,
-  type AuthorizationSnapshot,
-  type ChronicleEvent,
-  type Classification,
-  type Constitution,
-  type Guild,
-  type Identity,
-  type IdentityKind,
-  type IdentityStatus,
-  type Membership,
-  type MembershipState,
-  type Permission,
-  type Role,
-  type RoleBinding,
-  type Space,
+import type {
+  AuthorizationSnapshot,
+  ChronicleEvent,
+  Constitution,
+  MembershipState,
+  Permission,
 } from "@guild-os/domain";
 import type { QueryResultRow } from "pg";
-import type { SqlConnection } from "./transaction.js";
+import { loadAuthorizationSnapshot } from "./authorization-snapshot.js";
+import type { GuildTransactionConnection } from "./transaction.js";
 
-type GuildRow = QueryResultRow & {
+export interface BootstrapRole {
   id: string;
   name: string;
-  purpose: string;
-  root_owner_identity_id: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type ConstitutionRow = QueryResultRow & {
-  guild_id: string;
-  version: number;
-  level2_approval_quorum: number;
-  level3_approval_quorum: number;
-  data_retention_days: number;
-  agent_defaults: AgentLimits;
-  updated_by_identity_id: string;
-  updated_at: string;
-};
-
-type SpaceRow = QueryResultRow & {
-  id: string;
-  guild_id: string;
-  parent_space_id: string | null;
-  name: string;
-  status: "active" | "archived";
-};
-
-type IdentityRow = QueryResultRow & {
-  id: string;
-  guild_id: string;
-  kind: IdentityKind;
-  display_name: string;
-  status: IdentityStatus;
-};
-
-type MembershipRow = QueryResultRow & {
-  guild_id: string;
-  identity_id: string;
-  state: MembershipState;
-  clearance: Classification;
-  joined_at: string | null;
-  departed_at: string | null;
-};
-
-type RoleRow = QueryResultRow & {
-  id: string;
-  guild_id: string;
-  name: string;
-  system: boolean;
-  permissions: string[];
-};
-
-type BindingRow = QueryResultRow & {
-  guild_id: string;
-  identity_id: string;
-  role_id: string;
-  space_id: string | null;
-};
-
-type AgentRow = QueryResultRow & {
-  guild_id: string;
-  identity_id: string;
-  instructions: string;
-  model: string;
-  tool_ids: string[];
-  limits: AgentLimits;
-  status: "active" | "stopped";
-};
-
-const permissionSet = new Set<string>(PERMISSIONS);
-
-function parsePermissions(values: readonly string[]): Permission[] {
-  if (!values.every((value) => permissionSet.has(value))) {
-    throw new Error("Database contains an unknown Guild permission.");
-  }
-  return values as Permission[];
+  permissions: readonly Permission[];
 }
 
-function requireOne<Row>(rows: readonly Row[], entity: string): Row {
-  const row = rows[0];
-  if (!row) throw new Error(`${entity} was not found in the current Guild transaction.`);
-  return row;
+export interface BootstrapGuildInput {
+  guildId: string;
+  name: string;
+  purpose: string;
+  rootIdentityId: string;
+  rootDisplayName: string;
+  rootSpaceId: string;
+  rootSpaceName: string;
+  constitution: Constitution;
+  roles: readonly BootstrapRole[];
+  chronicleEvent: ChronicleEvent;
+}
+
+export interface EnrollMemberInput {
+  identityId: string;
+  displayName: string;
+  chronicleEvent: ChronicleEvent;
+}
+
+export interface GuildSetupState {
+  initialized: boolean;
+  identityExists: boolean;
+  membershipState: MembershipState | null;
 }
 
 export class GuildPostgresRepository {
-  readonly #connection: SqlConnection;
+  readonly #connection: GuildTransactionConnection;
   readonly #guildId: string;
 
-  constructor(connection: SqlConnection, guildId: string) {
+  constructor(connection: GuildTransactionConnection, guildId: string) {
     this.#connection = connection;
     this.#guildId = guildId;
   }
 
-  async loadAuthorizationSnapshot(): Promise<AuthorizationSnapshot> {
-    const guildRow = requireOne((await this.#connection.query<GuildRow>(
-      `SELECT id::text, name, purpose, root_owner_identity_id::text,
-              created_at::text, updated_at::text
-         FROM guilds WHERE id = $1`,
+  async getSetupState(identityId: string): Promise<GuildSetupState> {
+    const guild = await this.#connection.query<QueryResultRow>(
+      "SELECT 1 FROM guilds WHERE id = $1",
       [this.#guildId],
-    )).rows, "Guild");
-    const constitutionRow = requireOne((await this.#connection.query<ConstitutionRow>(
-      `SELECT guild_id::text, version, level2_approval_quorum, level3_approval_quorum,
-              data_retention_days, agent_defaults, updated_by_identity_id::text, updated_at::text
-         FROM constitutions WHERE guild_id = $1`,
-      [this.#guildId],
-    )).rows, "Constitution");
-    const spaces = (await this.#connection.query<SpaceRow>(
-      `SELECT id::text, guild_id::text, parent_space_id::text, name, status
-         FROM spaces WHERE guild_id = $1`,
-      [this.#guildId],
-    )).rows;
-    const identities = (await this.#connection.query<IdentityRow>(
-      `SELECT id::text, guild_id::text, kind, display_name, status
-         FROM identities WHERE guild_id = $1`,
-      [this.#guildId],
-    )).rows;
-    const memberships = (await this.#connection.query<MembershipRow>(
-      `SELECT guild_id::text, identity_id::text, state, clearance,
-              joined_at::text, departed_at::text
-         FROM memberships WHERE guild_id = $1`,
-      [this.#guildId],
-    )).rows;
-    const roles = (await this.#connection.query<RoleRow>(
-      `SELECT r.id::text, r.guild_id::text, r.name, r.system,
-              COALESCE(array_agg(rp.permission) FILTER (WHERE rp.permission IS NOT NULL), '{}') AS permissions
-         FROM roles r
-         LEFT JOIN role_permissions rp ON rp.guild_id = r.guild_id AND rp.role_id = r.id
-        WHERE r.guild_id = $1
-        GROUP BY r.id`,
-      [this.#guildId],
-    )).rows;
-    const bindings = (await this.#connection.query<BindingRow>(
-      `SELECT guild_id::text, identity_id::text, role_id::text, space_id::text
-         FROM role_bindings WHERE guild_id = $1`,
-      [this.#guildId],
-    )).rows;
-    const agents = (await this.#connection.query<AgentRow>(
-      `SELECT guild_id::text, identity_id::text, instructions, model, tool_ids, limits, status
-         FROM agent_profiles WHERE guild_id = $1`,
-      [this.#guildId],
-    )).rows;
+    );
+    if (guild.rows.length === 0) {
+      return { initialized: false, identityExists: false, membershipState: null };
+    }
+    const identity = await this.#connection.query<QueryResultRow & { state: MembershipState | null }>(
+      `SELECT m.state
+         FROM identities i
+         LEFT JOIN memberships m ON m.guild_id = i.guild_id AND m.identity_id = i.id
+        WHERE i.guild_id = $1 AND i.id = $2`,
+      [this.#guildId, identityId],
+    );
+    const row = identity.rows[0];
+    return {
+      initialized: true,
+      identityExists: row !== undefined,
+      membershipState: row?.state ?? null,
+    };
+  }
 
-    const guild: Guild = {
-      id: guildRow.id,
-      name: guildRow.name,
-      purpose: guildRow.purpose,
-      rootOwnerIdentityId: guildRow.root_owner_identity_id,
-      createdAt: guildRow.created_at,
-      updatedAt: guildRow.updated_at,
-    };
-    const constitution: Constitution = {
-      guildId: constitutionRow.guild_id,
-      version: constitutionRow.version,
-      level2ApprovalQuorum: constitutionRow.level2_approval_quorum,
-      level3ApprovalQuorum: constitutionRow.level3_approval_quorum,
-      dataRetentionDays: constitutionRow.data_retention_days,
-      agentDefaults: constitutionRow.agent_defaults,
-      updatedByIdentityId: constitutionRow.updated_by_identity_id,
-      updatedAt: constitutionRow.updated_at,
-    };
-    const snapshot: AuthorizationSnapshot = {
-      guild,
-      constitution,
-      spaces: spaces.map((row): Space => ({
-        id: row.id,
-        guildId: row.guild_id,
-        parentSpaceId: row.parent_space_id,
-        name: row.name,
-        status: row.status,
-      })),
-      identities: identities.map((row): Identity => ({
-        id: row.id,
-        guildId: row.guild_id,
-        kind: row.kind,
-        displayName: row.display_name,
-        status: row.status,
-      })),
-      memberships: memberships.map((row): Membership => ({
-        guildId: row.guild_id,
-        identityId: row.identity_id,
-        state: row.state,
-        clearance: row.clearance,
-        joinedAt: row.joined_at,
-        departedAt: row.departed_at,
-      })),
-      roles: roles.map((row): Role => ({
-        id: row.id,
-        guildId: row.guild_id,
-        name: row.name,
-        system: row.system,
-        permissions: parsePermissions(row.permissions),
-      })),
-      roleBindings: bindings.map((row): RoleBinding => ({
-        guildId: row.guild_id,
-        identityId: row.identity_id,
-        roleId: row.role_id,
-        spaceId: row.space_id,
-      })),
-      agents: agents.map((row): AgentProfile => ({
-        guildId: row.guild_id,
-        identityId: row.identity_id,
-        instructions: row.instructions,
-        model: row.model,
-        toolIds: row.tool_ids,
-        limits: row.limits,
-        status: row.status,
-      })),
-    };
-    assertSnapshotIntegrity(snapshot);
-    return snapshot;
+  async bootstrapGuild(input: BootstrapGuildInput): Promise<boolean> {
+    if (input.guildId !== this.#guildId || input.constitution.guildId !== this.#guildId ||
+        input.chronicleEvent.guildId !== this.#guildId ||
+        input.constitution.updatedByIdentityId !== input.rootIdentityId ||
+        input.chronicleEvent.actorIdentityId !== input.rootIdentityId) {
+      throw new Error("Bootstrap input crosses the active Guild transaction.");
+    }
+    await this.#connection.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      this.#guildId,
+    ]);
+    const existing = await this.#connection.query<QueryResultRow>(
+      "SELECT 1 FROM guilds WHERE id = $1",
+      [this.#guildId],
+    );
+    if (existing.rows.length > 0) return false;
+
+    await this.#connection.query(
+      `INSERT INTO guilds (id, name, purpose, root_owner_identity_id)
+       VALUES ($1, $2, $3, $4)`,
+      [input.guildId, input.name, input.purpose, input.rootIdentityId],
+    );
+    await this.#connection.query(
+      `INSERT INTO identities (id, guild_id, kind, display_name, status)
+       VALUES ($1, $2, 'human', $3, 'active')`,
+      [input.rootIdentityId, input.guildId, input.rootDisplayName],
+    );
+    await this.#connection.query(
+      `INSERT INTO memberships
+         (guild_id, identity_id, state, clearance, joined_at)
+       VALUES ($1, $2, 'active', 'restricted', now())`,
+      [input.guildId, input.rootIdentityId],
+    );
+    await this.#connection.query(
+      `INSERT INTO constitutions
+         (guild_id, version, level2_approval_quorum, level3_approval_quorum,
+          data_retention_days, agent_defaults, updated_by_identity_id, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`,
+      [
+        input.guildId,
+        input.constitution.version,
+        input.constitution.level2ApprovalQuorum,
+        input.constitution.level3ApprovalQuorum,
+        input.constitution.dataRetentionDays,
+        JSON.stringify(input.constitution.agentDefaults),
+        input.constitution.updatedByIdentityId,
+        input.constitution.updatedAt,
+      ],
+    );
+    await this.#connection.query(
+      `INSERT INTO spaces (id, guild_id, parent_space_id, name, status)
+       VALUES ($1, $2, NULL, $3, 'active')`,
+      [input.rootSpaceId, input.guildId, input.rootSpaceName],
+    );
+    for (const role of input.roles) {
+      await this.#connection.query(
+        `INSERT INTO roles (id, guild_id, name, system)
+         VALUES ($1, $2, $3, true)`,
+        [role.id, input.guildId, role.name],
+      );
+      for (const permission of role.permissions) {
+        await this.#connection.query(
+          `INSERT INTO role_permissions (guild_id, role_id, permission)
+           VALUES ($1, $2, $3)`,
+          [input.guildId, role.id, permission],
+        );
+      }
+    }
+    await this.appendChronicle(input.chronicleEvent);
+    return true;
+  }
+
+  async enrollPreboardingMember(input: EnrollMemberInput): Promise<boolean> {
+    if (input.chronicleEvent.guildId !== this.#guildId ||
+        input.chronicleEvent.actorIdentityId !== input.identityId) {
+      throw new Error("Enrollment event must be authored by the enrolling identity.");
+    }
+    const existing = await this.getSetupState(input.identityId);
+    if (!existing.initialized) throw new Error("Guild must be initialized before member enrollment.");
+    if (existing.identityExists) return false;
+    await this.#connection.query(
+      `INSERT INTO identities (id, guild_id, kind, display_name, status)
+       VALUES ($1, $2, 'human', $3, 'active')`,
+      [input.identityId, this.#guildId, input.displayName],
+    );
+    await this.#connection.query(
+      `INSERT INTO memberships
+         (guild_id, identity_id, state, clearance, joined_at)
+       VALUES ($1, $2, 'preboarding', 'internal', NULL)`,
+      [this.#guildId, input.identityId],
+    );
+    await this.appendChronicle(input.chronicleEvent);
+    return true;
+  }
+
+  loadAuthorizationSnapshot(): Promise<AuthorizationSnapshot> {
+    return loadAuthorizationSnapshot(this.#connection, this.#guildId);
   }
 
   async appendChronicle(event: ChronicleEvent): Promise<void> {

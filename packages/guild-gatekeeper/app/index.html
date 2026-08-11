@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guild OS</title>
+  </head>
+  <body
+    data-guild-name="__GUILD_NAME__"
+    data-guild-purpose="__GUILD_PURPOSE__"
+    data-membership-state="__MEMBERSHIP_STATE__"
+  >
+    <main>
+      <header>
+        <div class="mark" aria-hidden="true">G</div>
+        <div>
+          <p class="eyebrow">Guild OS</p>
+          <h1 id="guild-name">Guild</h1>
+        </div>
+      </header>
+      <p id="guild-purpose" class="purpose"></p>
+      <section aria-labelledby="membership-heading">
+        <h2 id="membership-heading">Membership</h2>
+        <p id="membership-state" class="status"></p>
+      </section>
+      <section aria-labelledby="boundary-heading">
+        <h2 id="boundary-heading">Trust boundary</h2>
+        <dl>
+          <div><dt>Data</dt><dd>One deployment, one Guild</dd></div>
+          <div><dt>Agents</dt><dd>Guild Gatekeeper observations</dd></div>
+          <div><dt>History</dt><dd>Append-only Chronicle</dd></div>
+        </dl>
+      </section>
+    </main>
+    <script type="module" src="/app/main.ts"></script>
+  </body>
+</html>

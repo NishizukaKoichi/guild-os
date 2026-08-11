@@ -3,6 +3,7 @@ import { GuildDomainError } from "./errors.js";
 import {
   approvalRequirement,
   assertAgentCannotBecomeRoot,
+  assertIdentityStatusTransition,
   assertMembershipTransition,
   assertRootOwnerIntegrity,
   assertRootOwnershipTransfer,
@@ -25,6 +26,10 @@ describe("Guild governance", () => {
   it("protects Root ownership and permits transfer only to an active human", () => {
     const snapshot = makeSnapshot();
     expect(() => assertMembershipTransition(snapshot, "owner", "suspended"))
+      .toThrowError(expect.objectContaining({ code: "ROOT_OWNER_PROTECTED" }));
+    expect(() => assertMembershipTransition(snapshot, "owner", "preboarding"))
+      .toThrowError(expect.objectContaining({ code: "ROOT_OWNER_PROTECTED" }));
+    expect(() => assertIdentityStatusTransition(snapshot, "owner", "disabled"))
       .toThrowError(expect.objectContaining({ code: "ROOT_OWNER_PROTECTED" }));
     expect(() => assertRootOwnershipTransfer(snapshot, "manager", "staff"))
       .toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));

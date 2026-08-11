@@ -1,24 +1,29 @@
 {
-  "name": "custom-gatekeeper",
+  "name": "@guild-os/gatekeeper",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "build": "tsc",
-    "types:check": "tsc --noEmit",
+    "build:app": "vite build",
+    "build": "pnpm build:app && tsc",
+    "types:check": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.vite.json --noEmit && pnpm build:app && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@guild-os/domain": "workspace:*",
+    "@guild-os/postgres": "workspace:*",
     "@gadgets/workshop-shared": "workspace:*",
     "capnweb": "^0.8.0",
     "capnweb-validate": "0.2.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.20.1",
+    "@cloudflare/workers-types": "^5.20260730.1",
     "@types/node": "^26.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
+    "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.10",
     "wrangler": "^4.115.0"
   }

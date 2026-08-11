@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE SCHEMA IF NOT EXISTS guild_runtime;
 
 CREATE FUNCTION guild_runtime.current_guild_id() RETURNS uuid
@@ -401,6 +399,51 @@ CREATE TRIGGER chronicle_no_update_or_delete
 BEFORE UPDATE OR DELETE ON chronicle_events
 FOR EACH ROW EXECUTE FUNCTION guild_runtime.reject_chronicle_mutation();
 
+CREATE FUNCTION guild_runtime.enforce_root_owner_integrity() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  target_guild_id uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'guilds' THEN
+    target_guild_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+  ELSE
+    target_guild_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.guild_id ELSE NEW.guild_id END;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM guilds WHERE id = target_guild_id) AND NOT EXISTS (
+    SELECT 1
+      FROM guilds g
+      JOIN identities i
+        ON i.guild_id = g.id AND i.id = g.root_owner_identity_id
+      JOIN memberships m
+        ON m.guild_id = i.guild_id AND m.identity_id = i.id
+     WHERE g.id = target_guild_id
+       AND i.kind = 'human'
+       AND i.status = 'active'
+       AND m.state = 'active'
+  ) THEN
+    RAISE EXCEPTION 'Guild requires an active human Root Owner';
+  END IF;
+
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER guild_root_owner_integrity
+AFTER INSERT OR UPDATE OR DELETE ON guilds
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION guild_runtime.enforce_root_owner_integrity();
+
+CREATE CONSTRAINT TRIGGER identity_root_owner_integrity
+AFTER INSERT OR UPDATE OR DELETE ON identities
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION guild_runtime.enforce_root_owner_integrity();
+
+CREATE CONSTRAINT TRIGGER membership_root_owner_integrity
+AFTER INSERT OR UPDATE OR DELETE ON memberships
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION guild_runtime.enforce_root_owner_integrity();
+
 DO $$
 DECLARE
   table_name text;
@@ -427,5 +470,3 @@ ALTER TABLE guilds FORCE ROW LEVEL SECURITY;
 CREATE POLICY guild_scope ON guilds
   USING (id = guild_runtime.current_guild_id())
   WITH CHECK (id = guild_runtime.current_guild_id());
-
-COMMIT;

@@ -9,6 +9,12 @@ export interface SqlConnection {
   end(): Promise<void>;
 }
 
+declare const guildTransactionConnection: unique symbol;
+
+export interface GuildTransactionConnection extends SqlConnection {
+  readonly [guildTransactionConnection]: true;
+}
+
 export type SqlConnectionFactory = (connectionString: string) => SqlConnection;
 
 class NodePostgresConnection implements SqlConnection {
@@ -42,7 +48,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 export async function withGuildTransaction<T>(
   connectionString: string,
   guildId: string,
-  operation: (connection: SqlConnection) => Promise<T>,
+  operation: (connection: GuildTransactionConnection) => Promise<T>,
   factory: SqlConnectionFactory = defaultFactory,
 ): Promise<T> {
   if (!UUID_PATTERN.test(guildId)) {
@@ -53,7 +59,7 @@ export async function withGuildTransaction<T>(
   try {
     await connection.query("BEGIN");
     await connection.query("SELECT set_config('app.guild_id', $1, true)", [guildId]);
-    const result = await operation(connection);
+    const result = await operation(connection as GuildTransactionConnection);
     await connection.query("COMMIT");
     return result;
   } catch (error) {

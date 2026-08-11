@@ -8,8 +8,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "migrate": "node scripts/migrate.mjs",
+    "test:integration": "node scripts/integration.mjs",
     "types:check": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "node --test scripts/*.test.mjs && vitest run"
   },
   "dependencies": {
     "@guild-os/domain": "workspace:*",

@@ -9,7 +9,7 @@ const validConfig = {
   workers: {
     workshop: { name: "acme-cloudflare-os", route: { customDomain: "os.example.com" } },
     context: { name: "acme-cloudflare-os-context" },
-    customGatekeeper: { name: "acme-cloudflare-os-custom" },
+    guildGatekeeper: { name: "acme-guild-os-gatekeeper" },
     errorReporter: { name: "acme-cloudflare-os-errors" },
   },
   access: {
@@ -29,7 +29,16 @@ const validConfig = {
     kvNamespaceId: "context-kv-id",
     artifacts: { enabled: true, namespace: "acme-context-collections" },
   },
-  customGatekeeper: { name: "Acme", message: "Use the company handbook." },
+  guild: {
+    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a",
+    name: "Acme Guild",
+    purpose: "Coordinate Acme people and agents.",
+    rootSpaceName: "Acme",
+    level2ApprovalQuorum: 1,
+    level3ApprovalQuorum: 2,
+    dataRetentionDays: 2555,
+    hyperdriveId: "abcdef0123456789abcdef0123456789",
+  },
   errorReporting: { enabled: true, environment: "production", release: "abc123" },
   resources: {
     blueprintsKvNamespaceId: "blueprints-kv-id",
@@ -48,7 +57,7 @@ async function baseConfigs() {
   return {
     workshop: await baseConfig("../cloudflare-os/packages/workshop-backend/wrangler.jsonc"),
     context: await baseConfig("../cloudflare-os/packages/gatekeeper-context/wrangler.jsonc"),
-    customGatekeeper: await baseConfig("../packages/custom-gatekeeper/wrangler.jsonc"),
+    guildGatekeeper: await baseConfig("../packages/guild-gatekeeper/wrangler.jsonc"),
     errorReporter: {
       name: "error-reporter",
       observability: { enabled: true, logs: { invocation_logs: false } },
@@ -99,6 +108,18 @@ test("rejects destructive or malformed deployment values", () => {
   malformedAdmin.access.admins = ["bad-address"];
   assert.throws(() => validateConfig(malformedAdmin), /email/i);
 
+  const malformedGuildId = structuredClone(validConfig);
+  malformedGuildId.guild.id = "not-a-uuid";
+  assert.throws(() => validateConfig(malformedGuildId), /Guild ID.*UUID/i);
+
+  const malformedHyperdriveId = structuredClone(validConfig);
+  malformedHyperdriveId.guild.hyperdriveId = "not-an-id";
+  assert.throws(() => validateConfig(malformedHyperdriveId), /Hyperdrive ID/i);
+
+  const invalidQuorum = structuredClone(validConfig);
+  invalidQuorum.guild.level3ApprovalQuorum = 0;
+  assert.throws(() => validateConfig(invalidQuorum), /positive integer/i);
+
   const invalidTraceSampling = structuredClone(validConfig);
   invalidTraceSampling.observability.traces.headSamplingRate = 2;
   assert.throws(() => validateConfig(invalidTraceSampling), /sampling/i);
@@ -124,7 +145,7 @@ test("rejects destructive or malformed deployment values", () => {
   assert.throws(() => validateConfig(invalidArtifactsNamespace), /namespace must be omitted/i);
 });
 
-test("generates Access-mode Workshop, Context, and custom Gatekeeper configs", async () => {
+test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", async () => {
   const generated = generateConfigs(validConfig, await baseConfigs());
 
   assert.equal(generated.workshop.name, "acme-cloudflare-os");
@@ -152,8 +173,8 @@ test("generates Access-mode Workshop, Context, and custom Gatekeeper configs", a
       props: { sharingDomain: "production" },
     },
     {
-      binding: "GATEKEEPER_CUSTOM",
-      service: "acme-cloudflare-os-custom",
+      binding: "GATEKEEPER_GUILD",
+      service: "acme-guild-os-gatekeeper",
       entrypoint: "GatekeeperVendor",
     },
   ]);
@@ -173,11 +194,20 @@ test("generates Access-mode Workshop, Context, and custom Gatekeeper configs", a
     binding: "ARTIFACTS",
     namespace: "acme-context-collections",
   }]);
-  assert.equal(generated.customGatekeeper.name, "acme-cloudflare-os-custom");
-  assert.deepEqual(generated.customGatekeeper.vars, {
-    CUSTOM_NAME: "Acme",
-    CUSTOM_MESSAGE: "Use the company handbook.",
+  assert.equal(generated.guildGatekeeper.name, "acme-guild-os-gatekeeper");
+  assert.deepEqual(generated.guildGatekeeper.vars, {
+    GUILD_ID: validConfig.guild.id,
+    GUILD_NAME: "Acme Guild",
+    GUILD_PURPOSE: "Coordinate Acme people and agents.",
+    GUILD_ROOT_SPACE_NAME: "Acme",
+    GUILD_LEVEL2_QUORUM: "1",
+    GUILD_LEVEL3_QUORUM: "2",
+    GUILD_RETENTION_DAYS: "2555",
   });
+  assert.deepEqual(generated.guildGatekeeper.hyperdrive, [{
+    binding: "HYPERDRIVE",
+    id: validConfig.guild.hyperdriveId,
+  }]);
   assert.equal(generated.errorReporter.name, "acme-cloudflare-os-errors");
   assert.deepEqual(generated.workshop.observability.logs, {
     invocation_logs: false,

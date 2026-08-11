@@ -11,7 +11,7 @@ const generatedName = "wrangler.prod.jsonc";
 const generatedPaths = {
   workshop: join(root, "cloudflare-os/packages/workshop-backend", generatedName),
   context: join(root, "cloudflare-os/packages/gatekeeper-context", generatedName),
-  customGatekeeper: join(root, "packages/custom-gatekeeper", generatedName),
+  guildGatekeeper: join(root, "packages/guild-gatekeeper", generatedName),
   errorReporter: join(root, "packages/error-reporter", generatedName),
 };
 const defaultContextArtifactsNamespace = "gatekeeper-context-collections";
@@ -20,15 +20,21 @@ const requiredPaths = [
   "accountId",
   "workers.workshop.name",
   "workers.context.name",
-  "workers.customGatekeeper.name",
+  "workers.guildGatekeeper.name",
   "access.issuer",
   "access.audience",
   "access.admins",
   "aiGateway.enabled",
   "errorReporting.enabled",
   "context.sharingDomain",
-  "customGatekeeper.name",
-  "customGatekeeper.message",
+  "guild.id",
+  "guild.name",
+  "guild.purpose",
+  "guild.rootSpaceName",
+  "guild.level2ApprovalQuorum",
+  "guild.level3ApprovalQuorum",
+  "guild.dataRetentionDays",
+  "guild.hyperdriveId",
   "observability.enabled",
   "observability.headSamplingRate",
   "observability.logs.invocationLogs",
@@ -107,6 +113,9 @@ export function validateConfig(config) {
     "observability.logs.invocationLogs",
     "observability.traces.enabled",
     "observability.traces.headSamplingRate",
+    "guild.level2ApprovalQuorum",
+    "guild.level3ApprovalQuorum",
+    "guild.dataRetentionDays",
   ].includes(path));
   for (const path of stringPaths) {
     if (typeof valueAt(config, path) !== "string") {
@@ -118,11 +127,28 @@ export function validateConfig(config) {
       config.aiGateway.enabled && !/^[a-f\d]{32}$/i.test(config.aiGateway.accountId)) {
     throw new Error("Cloudflare account IDs must be 32 hexadecimal characters.");
   }
+  if (!/^[a-f\d]{32}$/i.test(config.guild.hyperdriveId)) {
+    throw new Error("Guild Hyperdrive ID must be 32 hexadecimal characters.");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(config.guild.id)) {
+    throw new Error("Guild ID must be a UUID.");
+  }
+  for (const path of [
+    "guild.level2ApprovalQuorum",
+    "guild.level3ApprovalQuorum",
+    "guild.dataRetentionDays",
+  ]) {
+    const value = valueAt(config, path);
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`Guild deployment value must be a positive integer: ${path}`);
+    }
+  }
   const workerNames = Object.entries(config.workers)
     .filter(([key]) => key !== "errorReporter" || config.errorReporting.enabled)
     .map(([, worker]) => worker.name);
   if (new Set(workerNames).size !== workerNames.length) {
-    throw new Error("Workshop, Context, and custom Gatekeeper Worker names must be unique.");
+    throw new Error("Workshop, Context, Guild Gatekeeper, and Error Reporter names must be unique.");
   }
   if (!workerNames.every((name) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name))) {
     throw new Error("Worker names must use lowercase letters, numbers, and hyphens.");
@@ -252,7 +278,7 @@ export function generateConfigs(config, bases) {
   validateConfig(config);
   const workshop = structuredClone(bases.workshop);
   const context = structuredClone(bases.context);
-  const customGatekeeper = structuredClone(bases.customGatekeeper);
+  const guildGatekeeper = structuredClone(bases.guildGatekeeper);
   const errorReporter = config.errorReporting.enabled
     ? structuredClone(bases.errorReporter)
     : undefined;
@@ -301,8 +327,8 @@ export function generateConfigs(config, bases) {
       props: { sharingDomain: config.context.sharingDomain },
     },
     {
-      binding: "GATEKEEPER_CUSTOM",
-      service: config.workers.customGatekeeper.name,
+      binding: "GATEKEEPER_GUILD",
+      service: config.workers.guildGatekeeper.name,
       entrypoint: "GatekeeperVendor",
     },
   ];
@@ -336,17 +362,26 @@ export function generateConfigs(config, bases) {
     delete context.artifacts;
   }
 
-  setCommon(customGatekeeper, config, config.workers.customGatekeeper.name);
-  customGatekeeper.vars = {
-    CUSTOM_NAME: config.customGatekeeper.name,
-    CUSTOM_MESSAGE: config.customGatekeeper.message,
+  setCommon(guildGatekeeper, config, config.workers.guildGatekeeper.name);
+  guildGatekeeper.vars = {
+    GUILD_ID: config.guild.id,
+    GUILD_NAME: config.guild.name,
+    GUILD_PURPOSE: config.guild.purpose,
+    GUILD_ROOT_SPACE_NAME: config.guild.rootSpaceName,
+    GUILD_LEVEL2_QUORUM: String(config.guild.level2ApprovalQuorum),
+    GUILD_LEVEL3_QUORUM: String(config.guild.level3ApprovalQuorum),
+    GUILD_RETENTION_DAYS: String(config.guild.dataRetentionDays),
   };
+  guildGatekeeper.hyperdrive = [{
+    binding: "HYPERDRIVE",
+    id: config.guild.hyperdriveId,
+  }];
 
   if (errorReporter) {
     setCommon(errorReporter, config, config.workers.errorReporter.name);
   }
 
-  return { workshop, context, customGatekeeper, ...(errorReporter && { errorReporter }) };
+  return { workshop, context, guildGatekeeper, ...(errorReporter && { errorReporter }) };
 }
 
 async function readJsonc(path) {
@@ -386,7 +421,7 @@ function requireSubmodule() {
 
 function build(config) {
   run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
-  run(["--dir", "packages/custom-gatekeeper", "run", "build"]);
+  run(["--dir", "packages/guild-gatekeeper", "run", "build"]);
   if (config.errorReporting.enabled) {
     run(["--dir", "packages/error-reporter", "run", "build"]);
   }
@@ -403,7 +438,7 @@ async function main() {
   const generated = generateConfigs(config, {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
-    customGatekeeper: await readJsonc(join(root, "packages/custom-gatekeeper/wrangler.jsonc")),
+    guildGatekeeper: await readJsonc(join(root, "packages/guild-gatekeeper/wrangler.jsonc")),
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
   });
 
@@ -422,7 +457,7 @@ async function main() {
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "cloudflare-os/packages/gatekeeper-context"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
-      join(root, "packages/custom-gatekeeper"));
+      join(root, "packages/guild-gatekeeper"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "cloudflare-os/packages/workshop-backend"));
   } finally {

@@ -15,7 +15,7 @@
       "route": { "customDomain": "os.example.com" }
     },
     "context": { "name": "<CONTEXT_WORKER_NAME>" },
-    "customGatekeeper": { "name": "<CUSTOM_GATEKEEPER_WORKER_NAME>" },
+    "guildGatekeeper": { "name": "<GUILD_GATEKEEPER_WORKER_NAME>" },
     "errorReporter": { "name": "<ERROR_REPORTER_WORKER_NAME>" }
   },
 
@@ -60,11 +60,17 @@
     // }
   },
 
-  // Displayed to agents when the example custom integration is enabled in /admin.
-  // Reference: docs/customization.md#custom-gatekeepers
-  "customGatekeeper": {
-    "name": "<ORGANIZATION_DISPLAY_NAME>",
-    "message": "<ORGANIZATION_GUIDANCE>"
+  // One deployment is one Guild. IDs remain stable across deploys and migrations.
+  // Hyperdrive owns the database credentials; only its non-secret configuration ID is tracked.
+  "guild": {
+    "id": "<GUILD_UUID>",
+    "name": "<GUILD_NAME>",
+    "purpose": "<GUILD_PURPOSE>",
+    "rootSpaceName": "Guild",
+    "level2ApprovalQuorum": 1,
+    "level3ApprovalQuorum": 1,
+    "dataRetentionDays": 2555,
+    "hyperdriveId": "<HYPERDRIVE_ID>"
   },
 
   // Explicit backend issue reports go to a private Worker that emits structured console errors.
