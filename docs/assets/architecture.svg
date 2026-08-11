@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="940" height="500" viewBox="0 0 940 500" role="img" aria-labelledby="title desc">
   <title id="title">Cloudflare OS deployment architecture</title>
-  <desc id="desc">Users sign in through the deployment's configured authentication method and reach the pinned Cloudflare OS release, which contains the Workshop kernel, Gadgets, Blueprints, and the default Gatekeepers including Context. Service bindings connect it to the Workers this repository owns and deploys: an optional AI Gateway, any number of custom Gatekeepers, the Error Reporter, and KV and R2 storage.</desc>
+  <desc id="desc">Users sign in through the deployment's configured authentication method and reach the pinned Cloudflare OS release, which contains the Workshop kernel, Gadgets, Blueprints, and the default Gatekeepers including Context. Service bindings connect it to the Workers this repository owns and deploys: an optional AI Gateway, the Guild Gatekeeper backed by PostgreSQL through Hyperdrive, the Error Reporter, and KV and R2 storage.</desc>
   <style>
     .bg{fill:#f6f8fa}
     .group{fill:#fff;fill-opacity:.5;stroke:#d0d7de;stroke-dasharray:6 4}
@@ -90,7 +90,7 @@
   <rect class="stack" x="648" y="204" width="246" height="64" rx="8"/>
   <rect class="stack" x="644" y="200" width="246" height="64" rx="8"/>
   <rect class="card" x="640" y="196" width="246" height="64" rx="8"/>
-  <text class="t" x="658" y="224">Custom Gatekeepers</text>
+  <text class="t" x="658" y="224">Guild Gatekeeper</text>
   <text class="s" x="658" y="242">Your organization's APIs</text>
 
   <rect class="card" x="640" y="290" width="246" height="64" rx="8"/>

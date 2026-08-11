@@ -52,15 +52,19 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Cloudflare OS Starter is cloned under the canonical Pensive workspace.
 - Upstream Cloudflare OS is pinned at `bf7f762d7fa73553284d731ab6a978d3ea17be24`.
 - Starter baseline tests pass locally on Node.js 22; Node.js 24 remains the supported release target.
-- Guild domain, persistence, Gatekeeper, and UI modules are not yet implemented.
+- Guild domain policy, PostgreSQL persistence, migration tooling, and the read-only Guild Gatekeeper
+  are implemented. The Gatekeeper includes a sandboxed status UI and safe first-admin bootstrap.
+- PostgreSQL 17 integration verification applies migrations twice using a non-superuser owner, then
+  proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
+- Full Guild management screens, verified Access identity mapping, Knowledge retrieval, and Agent
+  write workflows are not yet implemented.
 - No Cloudflare resources have been created or deployed.
 
-## Immediate sequence
+## Next sequence
 
-1. Implement and test the framework-independent Guild domain and policy engine.
-2. Add PostgreSQL schema and a Hyperdrive-backed repository Worker.
-3. Replace the example Gatekeeper with a Guild Gatekeeper that exposes filtered reads and approved
-   actions to Cloudflare OS.
-4. Add the Guild management UI through the supported Gatekeeper management surface.
-5. Verify the complete owner-to-agent demo locally before any deployment request.
-
+1. Bind auto-provisioned Guild identities to verified Cloudflare Access subjects.
+2. Add People, Role, and Space commands with transactional Chronicle events and management screens.
+3. Add permission-filtered Knowledge retrieval with citations.
+4. Add the first explicit Agent identity and one Level 2 write workflow with durable approval,
+   idempotency, limits, and a kill switch.
+5. Verify the complete owner-to-agent demo before requesting a deployment decision.

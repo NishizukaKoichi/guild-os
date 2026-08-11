@@ -33,13 +33,12 @@ later implemented as an explicit, revocable federation connector.
 | --- | --- |
 | `cloudflare-os/` | Pinned upstream Workshop, agents, Gadgets, Blueprints, and built-in Gatekeepers |
 | `packages/guild-domain` | Types, validation, permissions, lifecycle invariants, and commands |
-| `packages/guild-api` | Access-authenticated and service-bound application API |
 | `packages/guild-postgres` | SQL repository and transactional Chronicle outbox |
 | `packages/guild-gatekeeper` | Agent/Gadget capability boundary and approval integration |
-| `packages/guild-console` | Human administration and daily Guild workflows |
 
-Packages are introduced only when their responsibility is implemented. Empty architectural
-placeholders are not created.
+The current Guild management surface is bundled inside `guild-gatekeeper`. A separate API or console
+package will be introduced only if the supported Gatekeeper UI boundary becomes insufficient. Empty
+architectural placeholders are not created.
 
 ## Source-of-truth rules
 
@@ -83,4 +82,3 @@ Chronicle rows are never updated to rewrite history.
 The `cloudflare-os` gitlink is part of every release. Advancing it requires reviewing authentication,
 Gatekeeper, sandbox, sharing, model-context, storage, and deployment changes, followed by the full
 local test matrix. Production upgrades never track an unpinned branch.
-

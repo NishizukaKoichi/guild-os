@@ -14,7 +14,9 @@ but those stores should not become a second undocumented authority for Guild gov
 Store canonical Guild state in purchaser-owned PostgreSQL and connect from Workers through
 Hyperdrive using the Cloudflare-recommended `pg` driver. Every repository operation runs inside a
 transaction that sets a transaction-local `app.guild_id`. PostgreSQL row-level security repeats the
-application Guild boundary as defense in depth.
+application Guild boundary as defense in depth. The repository constructor accepts an opaque
+transaction-scoped connection type, so normal TypeScript callers cannot construct it before the
+transaction helper sets that boundary.
 
 Chronicle rows are append-only. A business mutation, its Chronicle event, and any external-action
 outbox entry commit in one transaction.
@@ -42,4 +44,3 @@ RLS depends on all application queries entering through the transaction helper. 
 ordering, and application code must not receive a raw connection. Roll back code and migrations only
 before a migration reaches production; after production adoption, use a reviewed forward migration
 that preserves Chronicle history.
-

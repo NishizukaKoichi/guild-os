@@ -1,126 +1,176 @@
-<p align="center">
-  <img src="docs/assets/cloudflareOS.svg" alt="Cloudflare OS" width="480">
-</p>
+# Guild OS
 
-<h1 align="center">Customized for your Company</h1>
+Guild OS is an organizational layer for humans and AI agents to share governed memory, work,
+decisions, and history. It extends the open-source
+[Cloudflare OS](https://github.com/cloudflare/cloudflare-os) instead of rebuilding its agent
+workspace, Gadgets, Blueprints, sandboxing, or Gatekeeper approval system.
 
-<p align="center">
-  Deploy a pinned Cloudflare OS release with branding, sign-in, integrations, routes, and upgrades under your control.
-</p>
-
-<p align="center">
-  <a href="https://developers.cloudflare.com/workers/"><img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F6821F?logo=cloudflare&logoColor=white"></a>
-  <a href="https://nodejs.org/"><img alt="Node.js 24" src="https://img.shields.io/badge/Node.js-24-5FA04E?logo=nodedotjs&logoColor=white"></a>
-  <a href="https://pnpm.io/"><img alt="pnpm 11" src="https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white"></a>
-  <a href="https://github.com/cloudflare/cloudflare-os"><img alt="Cloudflare OS upstream" src="https://img.shields.io/badge/upstream-Cloudflare_OS-24292F?logo=github"></a>
-</p>
+This repository is self-hosted. Each purchaser deploys it to their own Cloudflare account, connects
+their own PostgreSQL database and model providers, and owns every stored object and credential.
+There is no seller-operated API, licensing server, or required subscription.
 
 > [!IMPORTANT]
-> Cloudflare OS is early-access software. Pin upstream releases, review changes, and verify the trust boundary before every production upgrade.
+> Cloudflare OS is early-access software. This repository pins a reviewed upstream commit and never
+> follows an unpinned branch in production.
 
-## Four steps
+## Implementation status
 
-1. Install the dependencies and run `pnpm exec wrangler login`.
-2. Fill in `deployment.jsonc`: account ID, Worker names, hostname, Access audience, admin emails.
-3. Run `pnpm check`, then `pnpm deploy`.
-4. Open `/admin` and set the site name, logo, and accent color; branding needs no redeploy.
+Implemented and tested:
 
-[Deploy](#deploy) and [Customization](#customization) expand each step. Everything else on this page is optional reading.
+- Pinned Cloudflare OS Starter deployment wrapper
+- Human, Agent, and Service domain types
+- Role and hierarchical Space permission engine
+- Root Owner and private-data invariants
+- Agent/requester/workflow/connector permission intersection
+- Knowledge lifecycle and risk-based approval rules
+- Agent budget, duration, step, retry, and delegation limits
+- PostgreSQL schema for Guild v1 entities
+- PostgreSQL row-level Guild isolation
+- Append-only Chronicle and idempotent external-action outbox
+- Hyperdrive transaction boundary
+- Guild Gatekeeper with administrator bootstrap, Preboarding enrollment, observation approval, and
+  permission-filtered Space discovery
+- Sandboxed, mobile-responsive Guild status page inside Cloudflare OS
 
-## Overview
+Not exposed as finished product features yet:
 
-This repository adds deployment controls around a pinned [Cloudflare OS](https://github.com/cloudflare/cloudflare-os) release without modifying the upstream source.
+- Full People, Knowledge, Work, Decisions, Agents, Inbox, and Chronicle management screens
+- Verified Access-email mapping inside the Guild Gatekeeper
+- Knowledge semantic search and citations
+- Agent write actions, approval quorum execution, Workflows, and kill-switch UI
+- Offboarding token revocation and Guild federation
 
-| Control | What you own |
+These incomplete capabilities are absent from the user-facing action surface rather than presented
+as nonfunctional controls.
+
+## Architecture
+
+```text
+Cloudflare Access
+  -> pinned Cloudflare OS Workshop
+  -> Guild Gatekeeper
+  -> Guild policy engine
+  -> PostgreSQL through Hyperdrive
+  -> Chronicle + transactional outbox
+```
+
+Cloudflare OS remains a Git submodule. Guild-owned packages live outside it:
+
+| Path | Responsibility |
 | --- | --- |
-| Branding | Site name, logo, and accent color, changed in [`/admin`](docs/customization.md#branding) without a deploy |
-| Identity | The sign-in method and administrator allowlist; this starter deploys [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/) mode |
-| Routing | A production [Custom Domain](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) or a `workers.dev` evaluation route |
-| Data | Existing KV/R2 resources or [automatic provisioning](https://developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning) |
-| Integrations | Wrapper-owned Gatekeepers and service bindings without patching upstream |
-| AI | No platform model by default; opt into [Workers AI](https://developers.cloudflare.com/workers-ai/) and [AI Gateway](https://developers.cloudflare.com/ai-gateway/) when needed |
-| Operations | [Structured logs, traces, explicit error reports](docs/observability.md), validation, deployment order, and upgrades |
+| `packages/guild-domain` | Framework-independent types, validation, permissions, and governance |
+| `packages/guild-postgres` | Schema, migration runner, transaction helper, and repository |
+| `packages/guild-gatekeeper` | Cloudflare OS capability and management-UI boundary |
+| `packages/error-reporter` | Private structured backend error events |
 
-### Architecture
+See [architecture](docs/architecture.md), [security](docs/security.md), and the
+[accepted decisions](docs/adr/).
 
-<img src="docs/assets/architecture.svg" alt="Cloudflare OS deployment architecture: users sign in and reach the pinned Cloudflare OS release, holding the Workshop kernel, Gadgets, Blueprints, and the default Gatekeepers. Service bindings connect it to the Workers this repository owns: optional AI, custom Gatekeepers, the Error Reporter, and KV and R2 storage.">
+## Prerequisites
 
-The deploy command derives temporary Wrangler files from upstream base configs, builds the frontend in Cloudflare Access mode, deploys the private Error Reporter and Gatekeepers before the Workshop, and removes generated files even on failure. Secrets never enter tracked configuration.
+- Node.js 24
+- pnpm 11
+- A purchaser-owned Cloudflare account
+- A purchaser-owned PostgreSQL database reachable by Hyperdrive
+- Workers, KV, R2, Browser Rendering, and Dynamic Worker Loaders
+- A Cloudflare Access self-hosted application for the Workshop hostname
 
-### If you only want branding
+AI is optional for deployment. Agents require a configured model before they can run.
 
-A hosted flow deploys the same upstream release to your Cloudflare account without this repository. It builds nothing locally, configures sign-in and your admin emails for you, and leaves the whole `/admin` surface intact: site name, logo, accent color, announcements, agent instructions, featured blueprints, and which connectors your users can reach. Built-in Gatekeepers such as GitHub and Google are still yours to connect with your own OAuth credentials.
-
-<a href="https://os.cloudflare.app/deploy"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"></a>
-
-Anything past that needs your own code or settings, which is what this repository is for: custom Gatekeepers, customized error reporting, your own Worker names, reusing storage you already have, choosing how much logging to keep, and a pinned version you upgrade when you decide. Hosted deployments also run on a `workers.dev` address, so deploy from here if you want the app on your own domain, or the email Gatekeeper, which needs a zone. Come back when branding stops being enough.
-
-## Deploy
-
-### 1. Prepare the workspace
-
-Install [Node.js 24](https://nodejs.org/), [pnpm 11](https://pnpm.io/installation), and authenticate [Wrangler](https://developers.cloudflare.com/workers/wrangler/commands/#login):
+## Local setup
 
 ```sh
 git submodule update --init
-pnpm install
-pnpm --dir cloudflare-os install
-pnpm exec wrangler login
+pnpm install --frozen-lockfile
+pnpm --dir cloudflare-os install --frozen-lockfile
+pnpm test
+pnpm build
+pnpm lint
 ```
 
-Your account needs [Workers](https://developers.cloudflare.com/workers/), [KV](https://developers.cloudflare.com/kv/), [R2](https://developers.cloudflare.com/r2/), [Browser Rendering](https://developers.cloudflare.com/browser-rendering/), and [Dynamic Worker Loaders](https://developers.cloudflare.com/workers/runtime-apis/bindings/worker-loader/). AI products and [Artifacts](https://developers.cloudflare.com/artifacts/) are optional.
+Node.js 22 currently passes the repository tests, but Node.js 24 is the supported build target from
+the upstream Starter.
 
-### 2. Configure sign-in
+## PostgreSQL
 
-Cloudflare OS supports several sign-in methods. This starter deploys [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/) mode, which verifies identity before a request reaches the Worker. See [Sign-in methods](docs/customization.md#sign-in-methods) for the alternatives and what switching involves.
+Create a blank PostgreSQL database, then run migrations with the connection string supplied only
+through the process environment:
 
-1. Choose a Workshop hostname in an [active Cloudflare zone](https://developers.cloudflare.com/dns/zone-setups/), such as `os.example.com`.
-2. Create a [self-hosted Access application](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/) for that hostname.
-3. Copy its [application audience tag](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/#get-your-aud-tag).
-4. Open [`deployment.jsonc`](deployment.jsonc) and replace the active placeholders. Every control is annotated in place.
+```sh
+export DATABASE_URL='postgresql://user:password@host:5432/guild_os?sslmode=require'
+pnpm db:migrate
+unset DATABASE_URL
+```
 
-Wrangler creates DNS and TLS for the custom domain at deploy time. For an evaluation without a zone, switch the annotated route to `{ "workersDev": true }`.
+To inspect migration filenames and hashes without connecting:
 
-### 3. Validate and deploy
+```sh
+pnpm --filter @guild-os/postgres migrate --dry-run
+```
+
+The runner records SHA-256 hashes in `public.guild_schema_migrations` and refuses to continue if an
+already-applied migration was modified.
+
+CI applies every migration twice to an ephemeral PostgreSQL 17 database owned by a non-superuser,
+then verifies Guild RLS isolation, Root Owner integrity, and Chronicle immutability. Local
+integration verification uses the same command:
+
+```sh
+DATABASE_URL=postgresql://... pnpm --filter @guild-os/postgres test:integration
+```
+
+Create a Hyperdrive configuration for the migrated database from the Cloudflare dashboard. Copy the
+32-character Hyperdrive configuration ID; database credentials do not belong in this repository.
+
+## Deployment configuration
+
+Edit `deployment.jsonc`:
+
+1. Set the Cloudflare account and Worker names.
+2. Set the Workshop custom domain or use `workersDev` for evaluation.
+3. Set the Cloudflare Access issuer, audience, and narrow administrator list.
+4. Generate a stable Guild UUID with `node -e "console.log(crypto.randomUUID())"`.
+5. Set the Guild name, purpose, first Space, approval quorums, retention period, and Hyperdrive ID.
+6. Configure AI Gateway only when the deployment will fund models.
+
+The first Workshop administrator who opens **Guild** initializes the database and becomes Root
+Owner. Keep the Access policy restricted to that person until initialization is complete. Later
+users enter Preboarding without receiving a role.
+
+## Verification and deployment
+
+Local gates:
+
+```sh
+pnpm build
+pnpm test
+pnpm lint
+pnpm types:check
+```
+
+After replacing every active deployment placeholder:
 
 ```sh
 pnpm check
+```
+
+`pnpm check` builds every Worker and performs Wrangler dry runs. Actual deployment is a separate,
+explicit operation:
+
+```sh
+pnpm exec wrangler login
 pnpm deploy
 ```
 
-With resource values left as `null`, Wrangler creates the three KV namespaces and R2 bucket automatically and reconnects them on later deploys. Set explicit IDs or a bucket name when the deployment must reuse existing resources.
+No Cloudflare resources are created by the test, build, lint, or typecheck commands.
 
-AI is disabled by default. The application can deploy without an AI Gateway or token; see [AI models](docs/customization.md#ai-models) to enable deployment-funded models.
+## Upgrades
 
-Git-backed Context collections are disabled by default. Accounts with Artifacts access can enable them in `context.artifacts`; see [Context Artifacts](docs/customization.md#context-artifacts).
+1. Record the current `cloudflare-os` gitlink.
+2. Advance it to a specific reviewed upstream commit.
+3. Review authentication, sharing, Gatekeeper, sandbox, storage, and model-context changes.
+4. Reinstall both lockfiles and run all local gates.
+5. Deploy to a nonproduction purchaser-owned environment first.
+6. Restore the prior gitlink and Worker version if verification fails.
 
-Backend error reporting is enabled without a vendor account. Explicit upstream issue events become structured logs in the private Error Reporter Worker; see [Observability and error reporting](docs/observability.md).
-
-### 4. Verify the deployment
-
-- Open the Workshop hostname and confirm Access signs in with the expected identity.
-- Open `/admin`, confirm the email is an administrator, and set Context and Custom Gatekeepers to disabled, optional, or enabled.
-- If Context Artifacts is enabled, create a Git-backed collection and confirm its repository can be populated and refreshed.
-- Enable the Custom Gatekeeper, ask for deployment information, and confirm its read appears as an observation.
-- Open the Error Reporter Worker's [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) and verify its structured `error_report` query surface.
-- Review logs for the Workshop, Context, custom Gatekeeper, and Error Reporter Workers.
-
-## Customization
-
-| Customize | Best place | Deploy required |
-| --- | --- | --- |
-| Site name, logo, color, announcements, instructions, connectors | `/admin` | No |
-| Sign-in, routes, AI, storage, observability, Worker identities | [`deployment.jsonc`](deployment.jsonc) | Yes |
-| Logs, traces, error destinations, browser reporting | [Observability guide](docs/observability.md) | Sometimes |
-| Organization APIs and capabilities | [`packages/custom-gatekeeper`](packages/custom-gatekeeper/README.md) | Yes |
-| Product behavior unavailable through Worker boundaries | Pinned upstream fork/commit | Yes |
-
-The complete control reference and recipes live in [Customization](docs/customization.md). The upstream [`write-gatekeeper` skill](https://github.com/cloudflare/cloudflare-os/blob/main/.agents/skills/write-gatekeeper/SKILL.md) covers richer integrations.
-
-## Operations and upgrades
-
-- Stream production events with [`wrangler tail`](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/).
-- Triage explicit failures and choose export destinations with the [observability guide](docs/observability.md).
-- Roll a Worker back from its dashboard deployment history or with [`wrangler rollback`](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
-- Follow the [upgrade checklist](docs/customization.md#upgrade) before changing the pinned submodule.
-- Review the upstream Cloudflare OS documentation and release history before adopting behavior changes.
+Never update the submodule blindly or modify it with an unpublishable local-only commit.
