@@ -514,7 +514,7 @@ export class GuildDirectoryRepository {
     if (nextStatus === "disabled") {
       await this.#connection.query(
         `UPDATE connectors
-            SET status = 'revoked', secret_reference = NULL
+            SET status = 'revoked', secret_reference = NULL, version = version + 1
           WHERE guild_id = $1 AND owner_identity_id = $2 AND status <> 'revoked'`,
         [this.#guildId, input.identityId],
       );
@@ -525,7 +525,8 @@ export class GuildDirectoryRepository {
       );
       await this.#connection.query(
         `UPDATE agent_runs
-            SET status = 'killed', kill_requested_at = now(), finished_at = now()
+            SET status = 'killed', kill_requested_at = now(), finished_at = now(),
+                version = version + 1
           WHERE guild_id = $1 AND (agent_identity_id = $2 OR requester_identity_id = $2)
             AND status IN ('planning', 'awaiting_approval', 'running')`,
         [this.#guildId, input.identityId],

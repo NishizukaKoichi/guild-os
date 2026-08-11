@@ -23,6 +23,22 @@ export const QUEST_STATUSES = ["backlog", "ready", "in_progress", "blocked", "co
 export const STEP_STATUSES = ["pending", "in_progress", "completed", "skipped"] as const;
 export const DECISION_STATUSES = ["draft", "proposed", "approved", "rejected", "superseded"] as const;
 export const ANNOUNCEMENT_STATUSES = ["draft", "published", "archived"] as const;
+export const AGENT_RUN_STATUSES = [
+  "planning",
+  "awaiting_approval",
+  "running",
+  "succeeded",
+  "failed",
+  "killed",
+] as const;
+export const APPROVAL_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "expired",
+  "applied",
+] as const;
+export const CONNECTOR_STATUSES = ["active", "disabled", "revoked"] as const;
 
 export const PERMISSIONS = [
   "guild.read",

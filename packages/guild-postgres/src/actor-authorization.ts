@@ -111,6 +111,38 @@ export async function loadActorAuthorizationSnapshot(
   actorIdentityId: string,
   resourceSpaceId: string | null = null,
 ): Promise<AuthorizationSnapshot> {
+  return loadBoundedAuthorizationSnapshot(
+    connection,
+    guildId,
+    [actorIdentityId],
+    resourceSpaceId,
+  );
+}
+
+export async function loadAgentAuthorizationSnapshot(
+  connection: GuildTransactionConnection,
+  guildId: string,
+  agentIdentityId: string,
+  requesterIdentityId: string,
+  resourceSpaceId: string | null = null,
+): Promise<AuthorizationSnapshot> {
+  return loadBoundedAuthorizationSnapshot(
+    connection,
+    guildId,
+    [agentIdentityId, requesterIdentityId],
+    resourceSpaceId,
+  );
+}
+
+async function loadBoundedAuthorizationSnapshot(
+  connection: GuildTransactionConnection,
+  guildId: string,
+  actorIdentityIds: readonly string[],
+  resourceSpaceId: string | null,
+): Promise<AuthorizationSnapshot> {
+  if (actorIdentityIds.length < 1 || new Set(actorIdentityIds).size !== actorIdentityIds.length) {
+    throw new Error("Authorization subjects must contain unique Identity IDs.");
+  }
   const guildRow = requireRow((await connection.query<GuildRow>(
     `SELECT id::text, name, purpose, root_owner_identity_id::text,
             created_at::text, updated_at::text
@@ -141,9 +173,7 @@ export async function loadActorAuthorizationSnapshot(
     throw new Error("The requested Space was not found in the active Guild.");
   }
 
-  const identityIds = actorIdentityId === guildRow.root_owner_identity_id
-    ? [actorIdentityId]
-    : [actorIdentityId, guildRow.root_owner_identity_id];
+  const identityIds = [...new Set([...actorIdentityIds, guildRow.root_owner_identity_id])];
   const identities = (await connection.query<IdentityRow>(
     `SELECT id::text, guild_id::text, kind, display_name, status
        FROM identities WHERE guild_id = $1 AND id = ANY($2::uuid[])`,
@@ -159,9 +189,9 @@ export async function loadActorAuthorizationSnapshot(
   const bindings = (await connection.query<BindingRow>(
     `SELECT guild_id::text, identity_id::text, role_id::text, space_id::text
        FROM role_bindings
-      WHERE guild_id = $1 AND identity_id = $2
+      WHERE guild_id = $1 AND identity_id = ANY($2::uuid[])
         AND (space_id IS NULL OR space_id = ANY($3::uuid[]))`,
-    [guildId, actorIdentityId, spaceIds],
+    [guildId, actorIdentityIds, spaceIds],
   )).rows;
   const roleIds = bindings.map((binding) => binding.role_id);
   const roles = roleIds.length === 0 ? [] : (await connection.query<RoleRow>(
@@ -175,8 +205,8 @@ export async function loadActorAuthorizationSnapshot(
   )).rows;
   const agents = (await connection.query<AgentRow>(
     `SELECT guild_id::text, identity_id::text, instructions, model, tool_ids, limits, status
-       FROM agent_profiles WHERE guild_id = $1 AND identity_id = $2`,
-    [guildId, actorIdentityId],
+       FROM agent_profiles WHERE guild_id = $1 AND identity_id = ANY($2::uuid[])`,
+    [guildId, actorIdentityIds],
   )).rows;
 
   const guild: Guild = {

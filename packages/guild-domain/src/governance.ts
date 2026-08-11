@@ -14,6 +14,7 @@ import type {
   RiskLevel,
 } from "./types.js";
 import { assertAgentLimits, assertNonBlank, assertPositiveInteger } from "./validation.js";
+import { assertUsageWithinLimits } from "./agent.js";
 
 export function assertRootOwnerIntegrity(snapshot: AuthorizationSnapshot): void {
   const rootOwner = snapshot.identities.find(
@@ -144,20 +145,7 @@ export function assertRoleAssignableToIdentity(role: Role, identity: Identity): 
 }
 
 export function assertRunWithinLimits(profile: AgentProfile, usage: AgentRunUsage): void {
-  const checks: readonly [number, number, string][] = [
-    [usage.budgetMinor, profile.limits.maxBudgetMinor, "budget"],
-    [usage.durationSeconds, profile.limits.maxDurationSeconds, "duration"],
-    [usage.steps, profile.limits.maxSteps, "steps"],
-    [usage.retries, profile.limits.maxRetries, "retries"],
-    [usage.delegationDepth, profile.limits.maxDelegationDepth, "delegation depth"],
-  ];
-  const exceeded = checks.find(([actual, maximum]) => actual > maximum);
-  if (exceeded) {
-    throw new GuildDomainError(
-      "AGENT_LIMIT_EXCEEDED",
-      `Agent ${exceeded[2]} limit exceeded (${exceeded[0]} > ${exceeded[1]}).`,
-    );
-  }
+  assertUsageWithinLimits(profile.limits, usage);
 }
 
 export function validateConstitution(constitution: Constitution): void {

@@ -1,6 +1,9 @@
 import type {
   ANNOUNCEMENT_STATUSES,
+  AGENT_RUN_STATUSES,
+  APPROVAL_STATUSES,
   CLASSIFICATIONS,
+  CONNECTOR_STATUSES,
   DECISION_STATUSES,
   GOAL_STATUSES,
   IDENTITY_KINDS,
@@ -30,7 +33,13 @@ export type QuestStatus = (typeof QUEST_STATUSES)[number];
 export type StepStatus = (typeof STEP_STATUSES)[number];
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
 export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
+export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+export type ConnectorStatus = (typeof CONNECTOR_STATUSES)[number];
 export type LocalizedText = Partial<Record<AppLocale, string>>;
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonObject = { [key: string]: JsonValue };
 
 export interface Guild {
   id: string;
@@ -287,6 +296,89 @@ export interface AgentRunUsage {
   steps: number;
   retries: number;
   delegationDepth: number;
+}
+
+export interface AgentRunPlan {
+  objective: string;
+  expectedOutcome: string;
+  steps: readonly string[];
+  connectorId: string;
+  questId: string | null;
+  action: {
+    kind: "https_webhook";
+    eventType: string;
+    payload: JsonObject;
+  };
+  estimatedUsage: AgentRunUsage;
+}
+
+export interface AgentRunResult {
+  kind: "https_webhook";
+  statusCode: number;
+  deliveredAt: string;
+}
+
+export interface AgentRun extends SecuredResource {
+  agentIdentityId: string;
+  requesterIdentityId: string;
+  connectorId: string;
+  questId: string | null;
+  riskLevel: RiskLevel;
+  status: AgentRunStatus;
+  source: "guild-ui" | "cloudflare-os";
+  plan: AgentRunPlan;
+  result: AgentRunResult | null;
+  errorMessage: string | null;
+  limits: AgentLimits;
+  usage: AgentRunUsage;
+  workflowInstanceId: string;
+  idempotencyKey: string;
+  requestHash: string;
+  estimatedBudgetMinor: number;
+  killRequestedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentApprovalRequest {
+  id: string;
+  guildId: string;
+  agentRunId: string;
+  riskLevel: RiskLevel;
+  actionKind: string;
+  requiredApprovals: number;
+  approvalCount: number;
+  reauthenticationRequired: boolean;
+  status: ApprovalStatus;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentApprovalVote {
+  guildId: string;
+  approvalRequestId: string;
+  approverIdentityId: string;
+  verdict: "approve" | "reject";
+  reason: string;
+  reauthenticatedAt: string | null;
+  createdAt: string;
+}
+
+export interface Connector extends SecuredResource {
+  name: string;
+  kind: "https_webhook";
+  status: ConnectorStatus;
+  capabilityPermissions: readonly Permission[];
+  endpointUrl: string;
+  secretReference: string;
+  deploymentManaged: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthorizationSnapshot {

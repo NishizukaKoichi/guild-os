@@ -28,6 +28,9 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0016_communications_and_chronicle.sql",
     "0017_chronicle_search_tokens.sql",
     "0018_archived_announcement_provenance.sql",
+    "0019_agent_execution.sql",
+    "0020_agent_execution_compatibility.sql",
+    "0021_agent_approval_trigger_fix.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -47,4 +50,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[15].sql, /Inbox notification payload is immutable/);
   assert.match(migrations[16].sql, /translate\(action, '\._-'/);
   assert.match(migrations[17].sql, /OR status = 'archived'/);
+  assert.match(migrations[18].sql, /Agent approval requires an authorized active Human/);
+  assert.match(migrations[19].sql, /secret_was_cleared_on_revoke/);
+  assert.match(migrations[20].sql, /IF TG_TABLE_NAME = 'approval_votes'/);
 });

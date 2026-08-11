@@ -8,3 +8,4 @@ export * from "./validation.js";
 export * from "./work.js";
 export * from "./decision.js";
 export * from "./announcement.js";
+export * from "./agent.js";
