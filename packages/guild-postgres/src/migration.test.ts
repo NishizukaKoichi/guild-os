@@ -11,6 +11,8 @@ const knowledgeFileReuseMigrationUrl = new URL("../migrations/0007_knowledge_fil
 const humanApprovalMigrationUrl = new URL("../migrations/0008_human_approval_boundary.sql", import.meta.url);
 const knowledgeFilePolicyMigrationUrl = new URL("../migrations/0009_knowledge_file_policy_history.sql", import.meta.url);
 const knowledgeSecurityLockMigrationUrl = new URL("../migrations/0010_published_knowledge_security_lock.sql", import.meta.url);
+const workGovernanceMigrationUrl = new URL("../migrations/0011_work_governance.sql", import.meta.url);
+const workConcurrencyMigrationUrl = new URL("../migrations/0012_work_parent_concurrency.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -98,5 +100,12 @@ describe("Guild PostgreSQL migration", () => {
     expect(policySql).toContain("A file cannot cross Knowledge records");
     const securityLockSql = await readFile(fileURLToPath(knowledgeSecurityLockMigrationUrl), "utf8");
     expect(securityLockSql).toContain("Published Knowledge security boundary is immutable");
+    const workSql = await readFile(fileURLToPath(workGovernanceMigrationUrl), "utf8");
+    expect(workSql).toContain("Child Work cannot broaden its parent Space boundary");
+    expect(workSql).toContain("Work can be assigned only to an active Human or Agent");
+    expect(workSql).toContain("Work version must increment exactly once");
+    const concurrencySql = await readFile(fileURLToPath(workConcurrencyMigrationUrl), "utf8");
+    expect(concurrencySql).toContain("Terminal Work cannot accept or reactivate child Work");
+    expect(concurrencySql).toContain("Terminal Work requires every child Work item to be terminal");
   });
 });

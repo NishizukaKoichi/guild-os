@@ -60,12 +60,16 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Role/Space editors and governed Knowledge/Ask Guild are implemented. Knowledge includes immutable
   versions, human approval, multilingual content, R2 files, acknowledgement, retirement, citations,
   SQL-before-model authorization, rate limiting, and durable file cleanup.
-- Work/Decision/Inbox/Chronicle screens and Agent write workflows are not yet implemented.
+- Governed Work is implemented from Goal through Project, Quest, and Step. It includes bounded
+  keyset lists, SQL-before-service authorization, legal status transitions, optimistic versions,
+  hierarchical Space containment, active Human/Agent assignment, Inbox notification writes,
+  Chronicle evidence, and responsive browser flows.
+- Decision/Inbox/Chronicle screens and Agent write workflows are not yet implemented.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Add Goal, Project, Quest, Step, Decision, Inbox, Announcement, and Chronicle product flows.
-2. Add the first explicit Agent identity and one Level 2 write workflow with durable approval,
+1. Add Decision, Inbox, Announcement, and Chronicle product flows.
+2. Add one Level 2 Agent write workflow with durable approval,
    idempotency, limits, and a kill switch.
 3. Verify the complete owner-to-agent demo before production deployment.

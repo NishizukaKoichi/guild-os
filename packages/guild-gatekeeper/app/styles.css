@@ -1537,6 +1537,371 @@ textarea:focus-visible {
   color: var(--text-muted);
 }
 
+.work-hierarchy {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.work-level {
+  min-width: 0;
+  padding: 16px;
+}
+
+.work-level + .work-level {
+  border-left: 1px solid var(--border);
+}
+
+.work-level-heading {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.work-level-heading h2,
+.work-section .section-heading-row h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.work-level-heading svg,
+.work-section .section-heading-row h2 svg {
+  color: var(--accent);
+}
+
+.work-outline-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+
+.work-outline-row {
+  display: grid;
+  min-width: 0;
+  min-height: 67px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 8px 8px 11px;
+  border-bottom: 1px solid var(--border);
+}
+
+.work-outline-row-active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.work-outline-row > button {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.work-outline-row > button strong,
+.work-outline-row > button small {
+  overflow-wrap: anywhere;
+}
+
+.work-outline-row > button strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.work-outline-row > button small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.work-status-control select,
+.work-assignment-control select {
+  min-height: 34px;
+  padding: 5px 28px 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.work-section {
+  border-top: 0;
+}
+
+.work-section > .section-heading-row,
+.work-steps > .section-heading-row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.work-quest-workspace {
+  display: grid;
+  min-height: 560px;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.work-quest-list {
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.work-quest-item {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 7px;
+  padding: 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.work-quest-item:hover,
+.work-quest-item-active {
+  background: var(--surface);
+}
+
+.work-quest-item-active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.work-quest-item strong,
+.work-quest-item small {
+  overflow-wrap: anywhere;
+}
+
+.work-quest-item strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.work-quest-item small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.work-status {
+  display: inline-flex;
+  min-height: 23px;
+  width: fit-content;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.work-status-active,
+.work-status-ready,
+.work-status-completed {
+  border-color: #8fc4a6;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.work-status-in_progress,
+.work-status-planned,
+.work-status-pending {
+  border-color: #91b9df;
+  background: #eaf4fc;
+  color: #285f92;
+}
+
+.work-status-blocked {
+  border-color: #e3c77e;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.work-status-cancelled,
+.work-status-skipped {
+  border-color: #c9cfd0;
+  background: #eef0f1;
+  color: #586267;
+}
+
+.work-quest-detail {
+  min-width: 0;
+  padding: 24px 28px 32px;
+}
+
+.work-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 20px;
+}
+
+.work-detail-header > div {
+  min-width: 0;
+}
+
+.work-detail-header h2 {
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 21px;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.work-detail-header p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.work-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.work-meta > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 3px 6px;
+  align-content: start;
+  padding: 12px 8px;
+}
+
+.work-meta svg {
+  grid-row: 1 / 3;
+  color: var(--text-muted);
+}
+
+.work-meta dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.work-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.work-assignment-band {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 320px);
+  gap: 10px;
+  align-items: end;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.work-assignment-band > svg {
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.work-assignment-control {
+  display: grid;
+  gap: 5px;
+}
+
+.work-assignment-control > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.work-evidence,
+.work-steps {
+  padding-top: 21px;
+}
+
+.work-evidence h3,
+.work-steps h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.work-evidence h3 svg {
+  color: var(--accent);
+}
+
+.work-evidence p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.work-evidence > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.work-evidence .text-button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.work-step-list {
+  border-top: 1px solid var(--border);
+}
+
+.work-step-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(160px, 220px);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.work-step-row > div {
+  min-width: 0;
+}
+
+.work-step-row strong,
+.work-step-row p {
+  overflow-wrap: anywhere;
+}
+
+.work-step-row strong {
+  font-size: 13px;
+}
+
+.work-step-row p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .ask-form {
   padding: 22px 0 26px;
   border-top: 1px solid var(--border-strong);
@@ -1689,6 +2054,18 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .work-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .work-step-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .work-step-row > .work-assignment-control {
+    grid-column: 2;
+  }
+
   .metric-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1822,6 +2199,30 @@ textarea:focus-visible {
     display: block;
   }
 
+  .work-hierarchy {
+    grid-template-columns: 1fr;
+  }
+
+  .work-level + .work-level {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .work-quest-workspace {
+    display: block;
+  }
+
+  .work-quest-list {
+    max-height: 300px;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .work-quest-detail {
+    padding: 22px 18px 28px;
+  }
+
   .knowledge-list {
     max-height: 300px;
     overflow: auto;
@@ -1935,6 +2336,33 @@ textarea:focus-visible {
 
   .knowledge-meta {
     grid-template-columns: 1fr;
+  }
+
+  .work-detail-header {
+    display: grid;
+  }
+
+  .work-detail-header .work-status-control,
+  .work-detail-header .work-status-control select {
+    width: 100%;
+  }
+
+  .work-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .work-step-row {
+    grid-template-columns: 1fr;
+  }
+
+  .work-step-row > .work-assignment-control {
+    grid-column: 1;
+  }
+
+  .work-step-row > .work-status-control,
+  .work-step-row > .work-status-control select,
+  .work-step-row > .work-assignment-control select {
+    width: 100%;
   }
 
   .knowledge-actions > button {

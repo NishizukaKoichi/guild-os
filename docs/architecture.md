@@ -46,6 +46,14 @@ Membership transactions; the Gatekeeper validates transport input and authorizes
 React pages and dialogs only call typed management methods. Adding a later module does not require
 placing its conditions in a central page or a shared untyped data client.
 
+Work follows the same boundary. `guild-domain/work.ts` owns lifecycle validation,
+`guild-postgres/work.ts` owns bounded queries and atomic mutations, `guild-gatekeeper/work-service.ts`
+owns request validation plus authorization, and the Work page owns presentation state only. Goal,
+Project, Quest, and Step use exact-version optimistic concurrency. PostgreSQL independently prevents
+parent reassignment, Space-scope broadening, invalid transitions, and nonmaterial version bumps.
+Assignments are limited to active Humans and active Agents whose Role and Space can read the target;
+Service identities cannot own executable Work.
+
 ## Source-of-truth rules
 
 - PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge

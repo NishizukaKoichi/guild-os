@@ -2,6 +2,8 @@ import type {
   AgentLimits,
   AppLocale,
   Classification,
+  Goal,
+  GoalStatus,
   IdentityKind,
   IdentityStatus,
   KnowledgeReviewVerdict,
@@ -9,6 +11,12 @@ import type {
   LocalizedText,
   MembershipState,
   Permission,
+  Project,
+  ProjectStatus,
+  Quest,
+  QuestStatus,
+  Step,
+  StepStatus,
   Visibility,
 } from "@guild-os/domain";
 
@@ -308,6 +316,98 @@ export interface AskGuildResponse {
   inferred: boolean;
 }
 
+export interface UiWorkCapabilities {
+  changeStatus: boolean;
+  assign: boolean;
+  addChild: boolean;
+}
+
+export interface UiGoal extends Omit<Goal, "guildId"> {
+  capabilities: UiWorkCapabilities;
+}
+
+export interface UiProject extends Omit<Project, "guildId"> {
+  capabilities: UiWorkCapabilities;
+}
+
+export interface UiQuest extends Omit<Quest, "guildId"> {
+  capabilities: UiWorkCapabilities;
+}
+
+export interface UiStep extends Omit<Step, "guildId"> {
+  capabilities: UiWorkCapabilities;
+}
+
+export interface UiWorkPage {
+  goals: readonly UiGoal[];
+  projects: readonly UiProject[];
+  quests: readonly UiQuest[];
+  nextGoalCursor: string | null;
+  nextProjectCursor: string | null;
+  nextQuestCursor: string | null;
+  canCreate: boolean;
+}
+
+export interface UiWorkPageRequest {
+  goalCursor?: string | null;
+  projectCursor?: string | null;
+  questCursor?: string | null;
+  projectId?: string | null;
+  assigneeIdentityId?: string | null;
+  questStatuses?: readonly QuestStatus[];
+}
+
+export interface UiQuestDetail {
+  quest: UiQuest;
+  steps: readonly UiStep[];
+}
+
+export interface WorkResourceInput {
+  spaceId: string | null;
+  title: string;
+  description: string;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+  sourceIds: readonly string[];
+}
+
+export interface CreateGoalRequest extends WorkResourceInput {
+  targetAt: string | null;
+}
+
+export interface CreateProjectRequest extends WorkResourceInput {
+  goalId: string;
+  dueAt: string | null;
+}
+
+export interface CreateQuestRequest extends WorkResourceInput {
+  projectId: string;
+  assigneeIdentityId: string | null;
+  dueAt: string | null;
+}
+
+export interface CreateStepRequest {
+  questId: string;
+  assigneeIdentityId: string | null;
+  title: string;
+  description: string;
+}
+
+export interface WorkStatusRequest {
+  kind: "goal" | "project" | "quest" | "step";
+  id: string;
+  expectedVersion: number;
+  status: GoalStatus | ProjectStatus | QuestStatus | StepStatus;
+}
+
+export interface WorkAssignmentRequest {
+  kind: "quest" | "step";
+  id: string;
+  expectedVersion: number;
+  assigneeIdentityId: string | null;
+}
+
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
@@ -346,5 +446,13 @@ export interface GuildUiApi {
   downloadKnowledgeFile(fileId: string): Promise<Blob>;
   deleteKnowledgeFile(input: KnowledgeTransitionRequest & { fileId: string }): Promise<void>;
   askGuild(input: AskGuildRequest): Promise<AskGuildResponse>;
+  getWorkPage(request?: UiWorkPageRequest): Promise<UiWorkPage>;
+  getQuestDetail(questId: string): Promise<UiQuestDetail>;
+  createGoal(input: CreateGoalRequest): Promise<string>;
+  createProject(input: CreateProjectRequest): Promise<string>;
+  createQuest(input: CreateQuestRequest): Promise<string>;
+  createStep(input: CreateStepRequest): Promise<string>;
+  changeWorkStatus(input: WorkStatusRequest): Promise<number>;
+  assignWork(input: WorkAssignmentRequest): Promise<number>;
   setPreferredLocale(locale: AppLocale): Promise<void>;
 }

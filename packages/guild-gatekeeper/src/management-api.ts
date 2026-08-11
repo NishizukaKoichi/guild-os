@@ -27,16 +27,21 @@ import {
 import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
 import { GuildKnowledgeService } from "./knowledge-service.js";
+import { GuildWorkService } from "./work-service.js";
 import type {
   AskGuildRequest,
   AskGuildResponse,
   AssignRoleRequest,
   ClaimInvitationInput,
   CreateAgentRequest,
+  CreateGoalRequest,
   CreateKnowledgeRequest,
+  CreateProjectRequest,
+  CreateQuestRequest,
   CreateRoleRequest,
   CreateServiceRequest,
   CreateSpaceRequest,
+  CreateStepRequest,
   GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
@@ -50,8 +55,13 @@ import type {
   UiKnowledgeFile,
   UiKnowledgePage,
   UiKnowledgePageRequest,
+  UiQuestDetail,
+  UiWorkPage,
+  UiWorkPageRequest,
   UpdateRoleRequest,
   UploadKnowledgeFileRequest,
+  WorkAssignmentRequest,
+  WorkStatusRequest,
 } from "./management-types.js";
 
 const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -697,6 +707,38 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   askGuild(input: AskGuildRequest): Promise<AskGuildResponse> {
     return new GuildKnowledgeService(this.#env, this.#accountId).ask(input);
+  }
+
+  getWorkPage(request: UiWorkPageRequest = {}): Promise<UiWorkPage> {
+    return new GuildWorkService(this.#env, this.#accountId).getPage(request);
+  }
+
+  getQuestDetail(questId: string): Promise<UiQuestDetail> {
+    return new GuildWorkService(this.#env, this.#accountId).getQuestDetail(questId);
+  }
+
+  createGoal(input: CreateGoalRequest): Promise<string> {
+    return new GuildWorkService(this.#env, this.#accountId).createGoal(input);
+  }
+
+  createProject(input: CreateProjectRequest): Promise<string> {
+    return new GuildWorkService(this.#env, this.#accountId).createProject(input);
+  }
+
+  createQuest(input: CreateQuestRequest): Promise<string> {
+    return new GuildWorkService(this.#env, this.#accountId).createQuest(input);
+  }
+
+  createStep(input: CreateStepRequest): Promise<string> {
+    return new GuildWorkService(this.#env, this.#accountId).createStep(input);
+  }
+
+  changeWorkStatus(input: WorkStatusRequest): Promise<number> {
+    return new GuildWorkService(this.#env, this.#accountId).changeStatus(input);
+  }
+
+  assignWork(input: WorkAssignmentRequest): Promise<number> {
+    return new GuildWorkService(this.#env, this.#accountId).assign(input);
   }
 
   async setPreferredLocale(locale: AppLocale): Promise<void> {

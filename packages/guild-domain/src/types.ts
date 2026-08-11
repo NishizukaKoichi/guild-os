@@ -1,10 +1,14 @@
 import type {
   CLASSIFICATIONS,
+  GOAL_STATUSES,
   IDENTITY_KINDS,
   IDENTITY_STATUSES,
   KNOWLEDGE_STATES,
   MEMBERSHIP_STATES,
   PERMISSIONS,
+  PROJECT_STATUSES,
+  QUEST_STATUSES,
+  STEP_STATUSES,
   SUPPORTED_LOCALES,
   VISIBILITIES,
 } from "./constants.js";
@@ -18,6 +22,10 @@ export type Visibility = (typeof VISIBILITIES)[number];
 export type Classification = (typeof CLASSIFICATIONS)[number];
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
 export type RiskLevel = 0 | 1 | 2 | 3;
+export type GoalStatus = (typeof GOAL_STATUSES)[number];
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+export type QuestStatus = (typeof QUEST_STATUSES)[number];
+export type StepStatus = (typeof STEP_STATUSES)[number];
 export type LocalizedText = Partial<Record<AppLocale, string>>;
 
 export interface Guild {
@@ -123,6 +131,60 @@ export interface KnowledgeReview {
   verdict: KnowledgeReviewVerdict;
   reason: string;
   createdAt: string;
+}
+
+export interface Goal extends SecuredResource {
+  title: string;
+  description: string;
+  status: GoalStatus;
+  creatorIdentityId: string;
+  sourceIds: readonly string[];
+  targetAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Project extends SecuredResource {
+  goalId: string;
+  title: string;
+  description: string;
+  status: ProjectStatus;
+  creatorIdentityId: string;
+  sourceIds: readonly string[];
+  dueAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Quest extends SecuredResource {
+  projectId: string;
+  assigneeIdentityId: string | null;
+  title: string;
+  description: string;
+  status: QuestStatus;
+  creatorIdentityId: string;
+  sourceIds: readonly string[];
+  dueAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Step {
+  id: string;
+  guildId: string;
+  questId: string;
+  assigneeIdentityId: string | null;
+  creatorIdentityId: string;
+  title: string;
+  description: string;
+  status: StepStatus;
+  position: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AgentLimits {

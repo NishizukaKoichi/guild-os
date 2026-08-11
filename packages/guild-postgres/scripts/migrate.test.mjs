@@ -20,6 +20,8 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0008_human_approval_boundary.sql",
     "0009_knowledge_file_policy_history.sql",
     "0010_published_knowledge_security_lock.sql",
+    "0011_work_governance.sql",
+    "0012_work_parent_concurrency.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -32,4 +34,5 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[5].sql, /CREATE TABLE knowledge_reviews/);
   assert.match(migrations[6].sql, /A file cannot cross Knowledge records/);
   assert.match(migrations[7].sql, /knowledge\.approve/);
+  assert.match(migrations[11].sql, /Terminal Work requires every child Work item to be terminal/);
 });

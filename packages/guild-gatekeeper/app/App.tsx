@@ -21,6 +21,7 @@ import { HomePage } from "./pages/HomePage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { WorkPage } from "./pages/WorkPage";
 import { useI18n } from "./i18n";
 
 function messageFrom(error: unknown, fallback: string): string {
@@ -128,6 +129,16 @@ export function App({ api }: { api: GuildUiApi }) {
       ) : null}
       {visiblePage === "knowledge" ? (
         <KnowledgePage api={api} directory={directory} requestedKnowledgeId={knowledgeTarget} />
+      ) : null}
+      {visiblePage === "work" ? (
+        <WorkPage
+          api={api}
+          directory={directory}
+          onOpenKnowledge={(knowledgeId) => {
+            setKnowledgeTarget(knowledgeId);
+            setPage("knowledge");
+          }}
+        />
       ) : null}
       {visiblePage === "people" && directory ? (
         <PeoplePage

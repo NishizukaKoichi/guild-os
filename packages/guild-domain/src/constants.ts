@@ -17,6 +17,10 @@ export const KNOWLEDGE_STATES = [
 export const VISIBILITIES = ["guild", "space", "restricted", "private"] as const;
 export const CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"] as const;
 export const SUPPORTED_LOCALES = ["en", "ja", "zh-CN"] as const;
+export const GOAL_STATUSES = ["draft", "active", "completed", "cancelled"] as const;
+export const PROJECT_STATUSES = ["planned", "active", "blocked", "completed", "cancelled"] as const;
+export const QUEST_STATUSES = ["backlog", "ready", "in_progress", "blocked", "completed", "cancelled"] as const;
+export const STEP_STATUSES = ["pending", "in_progress", "completed", "skipped"] as const;
 
 export const PERMISSIONS = [
   "guild.read",
@@ -118,4 +122,47 @@ export const KNOWLEDGE_TRANSITIONS = {
 } as const satisfies Record<
   (typeof KNOWLEDGE_STATES)[number],
   readonly (typeof KNOWLEDGE_STATES)[number][]
+>;
+
+export const GOAL_TRANSITIONS = {
+  draft: ["active", "cancelled"],
+  active: ["completed", "cancelled"],
+  completed: ["active"],
+  cancelled: ["draft"],
+} as const satisfies Record<
+  (typeof GOAL_STATUSES)[number],
+  readonly (typeof GOAL_STATUSES)[number][]
+>;
+
+export const PROJECT_TRANSITIONS = {
+  planned: ["active", "cancelled"],
+  active: ["blocked", "completed", "cancelled"],
+  blocked: ["active", "cancelled"],
+  completed: ["active"],
+  cancelled: ["planned"],
+} as const satisfies Record<
+  (typeof PROJECT_STATUSES)[number],
+  readonly (typeof PROJECT_STATUSES)[number][]
+>;
+
+export const QUEST_TRANSITIONS = {
+  backlog: ["ready", "in_progress", "cancelled"],
+  ready: ["backlog", "in_progress", "cancelled"],
+  in_progress: ["ready", "blocked", "completed", "cancelled"],
+  blocked: ["in_progress", "cancelled"],
+  completed: ["in_progress"],
+  cancelled: ["backlog"],
+} as const satisfies Record<
+  (typeof QUEST_STATUSES)[number],
+  readonly (typeof QUEST_STATUSES)[number][]
+>;
+
+export const STEP_TRANSITIONS = {
+  pending: ["in_progress", "completed", "skipped"],
+  in_progress: ["pending", "completed", "skipped"],
+  completed: ["in_progress"],
+  skipped: ["pending"],
+} as const satisfies Record<
+  (typeof STEP_STATUSES)[number],
+  readonly (typeof STEP_STATUSES)[number][]
 >;

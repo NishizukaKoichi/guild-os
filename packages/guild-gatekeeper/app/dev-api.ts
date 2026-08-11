@@ -7,8 +7,22 @@ import type {
   UiDirectory,
   UiKnowledgeDetail,
   UiKnowledgeFile,
+  UiGoal,
+  UiProject,
+  UiQuest,
+  UiStep,
 } from "../src/management-types";
-import { PERMISSIONS } from "@guild-os/domain";
+import {
+  PERMISSIONS,
+  assertGoalStatus,
+  assertGoalTransition,
+  assertProjectStatus,
+  assertProjectTransition,
+  assertQuestStatus,
+  assertQuestTransition,
+  assertStepStatus,
+  assertStepTransition,
+} from "@guild-os/domain";
 
 const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
 const rootId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b";
@@ -19,6 +33,11 @@ const memberRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9f";
 const rootSpaceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa0";
 const researchSpaceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa1";
 const knowledgeId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa3";
+const goalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab0";
+const projectId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab1";
+const questId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab2";
+const completedStepId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab3";
+const pendingStepId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab4";
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -89,8 +108,18 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       },
     ],
     roles: [
-      { id: adminRoleId, name: "Admin", system: true, permissions: ["guild.read", "membership.manage"] },
-      { id: memberRoleId, name: "Member", system: true, permissions: ["guild.read", "space.read"] },
+      {
+        id: adminRoleId,
+        name: "Admin",
+        system: true,
+        permissions: ["guild.read", "membership.manage", "work.read", "work.create", "work.assign"],
+      },
+      {
+        id: memberRoleId,
+        name: "Member",
+        system: true,
+        permissions: ["guild.read", "space.read", "work.read"],
+      },
     ],
     roleBindings: [
       { id: "binding-root", identityId: rootId, roleId: adminRoleId, spaceId: null },
@@ -205,6 +234,112 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     files: [],
   }];
   const fileBodies = new Map<string, Blob>();
+  const workCapabilities = {
+    changeStatus: mode === "root",
+    assign: mode === "root",
+    addChild: mode === "root",
+  };
+  let goals: UiGoal[] = [{
+    id: goalId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    title: "Build a trustworthy research memory",
+    description: "Turn repeatable research practice into governed, cited Guild Knowledge.",
+    status: "active",
+    creatorIdentityId: rootId,
+    sourceIds: [knowledgeId],
+    targetAt: "2026-09-30T00:00:00.000Z",
+    version: 1,
+    createdAt: "2026-08-10T03:00:00.000Z",
+    updatedAt: "2026-08-12T02:00:00.000Z",
+    capabilities: workCapabilities,
+  }];
+  let projects: UiProject[] = [{
+    id: projectId,
+    goalId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    title: "Standardize research intake",
+    description: "Validate the intake procedure with a complete Human and Agent workflow.",
+    status: "active",
+    creatorIdentityId: rootId,
+    sourceIds: [knowledgeId],
+    dueAt: "2026-08-31T00:00:00.000Z",
+    version: 1,
+    createdAt: "2026-08-10T03:15:00.000Z",
+    updatedAt: "2026-08-12T02:05:00.000Z",
+    capabilities: workCapabilities,
+  }];
+  let quests: UiQuest[] = [{
+    id: questId,
+    projectId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    assigneeIdentityId: agentId,
+    title: "Verify the onboarding research request",
+    description: "Check the fictional request against the canonical intake procedure and prepare a reviewable result.",
+    status: "in_progress",
+    creatorIdentityId: rootId,
+    sourceIds: [knowledgeId],
+    dueAt: "2026-08-18T05:00:00.000Z",
+    version: 1,
+    createdAt: "2026-08-11T01:00:00.000Z",
+    updatedAt: "2026-08-12T02:10:00.000Z",
+    capabilities: workCapabilities,
+  }];
+  let steps: UiStep[] = [{
+    id: completedStepId,
+    questId,
+    assigneeIdentityId: agentId,
+    creatorIdentityId: rootId,
+    title: "Read the canonical procedure",
+    description: "Use only the current canonical Knowledge version.",
+    status: "completed",
+    position: 0,
+    version: 1,
+    createdAt: "2026-08-11T01:05:00.000Z",
+    updatedAt: "2026-08-12T01:00:00.000Z",
+    capabilities: workCapabilities,
+  }, {
+    id: pendingStepId,
+    questId,
+    assigneeIdentityId: agentId,
+    creatorIdentityId: rootId,
+    title: "Submit findings for human review",
+    description: "Include citations and mark every unsupported conclusion as inference.",
+    status: "pending",
+    position: 1,
+    version: 1,
+    createdAt: "2026-08-11T01:06:00.000Z",
+    updatedAt: "2026-08-11T01:06:00.000Z",
+    capabilities: workCapabilities,
+  }];
+
+  function assertCurrentVersion(current: number, expected: number): void {
+    if (current !== expected) throw new Error("Work changed since it was loaded.");
+  }
+
+  function assertAssignable(identityId: string | null): void {
+    if (identityId === null) return;
+    const identity = directory.identities.find((candidate) => candidate.id === identityId);
+    if (!identity || identity.kind === "service" || identity.status !== "active" ||
+        identity.membershipState !== "active") {
+      throw new Error("Work can be assigned only to an active Human or Agent.");
+    }
+  }
+
+  function now(): string {
+    return new Date().toISOString();
+  }
 
   return {
     async getBootstrap() {
@@ -610,6 +745,218 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           spaceId: source.spaceId,
         }],
       };
+    },
+    async getWorkPage(request = {}) {
+      const requestedStatuses = request.questStatuses ? new Set(request.questStatuses) : null;
+      return {
+        goals,
+        projects,
+        quests: quests.filter((quest) =>
+          (!request.projectId || quest.projectId === request.projectId) &&
+          (!request.assigneeIdentityId || quest.assigneeIdentityId === request.assigneeIdentityId) &&
+          (!requestedStatuses || requestedStatuses.has(quest.status))),
+        nextGoalCursor: null,
+        nextProjectCursor: null,
+        nextQuestCursor: null,
+        canCreate: mode === "root",
+      };
+    },
+    async getQuestDetail(requestedQuestId) {
+      const quest = quests.find((candidate) => candidate.id === requestedQuestId);
+      if (!quest) throw new Error("Quest was not found.");
+      return {
+        quest,
+        steps: steps.filter((step) => step.questId === requestedQuestId)
+          .sort((left, right) => left.position - right.position),
+      };
+    },
+    async createGoal(input) {
+      if (mode !== "root") throw new Error("This identity cannot create Work.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      goals = [{
+        ...input,
+        id,
+        ownerIdentityId: bootstrap.accountId,
+        creatorIdentityId: bootstrap.accountId,
+        status: "draft",
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: workCapabilities,
+      }, ...goals];
+      return id;
+    },
+    async createProject(input) {
+      if (mode !== "root") throw new Error("This identity cannot create Work.");
+      const parent = goals.find((candidate) => candidate.id === input.goalId);
+      if (!parent) throw new Error("Goal was not found.");
+      if (!["draft", "active"].includes(parent.status)) {
+        throw new Error("This Goal no longer accepts Projects.");
+      }
+      if (input.spaceId !== parent.spaceId) throw new Error("Project must remain inside its Goal Space.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      projects = [{
+        ...input,
+        id,
+        ownerIdentityId: bootstrap.accountId,
+        creatorIdentityId: bootstrap.accountId,
+        status: "planned",
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: workCapabilities,
+      }, ...projects];
+      return id;
+    },
+    async createQuest(input) {
+      if (mode !== "root") throw new Error("This identity cannot create Work.");
+      const parent = projects.find((candidate) => candidate.id === input.projectId);
+      if (!parent) throw new Error("Project was not found.");
+      if (["completed", "cancelled"].includes(parent.status)) {
+        throw new Error("This Project no longer accepts Quests.");
+      }
+      if (input.spaceId !== parent.spaceId) throw new Error("Quest must remain inside its Project Space.");
+      assertAssignable(input.assigneeIdentityId);
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      quests = [{
+        ...input,
+        id,
+        ownerIdentityId: bootstrap.accountId,
+        creatorIdentityId: bootstrap.accountId,
+        status: "ready",
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: workCapabilities,
+      }, ...quests];
+      return id;
+    },
+    async createStep(input) {
+      if (mode !== "root") throw new Error("This identity cannot create Work.");
+      const parent = quests.find((candidate) => candidate.id === input.questId);
+      if (!parent) throw new Error("Quest was not found.");
+      if (["completed", "cancelled"].includes(parent.status)) {
+        throw new Error("This Quest no longer accepts Steps.");
+      }
+      assertAssignable(input.assigneeIdentityId);
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      const position = steps.filter((step) => step.questId === input.questId)
+        .reduce((maximum, step) => Math.max(maximum, step.position), -1) + 1;
+      steps = [...steps, {
+        ...input,
+        id,
+        creatorIdentityId: bootstrap.accountId,
+        status: "pending",
+        position,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: workCapabilities,
+      }];
+      return id;
+    },
+    async changeWorkStatus(input) {
+      if (mode !== "root") throw new Error("This identity cannot change Work state.");
+      const timestamp = now();
+      switch (input.kind) {
+        case "goal": {
+          const item = goals.find((candidate) => candidate.id === input.id);
+          if (!item) throw new Error("Goal was not found.");
+          assertCurrentVersion(item.version, input.expectedVersion);
+          const nextStatus = input.status;
+          assertGoalStatus(nextStatus);
+          assertGoalTransition(item.status, nextStatus);
+          if (["completed", "cancelled"].includes(nextStatus) && projects.some((project) =>
+            project.goalId === item.id && !["completed", "cancelled"].includes(project.status))) {
+            throw new Error("Complete or cancel every Project first.");
+          }
+          const version = item.version + 1;
+          goals = goals.map((candidate) => candidate.id === item.id
+            ? { ...candidate, status: nextStatus, version, updatedAt: timestamp }
+            : candidate);
+          return version;
+        }
+        case "project": {
+          const item = projects.find((candidate) => candidate.id === input.id);
+          if (!item) throw new Error("Project was not found.");
+          assertCurrentVersion(item.version, input.expectedVersion);
+          const nextStatus = input.status;
+          assertProjectStatus(nextStatus);
+          assertProjectTransition(item.status, nextStatus);
+          if (["completed", "cancelled"].includes(nextStatus) && quests.some((quest) =>
+            quest.projectId === item.id && !["completed", "cancelled"].includes(quest.status))) {
+            throw new Error("Complete or cancel every Quest first.");
+          }
+          const version = item.version + 1;
+          projects = projects.map((candidate) => candidate.id === item.id
+            ? { ...candidate, status: nextStatus, version, updatedAt: timestamp }
+            : candidate);
+          return version;
+        }
+        case "quest": {
+          const item = quests.find((candidate) => candidate.id === input.id);
+          if (!item) throw new Error("Quest was not found.");
+          assertCurrentVersion(item.version, input.expectedVersion);
+          const nextStatus = input.status;
+          assertQuestStatus(nextStatus);
+          assertQuestTransition(item.status, nextStatus);
+          if (["completed", "cancelled"].includes(nextStatus) && steps.some((step) =>
+            step.questId === item.id && !["completed", "skipped"].includes(step.status))) {
+            throw new Error("Complete or skip every Step first.");
+          }
+          const version = item.version + 1;
+          quests = quests.map((candidate) => candidate.id === item.id
+            ? { ...candidate, status: nextStatus, version, updatedAt: timestamp }
+            : candidate);
+          return version;
+        }
+        case "step": {
+          const item = steps.find((candidate) => candidate.id === input.id);
+          if (!item) throw new Error("Step was not found.");
+          assertCurrentVersion(item.version, input.expectedVersion);
+          const nextStatus = input.status;
+          assertStepStatus(nextStatus);
+          assertStepTransition(item.status, nextStatus);
+          const version = item.version + 1;
+          steps = steps.map((candidate) => candidate.id === item.id
+            ? { ...candidate, status: nextStatus, version, updatedAt: timestamp }
+            : candidate);
+          return version;
+        }
+      }
+    },
+    async assignWork(input) {
+      if (mode !== "root") throw new Error("This identity cannot assign Work.");
+      assertAssignable(input.assigneeIdentityId);
+      const timestamp = now();
+      if (input.kind === "quest") {
+        const item = quests.find((candidate) => candidate.id === input.id);
+        if (!item) throw new Error("Quest was not found.");
+        assertCurrentVersion(item.version, input.expectedVersion);
+        const version = item.version + 1;
+        quests = quests.map((candidate) => candidate.id === item.id ? {
+          ...candidate,
+          assigneeIdentityId: input.assigneeIdentityId,
+          version,
+          updatedAt: timestamp,
+        } : candidate);
+        return version;
+      }
+      const item = steps.find((candidate) => candidate.id === input.id);
+      if (!item) throw new Error("Step was not found.");
+      assertCurrentVersion(item.version, input.expectedVersion);
+      const version = item.version + 1;
+      steps = steps.map((candidate) => candidate.id === item.id ? {
+        ...candidate,
+        assigneeIdentityId: input.assigneeIdentityId,
+        version,
+        updatedAt: timestamp,
+      } : candidate);
+      return version;
     },
     async setPreferredLocale(locale) {
       bootstrap = { ...bootstrap, preferredLocale: locale };

@@ -20,15 +20,19 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
 - Authorized members can create multilingual Knowledge drafts, create immutable revisions, attach
   R2 files, propose review, approve or request changes, publish, acknowledge, deprecate, and archive.
 - Ask Guild searches only permission-filtered Canonical Knowledge and returns versioned citations.
+- Authorized members can inspect governed Goal, Project, Quest, and Step hierarchies. Authorized
+  operators can create children, move them through legal states, and assign Quests or Steps only to
+  active Humans and Agents that can read the resource. Every mutation records Chronicle evidence;
+  assignment also creates an Inbox notification in the same transaction.
 - Failed or interrupted R2 cleanup remains in the PostgreSQL outbox and is retried by a five-minute
   Cron Trigger.
 - `GuildSession.getOverview()` checks Guild authorization, removes unauthorized Spaces, requests an
   observation authorization, and only then returns data to the agent or Gadget.
 - A Guild observation cannot be shared with another Workshop account by default.
 
-The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, and Ask Guild.
-Its Agent action catalog remains empty, so unfinished Agent execution and external-write operations
-cannot appear or be invoked.
+The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, Ask Guild, and
+Work. Its Agent action catalog remains empty, so unfinished Agent execution and external-write
+operations cannot appear or be invoked.
 
 ## Package layout
 
@@ -39,6 +43,7 @@ cannot appear or be invoked.
 | `src/authorization.ts` | PostgreSQL snapshot loading and permission-filtered Guild reads |
 | `src/management-api.ts` | Account-bound management RPC, invitation hashing, and write authorization |
 | `src/knowledge-service.ts` | Knowledge policy, R2 lifecycle, Ask context construction, and cleanup |
+| `src/work-service.ts` | Work input validation, authorization, assignment, and UI projections |
 | `src/session.ts` | Observation-authorized `GuildSession` RPC |
 | `src/guild.ts` | Cloudflare Gatekeeper, account, verifier, and vendor adapters |
 | `app/` | Sandboxed management iframe source |

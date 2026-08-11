@@ -12,7 +12,7 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 | 3 | Enforce Role, Space, Permission before model context | Partial | SQL prefilter plus domain recheck; wrong-Space, explicit-share, and clearance leakage integration tests; observation ordering test | Production Access/Workers AI smoke |
 | 4 | Knowledge files, versions, approval, publish, deprecate | Partial | Immutable PostgreSQL lifecycle; human-only approval; R2 two-phase upload and durable cleanup; responsive lifecycle E2E | Production Hyperdrive/R2 lifecycle smoke |
 | 5 | Ask Guild with authorized citations | Partial | Canonical-only search, bounded context, Workers AI call, version citations, no-evidence behavior, rate limit, and leakage tests | Production Workers AI citation smoke; derived semantic index remains post-MVP quality work |
-| 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Relational schema | Commands, views, validation, assignment E2E |
+| 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Domain lifecycle; database-enforced hierarchy, Space containment, optimistic versions, and Human/Agent assignment; permission-prefiltered services; responsive management UI; PostgreSQL, Gatekeeper, and full hierarchy E2E tests | Production Hyperdrive assignment and Chronicle smoke |
 | 7 | Agent Plan, approval, one external write | Not started | Risk/quorum and authority intersection policy | Workflow, connector, idempotent write, approval UI/E2E |
 | 8 | Formal Decision with evidence and approvals | Partial | Relational schema | Commands, views, approval and supersession E2E |
 | 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Isolated tables and indexes | Commands, delivery fan-out, views, read state E2E |
@@ -41,5 +41,10 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   Guild invokes Workers AI. Prompt logs and model cache are disabled.
 - Interrupted uploads and R2 deletion failures are retained in an idempotent outbox and retried by
   the Worker Cron Trigger.
+- Goal, Project, Quest, and Step mutations enforce legal transitions and exact versions. A child
+  cannot broaden its parent's Space, terminal parents require terminal children, and only active
+  Humans or Agents with access to the Work resource can receive an assignment. Assignment
+  notifications and Chronicle evidence commit with the Work mutation.
 - Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
-  states plus the complete Knowledge and Ask path have Playwright interaction and overflow checks.
+  states plus the complete Knowledge, Ask, and Goal-to-Step Work paths have Playwright interaction
+  and overflow checks.
