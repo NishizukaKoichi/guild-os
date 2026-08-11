@@ -1,0 +1,25 @@
+export type GuildErrorCode =
+  | "INVALID_INPUT"
+  | "IDENTITY_NOT_FOUND"
+  | "IDENTITY_DISABLED"
+  | "MEMBERSHIP_INACTIVE"
+  | "PERMISSION_DENIED"
+  | "RESOURCE_OUTSIDE_GUILD"
+  | "PRIVATE_RESOURCE"
+  | "CLASSIFICATION_DENIED"
+  | "ROOT_OWNER_REQUIRED"
+  | "ROOT_OWNER_PROTECTED"
+  | "AGENT_ROOT_FORBIDDEN"
+  | "AGENT_STOPPED"
+  | "AGENT_LIMIT_EXCEEDED"
+  | "INVALID_KNOWLEDGE_TRANSITION";
+
+export class GuildDomainError extends Error {
+  readonly code: GuildErrorCode;
+
+  constructor(code: GuildErrorCode, message: string) {
+    super(message);
+    this.name = "GuildDomainError";
+    this.code = code;
+  }
+}
