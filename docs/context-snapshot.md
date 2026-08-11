@@ -89,11 +89,16 @@ product requirement must be resolved explicitly rather than silently weakened.
   SHA-256-only storage, irreversible generation rotation/revocation, per-account rate limiting,
   active-Human enforcement, prior-Root Role preservation, pending-transfer supersession, mandatory
   disclosure/change Chronicle evidence, and desktop/mobile browser coverage.
+- Context-bound Conversations are implemented for Knowledge, Work, Decisions, Announcements, and
+  Agent Runs. Current subject authorization is applied before message text leaves PostgreSQL;
+  Human mentions, Inbox delivery, append-only messages, audited lock/unlock, and redaction have
+  PostgreSQL and Gatekeeper integration coverage. Knowledge, Quest, and Decision expose the shared
+  responsive comments panel in the v1 UI.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Complete permission-filtered Conversations/comments and remaining recovery/export tooling.
+1. Complete bootstrap privacy, operational recovery/export, and release observability tooling.
 2. Run full local release verification and produce an immutable release manifest.
 3. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
    smoke test.

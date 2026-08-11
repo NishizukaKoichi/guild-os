@@ -47,6 +47,8 @@ Implemented and tested:
   quorum, dissent records, and security-boundary-preserving supersession
 - Governed Role/Space Announcements with immutable publication, set-based recipient delivery,
   deduplicated Inbox notifications, and recipient-controlled read state
+- Context-bound Conversations with current-authority reads, active-Human mentions, audited
+  lock/unlock and redaction, Inbox delivery, and reusable Knowledge, Quest, and Decision comments
 - Permission-prefiltered Chronicle search with actor, subject, date, and normalized action filters
 - Governed Risk Level 2 Agent plans with Cloudflare OS approval, Guild quorum, immutable authority
   snapshots, execution-time permission rechecks, and Cloudflare Workflows

@@ -34,6 +34,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0022_constitution_governance.sql",
     "0023_root_ownership_transfer.sql",
     "0024_break_glass_recovery.sql",
+    "0025_context_bound_conversations.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -67,4 +68,6 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[23].sql, /Break Glass recovery did not complete atomically/);
   assert.match(migrations[23].sql, /Root ownership change requires one authorized governance path/);
   assert.match(migrations[23].sql, /NEW\.state = 'superseded'/);
+  assert.match(migrations[24].sql, /identity_can_access_conversation_subject/);
+  assert.match(migrations[24].sql, /Conversation message mutation requires an atomic Chronicle event/);
 });

@@ -163,6 +163,21 @@ removing a Role therefore hides prior Inbox and Chronicle rows immediately witho
 historical record. Inbox payload and security columns are immutable; only its recipient can change
 the read timestamp. Chronicle remains fully append-only.
 
+Conversations never establish their own access scope. PostgreSQL resolves the current Knowledge,
+Work, Decision, Announcement, or Agent Run boundary and applies Membership, Role, Space ancestry,
+clearance, visibility, ownership, and explicit-share checks before returning any message body. The
+Gatekeeper repeats the subject permission check, so a direct URL or stale browser state cannot keep
+a thread visible after the subject becomes restricted. Stored Conversation boundaries are audit
+snapshots only.
+
+Only active Humans with current subject access can be mentioned. Mention eligibility and Inbox
+fan-out are set-based and reject Agent, Service, inactive, wrong-Space, and insufficient-clearance
+identities. Messages cannot be edited. Human moderators can lock or unlock a thread and redact a
+message only with a reason and an exact optimistic version. PostgreSQL requires a newer matching
+Chronicle event for each state change, which prevents replay of an older audit event. Normal reads
+replace a redacted body with `null`; non-moderators also receive no redaction reason or actor.
+Chronicle stores a SHA-256 digest and mention count for a post, not its plaintext.
+
 Knowledge and Space metadata are authorization-filtered before they are returned through the
 Gatekeeper. The agent catalog is bounded by Cloudflare OS and contains only permitted Spaces. The
 Gatekeeper asks the Workshop to authorize each observation before returning data to a Gadget or
@@ -235,6 +250,8 @@ does not make deleted files visible or lose the cleanup obligation.
 | Stolen Root session attempts silent handover | Immutable expiring proposal plus acceptance by the named active Human in a separate account session | A compromise of both Human accounts still requires incident recovery and credential rotation |
 | Lost Root and administrator access | Offline 192-bit one-time codes, purchaser custody, rate limit, exact confirmation, atomic generation invalidation, and mandatory Chronicle | Loss of every offline code requires purchaser-controlled infrastructure recovery; the seller has no bypass |
 | Stolen or replayed recovery code | SHA-256-only storage, current-generation pointer, one-time consumption, whole-generation invalidation, expiry, and generic failures | A thief with both a current code and an allowed Cloudflare OS account can recover; use split offline custody and short Access policy scope |
+| Comment leaks after subject access changes | Every read resolves and filters the current subject boundary before returning message bodies | Previously viewed content remains in a Human's memory or local browser history; use appropriate classification and endpoint cache headers |
+| Silent comment editing or moderation | Append-only messages, redaction-only state changes, exact versions, and a newer transaction-paired Chronicle event | Redacted source bodies remain in PostgreSQL until the purchaser's retention process removes them under policy |
 
 ## Known security gates
 

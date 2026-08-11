@@ -21,6 +21,7 @@ import type {
   UiDecisionSummary,
   UiDirectory,
 } from "../../src/management-types";
+import { CommentsPanel } from "../components/CommentsPanel";
 import { DecisionEditorDialog } from "../components/DecisionEditorDialog";
 import { DecisionReviewDialog } from "../components/DecisionReviewDialog";
 import { DecisionSupersedeDialog } from "../components/DecisionSupersedeDialog";
@@ -317,6 +318,13 @@ export function DecisionsPage({
                     </div>
                   )}
                 </section>
+                <CommentsPanel
+                  key={`decision-${detail.decision.id}`}
+                  api={api}
+                  subjectType="decision"
+                  subjectId={detail.decision.id}
+                  identities={directory?.identities ?? []}
+                />
               </>
             )}
           </article>

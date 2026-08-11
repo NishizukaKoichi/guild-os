@@ -106,6 +106,7 @@ export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "role.manage",
   "knowledge.approve",
   "decision.approve",
+  "conversation.moderate",
   "announcement.manage",
   "agent.manage",
   "agent.approve",
@@ -113,6 +114,20 @@ export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "integration.manage",
   "break-glass.use",
 ]);
+
+export const CONVERSATION_SUBJECT_TYPES = [
+  "knowledge",
+  "goal",
+  "project",
+  "quest",
+  "step",
+  "decision",
+  "announcement",
+  "agent_run",
+] as const;
+
+export const CONVERSATION_STATUSES = ["open", "locked"] as const;
+export const CONVERSATION_MESSAGE_STATES = ["active", "redacted"] as const;
 
 export const ROOT_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "constitution.update",

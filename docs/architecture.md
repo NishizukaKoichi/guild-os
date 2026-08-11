@@ -94,6 +94,14 @@ freezes the audience, inserts recipient notifications with one deduplicated SQL 
 records Chronicle evidence in the same transaction. Inbox and Chronicle rows retain the source
 security boundary but always require the reader's current Membership, Role, Space, and clearance.
 
+Contextual Conversations use `guild-domain/conversation.ts`, `guild-postgres/conversation.ts`, and
+`guild-gatekeeper/conversation-service.ts`. One thread is bound to one governed record and inherits
+that record's current authorization boundary. PostgreSQL filters the subject before returning a
+message body, validates all Human mentions in one query, and pairs posting or moderation with an
+exact Chronicle event. `CommentsPanel.tsx` is reusable presentation attached to Knowledge, Quest,
+and Decision views; the service contract also supports Goals, Projects, Steps, Announcements, and
+Agent Runs without adding a central condition-heavy chat module.
+
 Agent execution follows the same boundary. `guild-domain/agent.ts` validates plans, transitions,
 JSON bounds, usage, and limit intersection; `guild-postgres/agent-run.ts` owns immutable plans,
 append-only votes, authority snapshots, run state, Chronicle, and the transactional Workflow
@@ -111,8 +119,8 @@ that module with another owned receiver without changing Agent policy or Run sta
 ## Source-of-truth rules
 
 - PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge
-  metadata and versions, Work, Decisions, Announcements, Inbox state, Agent policies, Agent runs,
-  and Chronicle events.
+  metadata and versions, Work, Decisions, Announcements, Conversations, Inbox state, Agent policies,
+  Agent runs, and Chronicle events.
 - R2 owns immutable file bodies addressed by checksums. PostgreSQL stores their metadata and links.
 - Vectorize or `pgvector` is a rebuildable search index. Search results are filtered by authorized
   Guild, Space, visibility, classification, and lifecycle state before model context construction.

@@ -22,6 +22,7 @@ const announcementProvenanceMigrationUrl = new URL("../migrations/0018_archived_
 const constitutionGovernanceMigrationUrl = new URL("../migrations/0022_constitution_governance.sql", import.meta.url);
 const rootOwnershipTransferMigrationUrl = new URL("../migrations/0023_root_ownership_transfer.sql", import.meta.url);
 const breakGlassRecoveryMigrationUrl = new URL("../migrations/0024_break_glass_recovery.sql", import.meta.url);
+const conversationGovernanceMigrationUrl = new URL("../migrations/0025_context_bound_conversations.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -166,5 +167,13 @@ describe("Guild PostgreSQL migration", () => {
     expect(recoverySql).toContain("Root ownership change requires one authorized governance path");
     expect(recoverySql).toContain("Root ownership change must invalidate existing Break Glass codes");
     expect(recoverySql).toContain("NEW.state = 'superseded'");
+    const conversationSql = await readFile(
+      fileURLToPath(conversationGovernanceMigrationUrl),
+      "utf8",
+    );
+    expect(conversationSql).toContain("conversations_one_thread_per_subject_idx");
+    expect(conversationSql).toContain("identity_can_access_conversation_subject");
+    expect(conversationSql).toContain("Conversation mutation requires an atomic Chronicle event");
+    expect(conversationSql).toContain("Conversation messages are append-only");
   });
 });

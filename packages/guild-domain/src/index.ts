@@ -9,3 +9,4 @@ export * from "./work.js";
 export * from "./decision.js";
 export * from "./announcement.js";
 export * from "./agent.js";
+export * from "./conversation.js";

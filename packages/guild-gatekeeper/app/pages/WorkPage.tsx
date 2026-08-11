@@ -29,6 +29,7 @@ import type {
   WorkAssignmentRequest,
   WorkStatusRequest,
 } from "../../src/management-types";
+import { CommentsPanel } from "../components/CommentsPanel";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { WorkEditorDialog, type WorkCreateKind } from "../components/WorkEditorDialog";
@@ -442,6 +443,13 @@ export function WorkPage({
                                   </div>
                                 )}
                               </section>
+                              <CommentsPanel
+                                key={`quest-${detail.quest.id}`}
+                                api={api}
+                                subjectType="quest"
+                                subjectId={detail.quest.id}
+                                identities={directory?.identities ?? []}
+                              />
                             </>
                           )}
                     </article>

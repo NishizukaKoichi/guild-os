@@ -3,6 +3,9 @@ import type {
   AGENT_RUN_STATUSES,
   APPROVAL_STATUSES,
   CLASSIFICATIONS,
+  CONVERSATION_MESSAGE_STATES,
+  CONVERSATION_STATUSES,
+  CONVERSATION_SUBJECT_TYPES,
   CONNECTOR_STATUSES,
   DECISION_STATUSES,
   GOAL_STATUSES,
@@ -36,6 +39,9 @@ export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 export type ConnectorStatus = (typeof CONNECTOR_STATUSES)[number];
+export type ConversationSubjectType = (typeof CONVERSATION_SUBJECT_TYPES)[number];
+export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
+export type ConversationMessageState = (typeof CONVERSATION_MESSAGE_STATES)[number];
 export type LocalizedText = Partial<Record<AppLocale, string>>;
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -300,6 +306,30 @@ export interface Announcement extends SecuredResource {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Conversation extends SecuredResource {
+  subjectType: ConversationSubjectType;
+  subjectId: string;
+  status: ConversationStatus;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  guildId: string;
+  conversationId: string;
+  authorIdentityId: string;
+  body: string;
+  mentionedIdentityIds: readonly string[];
+  state: ConversationMessageState;
+  version: number;
+  redactedByIdentityId: string | null;
+  redactedAt: string | null;
+  redactionReason: string | null;
+  createdAt: string;
 }
 
 export type InboxNotificationKind =

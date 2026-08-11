@@ -36,6 +36,7 @@ import type { GuildEnv } from "./config.js";
 import { GuildKnowledgeService } from "./knowledge-service.js";
 import { GuildWorkService } from "./work-service.js";
 import { GuildDecisionService } from "./decision-service.js";
+import { GuildConversationService } from "./conversation-service.js";
 import { GuildCommunicationService } from "./communication-service.js";
 import { GuildAgentService } from "./agent-service.js";
 import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
@@ -63,9 +64,13 @@ import type {
   IssuedInvitation,
   KnowledgeTransitionRequest,
   MarkInboxReadRequest,
+  ModerateConversationRequest,
+  PostConversationMessageRequest,
+  PostConversationMessageResponse,
   PublishAnnouncementResponse,
   ProposeRootOwnershipTransferRequest,
   RecoverRootOwnershipRequest,
+  RedactConversationMessageRequest,
   RevokeBreakGlassCodesRequest,
   ReviewKnowledgeRequest,
   ReviewAgentRunRequest,
@@ -75,12 +80,17 @@ import type {
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
   SaveKnowledgeDraftRequest,
+  SearchConversationMentionsRequest,
   SaveAnnouncementDraftRequest,
   SaveDecisionDraftRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
   UiBreakGlassStatus,
   UiConstitution,
+  UiConversation,
+  UiConversationMentionCandidate,
+  UiConversationThread,
+  UiConversationThreadRequest,
   UiAgentRunDetail,
   UiAgentRunPage,
   UiAgentRunPageRequest,
@@ -1315,6 +1325,30 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   supersedeDecision(input: SupersedeDecisionRequest): Promise<number> {
     return new GuildDecisionService(this.#env, this.#accountId).supersede(input);
+  }
+
+  getConversationThread(request: UiConversationThreadRequest): Promise<UiConversationThread> {
+    return new GuildConversationService(this.#env, this.#accountId).getThread(request);
+  }
+
+  postConversationMessage(
+    input: PostConversationMessageRequest,
+  ): Promise<PostConversationMessageResponse> {
+    return new GuildConversationService(this.#env, this.#accountId).post(input);
+  }
+
+  moderateConversation(input: ModerateConversationRequest): Promise<UiConversation> {
+    return new GuildConversationService(this.#env, this.#accountId).moderate(input);
+  }
+
+  redactConversationMessage(input: RedactConversationMessageRequest): Promise<number> {
+    return new GuildConversationService(this.#env, this.#accountId).redact(input);
+  }
+
+  searchConversationMentions(
+    input: SearchConversationMentionsRequest,
+  ): Promise<readonly UiConversationMentionCandidate[]> {
+    return new GuildConversationService(this.#env, this.#accountId).searchMentions(input);
   }
 
   getAnnouncementPage(request: UiAnnouncementPageRequest = {}): Promise<UiAnnouncementPage> {

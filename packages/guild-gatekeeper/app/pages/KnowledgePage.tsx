@@ -22,6 +22,7 @@ import type {
   UiKnowledgeDetail,
   UiKnowledgePage,
 } from "../../src/management-types";
+import { CommentsPanel } from "../components/CommentsPanel";
 import { KnowledgeEditorDialog } from "../components/KnowledgeEditorDialog";
 import { KnowledgeReviewDialog } from "../components/KnowledgeReviewDialog";
 import { Notice } from "../components/Notice";
@@ -386,6 +387,13 @@ export function KnowledgePage({ api, directory, requestedKnowledgeId }: {
                     )}
                   </section>
                 </div>
+                <CommentsPanel
+                  key={`knowledge-${detail.id}`}
+                  api={api}
+                  subjectType="knowledge"
+                  subjectId={detail.id}
+                  identities={directory?.identities ?? []}
+                />
               </>
             ) : <p className="empty-state">{t("knowledge.select")}</p>}
           </section>

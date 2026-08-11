@@ -8,6 +8,9 @@ import type {
   UiAnnouncement,
   UiAgentRunDetail,
   UiChronicleEvent,
+  UiConversation,
+  UiConversationMessage,
+  UiConversationSubject,
   UiDirectory,
   UiDecisionDetail,
   UiKnowledgeDetail,
@@ -64,6 +67,16 @@ const connectorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad3";
 const agentRunId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad4";
 const agentApprovalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad5";
 const recoveryCodeSetId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad6";
+const knowledgeConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b01";
+const questConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b02";
+const decisionConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b03";
+
+async function sha256Text(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -667,6 +680,168 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     capabilities: agentCapabilities("awaiting_approval"),
     votes: [],
   }];
+
+  type DemoConversation = {
+    conversation: UiConversation;
+    messages: UiConversationMessage[];
+  };
+  type DemoBoundary = Pick<
+    UiConversationSubject,
+    "spaceId" | "ownerIdentityId" | "visibility" | "classification"
+  > & { allowedIdentityIds?: readonly string[] };
+  let conversations: DemoConversation[] = [{
+    conversation: {
+      id: knowledgeConversationId,
+      subjectType: "knowledge",
+      subjectId: knowledgeId,
+      spaceId: researchSpaceId,
+      ownerIdentityId: rootId,
+      visibility: "space",
+      classification: "internal",
+      allowedIdentityIds: [],
+      status: "open",
+      version: 1,
+      createdAt: "2026-08-12T02:40:00.000Z",
+      updatedAt: "2026-08-12T02:42:00.000Z",
+    },
+    messages: [{
+      id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b11",
+      conversationId: knowledgeConversationId,
+      authorIdentityId: rootId,
+      authorDisplayName: "Avery Morgan",
+      body: "Please confirm that the ownership check is clear before the next review.",
+      mentionedIdentityIds: [memberId],
+      state: "active",
+      version: 1,
+      redactedByIdentityId: null,
+      redactedAt: null,
+      redactionReason: null,
+      createdAt: "2026-08-12T02:42:00.000Z",
+    }],
+  }, {
+    conversation: {
+      id: questConversationId,
+      subjectType: "quest",
+      subjectId: questId,
+      spaceId: researchSpaceId,
+      ownerIdentityId: rootId,
+      visibility: "space",
+      classification: "internal",
+      allowedIdentityIds: [],
+      status: "open",
+      version: 1,
+      createdAt: "2026-08-12T02:43:00.000Z",
+      updatedAt: "2026-08-12T02:44:00.000Z",
+    },
+    messages: [{
+      id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b12",
+      conversationId: questConversationId,
+      authorIdentityId: agentId,
+      authorDisplayName: "Research Synthesizer",
+      body: "Canonical Knowledge was checked. The citation review remains for a Human.",
+      mentionedIdentityIds: [],
+      state: "active",
+      version: 1,
+      redactedByIdentityId: null,
+      redactedAt: null,
+      redactionReason: null,
+      createdAt: "2026-08-12T02:44:00.000Z",
+    }],
+  }, {
+    conversation: {
+      id: decisionConversationId,
+      subjectType: "decision",
+      subjectId: decisionId,
+      spaceId: researchSpaceId,
+      ownerIdentityId: memberId,
+      visibility: "space",
+      classification: "internal",
+      allowedIdentityIds: [],
+      status: "open",
+      version: 1,
+      createdAt: "2026-08-12T02:45:00.000Z",
+      updatedAt: "2026-08-12T02:46:00.000Z",
+    },
+    messages: [{
+      id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b13",
+      conversationId: decisionConversationId,
+      authorIdentityId: memberId,
+      authorDisplayName: "Mina Park",
+      body: "The proposal keeps inference visible instead of presenting it as evidence.",
+      mentionedIdentityIds: [rootId],
+      state: "active",
+      version: 1,
+      redactedByIdentityId: null,
+      redactedAt: null,
+      redactionReason: null,
+      createdAt: "2026-08-12T02:46:00.000Z",
+    }],
+  }];
+
+  function conversationSubject(
+    subjectType: UiConversationSubject["subjectType"],
+    subjectId: string,
+  ): UiConversationSubject {
+    let resource: DemoBoundary | undefined;
+    let readPermission: UiConversationSubject["readPermission"];
+    if (subjectType === "knowledge") {
+      resource = knowledge.find((item) => item.id === subjectId);
+      readPermission = "knowledge.read";
+    } else if (subjectType === "goal") {
+      resource = goals.find((item) => item.id === subjectId);
+      readPermission = "work.read";
+    } else if (subjectType === "project") {
+      resource = projects.find((item) => item.id === subjectId);
+      readPermission = "work.read";
+    } else if (subjectType === "quest") {
+      resource = quests.find((item) => item.id === subjectId);
+      readPermission = "work.read";
+    } else if (subjectType === "step") {
+      const step = steps.find((item) => item.id === subjectId);
+      resource = step ? quests.find((item) => item.id === step.questId) : undefined;
+      readPermission = "work.read";
+    } else if (subjectType === "decision") {
+      resource = decisions.find((item) => item.decision.id === subjectId)?.decision;
+      readPermission = "decision.read";
+    } else if (subjectType === "announcement") {
+      resource = announcements.find((item) => item.id === subjectId);
+      readPermission = "announcement.read";
+    } else {
+      resource = agentRuns.find((item) => item.id === subjectId);
+      readPermission = "agent.read";
+    }
+    if (!resource) throw new Error("Conversation subject was not found.");
+    return {
+      subjectType,
+      subjectId,
+      spaceId: resource.spaceId,
+      ownerIdentityId: resource.ownerIdentityId,
+      visibility: resource.visibility,
+      classification: resource.classification,
+      allowedIdentityIds: resource.allowedIdentityIds ?? [],
+      readPermission,
+    };
+  }
+
+  function conversationCapabilities() {
+    const usableMembership = bootstrap.identityExists &&
+      (bootstrap.membershipState === "preboarding" || bootstrap.membershipState === "active");
+    return { post: usableMembership, moderate: usableMembership && bootstrap.rootOwner };
+  }
+
+  function assertConversationAccess(): void {
+    if (!conversationCapabilities().post) {
+      throw new Error("Conversation is outside this development identity scope.");
+    }
+  }
+
+  function findConversation(
+    subjectType: UiConversationSubject["subjectType"],
+    subjectId: string,
+  ): DemoConversation | undefined {
+    return conversations.find((item) =>
+      item.conversation.subjectType === subjectType && item.conversation.subjectId === subjectId);
+  }
 
   function appendDemoChronicle(
     action: string,
@@ -1676,6 +1851,194 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         })
         : candidate);
       return version;
+    },
+    async getConversationThread(request) {
+      assertConversationAccess();
+      const subject = conversationSubject(request.subjectType, request.subjectId);
+      const record = findConversation(request.subjectType, request.subjectId);
+      const capabilities = conversationCapabilities();
+      return {
+        subject,
+        conversation: record?.conversation ?? null,
+        messages: (record?.messages ?? []).map((message) => capabilities.moderate ? message : {
+          ...message,
+          redactedByIdentityId: null,
+          redactionReason: null,
+        }),
+        nextCursor: null,
+        capabilities,
+      };
+    },
+    async postConversationMessage(input) {
+      assertConversationAccess();
+      const subject = conversationSubject(input.subjectType, input.subjectId);
+      const body = input.body.trim();
+      if (!body || body.length > 10_000 || input.mentionedIdentityIds.length > 20 ||
+          new Set(input.mentionedIdentityIds).size !== input.mentionedIdentityIds.length ||
+          input.mentionedIdentityIds.includes(bootstrap.accountId)) {
+        throw new Error("Comment content or mentions are invalid.");
+      }
+      for (const identityId of input.mentionedIdentityIds) {
+        const identity = directory.identities.find((candidate) => candidate.id === identityId);
+        if (!identity || identity.kind !== "human" || identity.status !== "active" ||
+            !["preboarding", "active"].includes(identity.membershipState)) {
+          throw new Error("Mentioned Human cannot read the Conversation subject.");
+        }
+      }
+      let record = findConversation(input.subjectType, input.subjectId);
+      const opened = !record;
+      const timestamp = now();
+      if (!record) {
+        record = {
+          conversation: {
+            id: crypto.randomUUID(),
+            subjectType: input.subjectType,
+            subjectId: input.subjectId,
+            spaceId: subject.spaceId,
+            ownerIdentityId: subject.ownerIdentityId,
+            visibility: subject.visibility,
+            classification: subject.classification,
+            allowedIdentityIds: subject.allowedIdentityIds,
+            status: "open",
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+          messages: [],
+        };
+        conversations = [...conversations, record];
+        appendDemoChronicle(
+          "conversation.opened",
+          "conversation",
+          record.conversation.id,
+          subject,
+          { source: "guild-ui", subjectType: input.subjectType, subjectId: input.subjectId },
+        );
+      }
+      if (record.conversation.status !== "open") throw new Error("Conversation is locked.");
+      const author = directory.identities.find((identity) => identity.id === bootstrap.accountId);
+      const message: UiConversationMessage = {
+        id: crypto.randomUUID(),
+        conversationId: record.conversation.id,
+        authorIdentityId: bootstrap.accountId,
+        authorDisplayName: author?.displayName ?? "Guild Human",
+        body,
+        mentionedIdentityIds: input.mentionedIdentityIds,
+        state: "active",
+        version: 1,
+        redactedByIdentityId: null,
+        redactedAt: null,
+        redactionReason: null,
+        createdAt: timestamp,
+      };
+      record.messages = [...record.messages, message];
+      record.conversation = { ...record.conversation, updatedAt: timestamp };
+      const notifications: UiInboxNotification[] = input.mentionedIdentityIds.map((identityId) => ({
+        id: crypto.randomUUID(),
+        spaceId: subject.spaceId,
+        ownerIdentityId: subject.ownerIdentityId,
+        visibility: subject.visibility,
+        classification: subject.classification,
+        allowedIdentityIds: subject.allowedIdentityIds,
+        recipientIdentityId: identityId,
+        kind: "mention",
+        title: "You were mentioned in a comment",
+        body: "Open the linked Guild record to review the comment in context.",
+        resourceType: input.subjectType,
+        resourceId: input.subjectId,
+        readAt: null,
+        createdAt: timestamp,
+      }));
+      inbox = [...notifications, ...inbox];
+      appendDemoChronicle(
+        "conversation.message.posted",
+        "conversation_message",
+        message.id,
+        subject,
+        {
+          source: "guild-ui",
+          subjectType: input.subjectType,
+          subjectId: input.subjectId,
+          bodySha256: await sha256Text(body),
+          mentionCount: input.mentionedIdentityIds.length,
+        },
+      );
+      return {
+        conversation: record.conversation,
+        message,
+        opened,
+        notificationCount: notifications.length,
+      };
+    },
+    async moderateConversation(input) {
+      if (!conversationCapabilities().moderate) {
+        throw new Error("Only a Human moderator can change Conversation status.");
+      }
+      const subject = conversationSubject(input.subjectType, input.subjectId);
+      const record = findConversation(input.subjectType, input.subjectId);
+      const reason = input.reason.trim();
+      if (!record || record.conversation.id !== input.conversationId ||
+          record.conversation.version !== input.expectedVersion || !reason ||
+          record.conversation.status === input.nextStatus) {
+        throw new Error("Conversation changed since it was loaded.");
+      }
+      record.conversation = {
+        ...record.conversation,
+        status: input.nextStatus,
+        version: record.conversation.version + 1,
+        updatedAt: now(),
+      };
+      appendDemoChronicle(
+        input.nextStatus === "locked" ? "conversation.locked" : "conversation.unlocked",
+        "conversation",
+        input.conversationId,
+        subject,
+        { source: "guild-ui", reason },
+      );
+      return record.conversation;
+    },
+    async redactConversationMessage(input) {
+      if (!conversationCapabilities().moderate) {
+        throw new Error("Only a Human moderator can redact Conversation messages.");
+      }
+      const subject = conversationSubject(input.subjectType, input.subjectId);
+      const record = findConversation(input.subjectType, input.subjectId);
+      const message = record?.messages.find((candidate) => candidate.id === input.messageId);
+      const reason = input.reason.trim();
+      if (!record || record.conversation.id !== input.conversationId || !message ||
+          message.version !== input.expectedVersion || message.state !== "active" || !reason) {
+        throw new Error("Conversation message changed since it was loaded.");
+      }
+      const version = message.version + 1;
+      record.messages = record.messages.map((candidate) => candidate.id === message.id ? {
+        ...candidate,
+        body: null,
+        state: "redacted",
+        version,
+        redactedByIdentityId: bootstrap.accountId,
+        redactedAt: now(),
+        redactionReason: reason,
+      } : candidate);
+      appendDemoChronicle(
+        "conversation.message.redacted",
+        "conversation_message",
+        message.id,
+        subject,
+        { source: "guild-ui", reason },
+      );
+      return version;
+    },
+    async searchConversationMentions(input) {
+      assertConversationAccess();
+      conversationSubject(input.subjectType, input.subjectId);
+      const search = input.search.trim().toLocaleLowerCase("en-US");
+      if (!search) return [];
+      return directory.identities
+        .filter((identity) => identity.id !== bootstrap.accountId && identity.kind === "human" &&
+          identity.status === "active" && ["preboarding", "active"].includes(identity.membershipState) &&
+          identity.displayName.toLocaleLowerCase("en-US").startsWith(search))
+        .slice(0, 10)
+        .map((identity) => ({ id: identity.id, displayName: identity.displayName }));
     },
     async getAnnouncementPage() {
       return {

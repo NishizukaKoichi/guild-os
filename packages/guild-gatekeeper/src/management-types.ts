@@ -30,6 +30,10 @@ import type {
   Visibility,
   ChronicleEvent,
   Constitution,
+  Conversation,
+  ConversationMessageState,
+  ConversationStatus,
+  ConversationSubjectType,
   ConnectorStatus,
   JsonObject,
   RootOwnershipTransfer,
@@ -581,6 +585,89 @@ export interface SupersedeDecisionRequest extends DecisionTransitionRequest {
   replacementDecisionId: string;
 }
 
+export interface ConversationSubjectRequest {
+  subjectType: ConversationSubjectType;
+  subjectId: string;
+}
+
+export interface UiConversationSubject extends ConversationSubjectRequest {
+  spaceId: string | null;
+  ownerIdentityId: string;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+  readPermission: Permission;
+}
+
+export type UiConversation = Omit<Conversation, "guildId">;
+
+export interface UiConversationMessage {
+  id: string;
+  conversationId: string;
+  authorIdentityId: string;
+  authorDisplayName: string;
+  body: string | null;
+  mentionedIdentityIds: readonly string[];
+  state: ConversationMessageState;
+  version: number;
+  redactedByIdentityId: string | null;
+  redactedAt: string | null;
+  redactionReason: string | null;
+  createdAt: string;
+}
+
+export interface UiConversationCapabilities {
+  post: boolean;
+  moderate: boolean;
+}
+
+export interface UiConversationThread {
+  subject: UiConversationSubject;
+  conversation: UiConversation | null;
+  messages: readonly UiConversationMessage[];
+  nextCursor: string | null;
+  capabilities: UiConversationCapabilities;
+}
+
+export interface UiConversationThreadRequest extends ConversationSubjectRequest {
+  cursor?: string | null;
+}
+
+export interface PostConversationMessageRequest extends ConversationSubjectRequest {
+  body: string;
+  mentionedIdentityIds: readonly string[];
+}
+
+export interface PostConversationMessageResponse {
+  conversation: UiConversation;
+  message: UiConversationMessage;
+  opened: boolean;
+  notificationCount: number;
+}
+
+export interface ModerateConversationRequest extends ConversationSubjectRequest {
+  conversationId: string;
+  expectedVersion: number;
+  nextStatus: ConversationStatus;
+  reason: string;
+}
+
+export interface RedactConversationMessageRequest extends ConversationSubjectRequest {
+  conversationId: string;
+  messageId: string;
+  expectedVersion: number;
+  reason: string;
+}
+
+export interface SearchConversationMentionsRequest extends ConversationSubjectRequest {
+  search: string;
+}
+
+export interface UiConversationMentionCandidate {
+  id: string;
+  displayName: string;
+}
+
 export interface UiAnnouncementCapabilities {
   edit: boolean;
   publish: boolean;
@@ -807,6 +894,15 @@ export interface GuildUiApi {
   proposeDecision(input: DecisionTransitionRequest): Promise<number>;
   reviewDecision(input: ReviewDecisionRequest): Promise<ReviewDecisionResponse>;
   supersedeDecision(input: SupersedeDecisionRequest): Promise<number>;
+  getConversationThread(request: UiConversationThreadRequest): Promise<UiConversationThread>;
+  postConversationMessage(
+    input: PostConversationMessageRequest,
+  ): Promise<PostConversationMessageResponse>;
+  moderateConversation(input: ModerateConversationRequest): Promise<UiConversation>;
+  redactConversationMessage(input: RedactConversationMessageRequest): Promise<number>;
+  searchConversationMentions(
+    input: SearchConversationMentionsRequest,
+  ): Promise<readonly UiConversationMentionCandidate[]>;
   getAnnouncementPage(request?: UiAnnouncementPageRequest): Promise<UiAnnouncementPage>;
   getAnnouncement(announcementId: string): Promise<UiAnnouncement>;
   createAnnouncement(input: CreateAnnouncementRequest): Promise<string>;

@@ -70,6 +70,11 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   pattern. Inbox and Chronicle reads re-evaluate current Membership, Role, Space, clearance,
   visibility, ownership, and explicit sharing before rows leave PostgreSQL; revocation tests prove
   old notifications disappear without rewriting history.
+- Contextual Conversations resolve the current subject boundary before message text leaves
+  PostgreSQL. Messages are append-only, Human mentions and Inbox delivery are set-based, and only
+  authorized Humans can perform reason-required lock, unlock, or redaction. Chronicle stores the
+  message digest rather than plaintext. Knowledge, Quest, and Decision comment flows have desktop
+  and 390 px mobile browser coverage.
 - Cloudflare OS and the management UI can discover only runnable Agent, Space, and Connector
   combinations. A Risk Level 2 plan enters durable approval before the fixed Webhook is called.
   Execution reloads both Human and Agent authority, intersects current and snapshotted limits,
@@ -81,4 +86,4 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   cover forgery, replay-window, envelope mismatch, oversized input, exact duplicate, and conflict.
 - Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
   states plus the complete Knowledge, Ask, Goal-to-Step Work, Decision, Announcement, Inbox, and
-  Chronicle paths have Playwright interaction and overflow checks.
+  Chronicle and contextual Conversation paths have Playwright interaction and overflow checks.
