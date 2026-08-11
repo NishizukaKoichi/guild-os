@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
 const packageDirectory = dirname(fileURLToPath(import.meta.url));
@@ -20,7 +21,7 @@ function emitAppText(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [viteSingleFile(), emitAppText()],
+  plugins: [react(), viteSingleFile(), emitAppText()],
   build: {
     outDir: "dist-app",
     emptyOutDir: true,

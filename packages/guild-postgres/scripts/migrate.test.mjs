@@ -9,7 +9,13 @@ test("migration checksums are deterministic and content-sensitive", () => {
 
 test("migration files load in lexical order with SHA-256 checksums", async () => {
   const migrations = await loadMigrations();
-  assert.deepEqual(migrations.map((migration) => migration.name), ["0001_guild_core.sql"]);
-  assert.match(migrations[0].checksum, /^[a-f0-9]{64}$/);
+  assert.deepEqual(migrations.map((migration) => migration.name), [
+    "0001_guild_core.sql",
+    "0002_product_v1.sql",
+  ]);
+  for (const migration of migrations) {
+    assert.match(migration.checksum, /^[a-f0-9]{64}$/);
+  }
   assert.match(migrations[0].sql, /CREATE TABLE guilds/);
+  assert.match(migrations[1].sql, /CREATE TABLE guild_invitations/);
 });

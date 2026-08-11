@@ -5,6 +5,7 @@ import type {
   KNOWLEDGE_STATES,
   MEMBERSHIP_STATES,
   PERMISSIONS,
+  SUPPORTED_LOCALES,
   VISIBILITIES,
 } from "./constants.js";
 
@@ -15,6 +16,7 @@ export type KnowledgeState = (typeof KNOWLEDGE_STATES)[number];
 export type Permission = (typeof PERMISSIONS)[number];
 export type Visibility = (typeof VISIBILITIES)[number];
 export type Classification = (typeof CLASSIFICATIONS)[number];
+export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
 export type RiskLevel = 0 | 1 | 2 | 3;
 
 export interface Guild {

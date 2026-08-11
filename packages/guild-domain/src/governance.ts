@@ -1,4 +1,5 @@
 import { GuildDomainError } from "./errors.js";
+import { MEMBERSHIP_TRANSITIONS } from "./constants.js";
 import type {
   AgentProfile,
   AgentRunUsage,
@@ -37,6 +38,17 @@ export function assertMembershipTransition(
     throw new GuildDomainError(
       "ROOT_OWNER_PROTECTED",
       "Transfer Root ownership before suspending or departing the current Root Owner.",
+    );
+  }
+  const membership = snapshot.memberships.find((candidate) => candidate.identityId === identityId);
+  if (!membership) {
+    throw new GuildDomainError("IDENTITY_NOT_FOUND", `Identity ${identityId} has no membership.`);
+  }
+  const allowed = MEMBERSHIP_TRANSITIONS[membership.state] as readonly MembershipState[];
+  if (!allowed.includes(nextState)) {
+    throw new GuildDomainError(
+      "INVALID_INPUT",
+      `Membership cannot transition from ${membership.state} to ${nextState}.`,
     );
   }
 }

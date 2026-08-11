@@ -112,7 +112,14 @@ describe("Guild authorization", () => {
         id: "misconfigured-agent-admin",
         guildId: "guild-1",
         name: "Misconfigured agent admin",
-        permissions: ["constitution.update", "role.manage", "break-glass.use"] as const,
+        permissions: [
+          "constitution.update",
+          "identity.manage",
+          "role.manage",
+          "agent.manage",
+          "integration.manage",
+          "break-glass.use",
+        ] as const,
         system: false,
       }],
       roleBindings: [...base.roleBindings, {
@@ -126,5 +133,16 @@ describe("Guild authorization", () => {
       actorIdentityId: "research-agent",
       permission: "constitution.update",
     })).toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
+    for (const permission of [
+      "identity.manage",
+      "role.manage",
+      "agent.manage",
+      "integration.manage",
+    ] as const) {
+      expect(() => authorize(snapshot, {
+        actorIdentityId: "research-agent",
+        permission,
+      })).toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
+    }
   });
 });

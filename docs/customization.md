@@ -163,7 +163,7 @@ The implemented read path is:
 1. `types.d.ts` defines the API visible to TypeScript callers.
 2. `GuildSessionImpl` resolves the caller's Guild identity and effective permissions from PostgreSQL.
 3. Resource candidates are filtered by Guild, Space, and permission before any result is returned to Cloudflare OS.
-4. `GuildGatekeeper` bootstraps the first Cloudflare OS administrator as the human Root Owner and enrolls later identities in preboarding.
+4. `GuildGatekeeper` bootstraps the first Cloudflare OS administrator as the human Root Owner; later Humans enter only through a one-time invitation bound to Role, Space, and initial Membership state.
 5. `GuildAccount` exposes a per-user session as a singleton.
 6. `GatekeeperVendor` advertises credential-free auto-provisioning.
 7. The Workshop service binding makes the vendor available to Cloudflare OS.

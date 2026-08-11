@@ -11,16 +11,23 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@gadgets/workshop-shared": "workspace:*",
     "@guild-os/domain": "workspace:*",
     "@guild-os/postgres": "workspace:*",
-    "@gadgets/workshop-shared": "workspace:*",
     "capnweb": "^0.8.0",
-    "capnweb-validate": "0.2.1"
+    "capnweb-validate": "0.2.1",
+    "lucide-react": "^0.544.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.20.1",
     "@cloudflare/workers-types": "^5.20260730.1",
     "@types/node": "^26.1.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.62.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
     "vite-plugin-singlefile": "^2.3.3",

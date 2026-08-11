@@ -1,10 +1,11 @@
-import type { ChronicleEvent, Constitution } from "@guild-os/domain";
+import type { Constitution } from "@guild-os/domain";
 import {
   GuildPostgresRepository,
   withGuildTransaction,
   type GuildSetupState,
 } from "@guild-os/postgres";
 import APP_HTML from "./generated/app.txt";
+import { makeChronicleEvent } from "./chronicle.js";
 import { BUILTIN_ROLES, type GuildEnv } from "./config.js";
 
 function integerSetting(value: string, name: string): number {
@@ -22,27 +23,6 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function makeChronicleEvent(
-  env: GuildEnv,
-  actorIdentityId: string,
-  action: string,
-  subjectType: string,
-  subjectId: string,
-  details: ChronicleEvent["details"],
-): ChronicleEvent {
-  return {
-    id: crypto.randomUUID(),
-    guildId: env.GUILD_ID,
-    actorIdentityId,
-    action,
-    subjectType,
-    subjectId,
-    correlationId: crypto.randomUUID(),
-    occurredAt: new Date().toISOString(),
-    details,
-  };
 }
 
 function defaultConstitution(env: GuildEnv, rootIdentityId: string): Constitution {
@@ -88,27 +68,12 @@ export async function ensureGuildAccount(
         constitution: defaultConstitution(env, accountId),
         roles: BUILTIN_ROLES.map((role) => ({ ...role, id: crypto.randomUUID() })),
         chronicleEvent: makeChronicleEvent(
-          env,
+          env.GUILD_ID,
           accountId,
           "guild.initialized",
           "guild",
           env.GUILD_ID,
           { source: "cloudflare-os-admin" },
-        ),
-      });
-      state = await repository.getSetupState(accountId);
-    }
-    if (!state.identityExists) {
-      await repository.enrollPreboardingMember({
-        identityId: accountId,
-        displayName: `Pending member ${accountId.slice(0, 8)}`,
-        chronicleEvent: makeChronicleEvent(
-          env,
-          accountId,
-          "membership.preboarding.started",
-          "identity",
-          accountId,
-          { source: "cloudflare-os-account" },
         ),
       });
       state = await repository.getSetupState(accountId);

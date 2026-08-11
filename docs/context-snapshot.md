@@ -52,19 +52,19 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Cloudflare OS Starter is cloned under the canonical Pensive workspace.
 - Upstream Cloudflare OS is pinned at `bf7f762d7fa73553284d731ab6a978d3ea17be24`.
 - Starter baseline tests pass locally on Node.js 22; Node.js 24 remains the supported release target.
-- Guild domain policy, PostgreSQL persistence, migration tooling, and the read-only Guild Gatekeeper
-  are implemented. The Gatekeeper includes a sandboxed status UI and safe first-admin bootstrap.
+- Guild domain policy, PostgreSQL persistence, migration tooling, and Guild Gatekeeper are
+  implemented. The Gatekeeper includes safe first-admin bootstrap, one-time Human invitations,
+  Membership lifecycle writes, and a sandboxed responsive management UI.
 - PostgreSQL 17 integration verification applies migrations twice using a non-superuser owner, then
   proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
-- Full Guild management screens, verified Access identity mapping, Knowledge retrieval, and Agent
-  write workflows are not yet implemented.
+- Role/Space editors, Knowledge retrieval, Work/Decision/Inbox/Chronicle screens, and Agent write
+  workflows are not yet implemented.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Bind auto-provisioned Guild identities to verified Cloudflare Access subjects.
-2. Add People, Role, and Space commands with transactional Chronicle events and management screens.
-3. Add permission-filtered Knowledge retrieval with citations.
-4. Add the first explicit Agent identity and one Level 2 write workflow with durable approval,
+1. Add Role and Space commands and scoped People views.
+2. Add permission-filtered Knowledge retrieval with citations.
+3. Add the first explicit Agent identity and one Level 2 write workflow with durable approval,
    idempotency, limits, and a kill switch.
-5. Verify the complete owner-to-agent demo before requesting a deployment decision.
+4. Verify the complete owner-to-agent demo before production deployment.

@@ -28,17 +28,19 @@ Implemented and tested:
 - PostgreSQL row-level Guild isolation
 - Append-only Chronicle and idempotent external-action outbox
 - Hyperdrive transaction boundary
-- Guild Gatekeeper with administrator bootstrap, Preboarding enrollment, observation approval, and
-  permission-filtered Space discovery
-- Sandboxed, mobile-responsive Guild status page inside Cloudflare OS
+- Guild Gatekeeper with administrator bootstrap, one-time invitation binding, observation approval,
+  and permission-filtered Space discovery
+- Sandboxed, mobile-responsive Home, People, invitation, offboarding, and Settings UI
+- English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
+- Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
 
 Not exposed as finished product features yet:
 
-- Full People, Knowledge, Work, Decisions, Agents, Inbox, and Chronicle management screens
-- Verified Access-email mapping inside the Guild Gatekeeper
+- Role and Space editing plus scoped People views for non-global administrators
+- Knowledge, Work, Decisions, Agents, Inbox, and Chronicle management screens
 - Knowledge semantic search and citations
 - Agent write actions, approval quorum execution, Workflows, and kill-switch UI
-- Offboarding token revocation and Guild federation
+- Agent/Service offboarding orchestration and Guild federation
 
 These incomplete capabilities are absent from the user-facing action surface rather than presented
 as nonfunctional controls.
@@ -134,8 +136,13 @@ Edit `deployment.jsonc`:
 6. Configure AI Gateway only when the deployment will fund models.
 
 The first Workshop administrator who opens **Guild** initializes the database and becomes Root
-Owner. Keep the Access policy restricted to that person until initialization is complete. Later
-users enter Preboarding without receiving a role.
+Owner. Keep the Access policy restricted to that person until initialization is complete. The Root
+Owner then issues a high-entropy, one-time invitation from **People**. A recipient's stable
+Cloudflare OS account capability is bound to the selected Role, Space, and initial Membership state
+only after that token is claimed. The database stores only the token's SHA-256 hash.
+
+The current v1 completion evidence and remaining gates are tracked in
+[v1 completion](docs/v1-completion.md).
 
 ## Verification and deployment
 

@@ -19,9 +19,11 @@ Guild identities are Human, Agent, or Service. Root Owner must be an active Huma
 Gatekeeper uses a per-Workshop-account capability UUID for its Human identity because upstream
 Cloudflare OS does not pass the verified Access identity into auto-provisioned `createAccount()`.
 
-Authorization must never use a self-declared email. Until a verified mapping is implemented,
-administrators identify pending members by their generated Guild identity and explicitly activate
-and assign them later.
+An unknown account is not inserted into the Guild database. A Human administrator creates a
+32-byte one-time invitation for a specific Role, Space, and initial Membership state. The recipient
+claims it from that account capability. PostgreSQL stores only the SHA-256 hash, locks the invitation
+row during acceptance, and rejects expiry or replay. Authorization must never use a self-declared
+email.
 
 ## Authorization
 
@@ -41,8 +43,14 @@ intersection workflow grants
 intersection connector capability
 ```
 
-Constitution updates, Guild management, membership management, role management, and Break Glass
-remain human-only even if an Agent is accidentally assigned a Role containing those permissions.
+Constitution, Guild, Space, Identity, Membership, Role, Agent configuration, Connector management,
+Agent stopping/approval, and Break Glass remain human-only even if an Agent is accidentally assigned
+a Role containing those permissions.
+
+Suspending or departing an Identity disables it in the same transaction, revokes owned Connector
+secrets, stops its Agent profile, kills unfinished runs for which it is Agent or requester, and
+appends a Chronicle event. Existing Cloudflare OS capability objects may remain cached, but every
+Guild data request reloads active Identity and Membership state and therefore denies them.
 
 ## Model context
 
@@ -84,9 +92,8 @@ also reject a final state where the Root Owner is not an active Human with an ac
 
 Before a production release, complete and verify:
 
-- Verified Access identity mapping and recovery
-- Membership activation and immediate offboarding revocation
 - Multi-approver Level 3 execution with reauthentication
 - Agent identity binding and run-specific permission intersection at the Gatekeeper
+- External Access/session recovery rehearsal in the deployed environment
 - Backup restore rehearsal
 - Threat model for every write-capable Gatekeeper

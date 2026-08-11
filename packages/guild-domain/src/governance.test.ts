@@ -38,6 +38,24 @@ describe("Guild governance", () => {
       .toThrowError(expect.objectContaining({ code: "AGENT_ROOT_FORBIDDEN" }));
   });
 
+  it("enforces the membership lifecycle and makes departure terminal", () => {
+    const snapshot = makeSnapshot();
+    expect(() => assertMembershipTransition(snapshot, "newcomer", "active")).not.toThrow();
+    expect(() => assertMembershipTransition(snapshot, "staff", "suspended")).not.toThrow();
+    expect(() => assertMembershipTransition(snapshot, "staff", "preboarding"))
+      .toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
+
+    const departed = {
+      ...snapshot,
+      memberships: snapshot.memberships.map((membership) =>
+        membership.identityId === "staff" ? { ...membership, state: "departed" as const } : membership),
+    };
+    expect(() => assertMembershipTransition(departed, "staff", "active"))
+      .toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
+    expect(() => assertMembershipTransition(snapshot, "missing", "active"))
+      .toThrowError(expect.objectContaining({ code: "IDENTITY_NOT_FOUND" }));
+  });
+
   it("requires reauthentication and quorum for Level 3 actions", () => {
     const snapshot = makeSnapshot();
     expect(approvalRequirement(snapshot.constitution, 0)).toMatchObject({

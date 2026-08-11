@@ -94,8 +94,10 @@ export class GuildPostgresRepository {
       [input.guildId, input.name, input.purpose, input.rootIdentityId],
     );
     await this.#connection.query(
-      `INSERT INTO identities (id, guild_id, kind, display_name, status)
-       VALUES ($1, $2, 'human', $3, 'active')`,
+      `INSERT INTO identities
+         (id, guild_id, kind, display_name, status, access_subject)
+       VALUES ($1::uuid, $2, 'human', $3, 'active',
+               'cloudflare-os-account:' || $1::uuid::text)`,
       [input.rootIdentityId, input.guildId, input.rootDisplayName],
     );
     await this.#connection.query(
@@ -152,8 +154,10 @@ export class GuildPostgresRepository {
     if (!existing.initialized) throw new Error("Guild must be initialized before member enrollment.");
     if (existing.identityExists) return false;
     await this.#connection.query(
-      `INSERT INTO identities (id, guild_id, kind, display_name, status)
-       VALUES ($1, $2, 'human', $3, 'active')`,
+      `INSERT INTO identities
+         (id, guild_id, kind, display_name, status, access_subject)
+       VALUES ($1::uuid, $2, 'human', $3, 'active',
+               'cloudflare-os-account:' || $1::uuid::text)`,
       [input.identityId, this.#guildId, input.displayName],
     );
     await this.#connection.query(

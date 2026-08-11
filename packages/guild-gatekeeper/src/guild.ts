@@ -1,7 +1,6 @@
 import {
   DurableObject,
   RpcStub,
-  RpcTarget,
   WorkerEntrypoint,
 } from "cloudflare:workers";
 import { skipRpcValidation, validateRpc } from "capnweb-validate";
@@ -33,6 +32,7 @@ import {
   type GuildEnv,
 } from "./config.js";
 import { GuildSessionImpl } from "./session.js";
+import { GuildManagementApiImpl } from "./management-api.js";
 import type { GuildSession } from "./types.js";
 import TYPES_CODE from "./types-code.js";
 
@@ -108,8 +108,6 @@ export class GuildGatekeeper
   }
 }
 
-class EmptyGuildUi extends RpcTarget {}
-
 @validateRpc()
 export class GuildAccount
     extends WorkerEntrypoint<GuildEnv, GuildAccountProps>
@@ -126,7 +124,7 @@ export class GuildAccount
     const state = await ensureGuildAccount(this.env, this.ctx.props.accountId, context.isAdmin);
     return {
       iframeHtml: renderGuildPage(this.env, state),
-      ui: new RpcStub(new EmptyGuildUi()),
+      ui: new RpcStub(new GuildManagementApiImpl(this.env, this.ctx.props.accountId)),
     };
   }
 
