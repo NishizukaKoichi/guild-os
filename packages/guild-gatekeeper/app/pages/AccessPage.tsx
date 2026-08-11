@@ -1,22 +1,30 @@
 import { KeyRound, Languages, LogIn, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { AppLocale } from "@guild-os/domain";
-import type { ClaimInvitationInput, UiBootstrapState } from "../../src/management-types";
+import type {
+  ClaimInvitationInput,
+  RecoverRootOwnershipRequest,
+  UiBootstrapState,
+} from "../../src/management-types";
 import { Notice } from "../components/Notice";
+import { RecoveryDialog } from "../components/RecoveryManager";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
 export function AccessPage({
   bootstrap,
   onClaim,
+  onRecover,
 }: {
   bootstrap: UiBootstrapState;
   onClaim(input: ClaimInvitationInput): Promise<void>;
+  onRecover(input: RecoverRootOwnershipRequest): Promise<void>;
 }) {
   const { locale, setLocale, t } = useI18n();
   const [token, setToken] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const inactive = bootstrap.membershipState === "suspended" || bootstrap.membershipState === "departed";
 
   async function submit(event: FormEvent) {
@@ -33,6 +41,7 @@ export function AccessPage({
   }
 
   return (
+    <>
     <main className="access-layout">
       <header className="access-header">
         <div className="brand-mark" aria-hidden="true"><ShieldCheck size={22} /></div>
@@ -100,9 +109,25 @@ export function AccessPage({
               </button>
             </form>
             <p className="security-note"><ShieldCheck size={15} />{t("access.security")}</p>
+            {bootstrap.breakGlass.canRecover ? (
+              <div className="access-recovery">
+                <span>{t("access.recoveryPrompt")}</span>
+                <button className="danger-action-button" type="button" onClick={() => setRecoveryOpen(true)}>
+                  <ShieldAlert size={16} />{t("settings.recoveryUseAction")}
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </section>
     </main>
+    {recoveryOpen ? (
+      <RecoveryDialog
+        bootstrap={bootstrap}
+        onRecover={onRecover}
+        onClose={() => setRecoveryOpen(false)}
+      />
+    ) : null}
+    </>
   );
 }

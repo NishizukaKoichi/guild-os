@@ -309,21 +309,21 @@ integration("Guild Constitution governance", () => {
         "UPDATE guilds SET root_owner_identity_id = $2 WHERE id = $1",
         [ids.guild, ids.target],
       );
-    })).rejects.toThrow("accepted two-party transfer");
+    })).rejects.toThrow("authorized governance path");
 
     await expect(withGuildTransaction(connectionString, ids.guild, async (connection) => {
       await connection.query(
         "UPDATE roles SET name = 'Changed Steward' WHERE guild_id = $1 AND id = $2",
         [ids.guild, ids.outgoingRole],
       );
-    })).rejects.toThrow("pending Root ownership transfer is immutable");
+    })).rejects.toThrow("active ownership or recovery ceremony is immutable");
 
     await expect(withGuildTransaction(connectionString, ids.guild, async (connection) => {
       await connection.query(
         "DELETE FROM role_permissions WHERE guild_id = $1 AND role_id = $2",
         [ids.guild, ids.outgoingRole],
       );
-    })).rejects.toThrow("Permissions for a Role in a pending Root ownership transfer are immutable");
+    })).rejects.toThrow("Permissions for a Role in an active ownership or recovery ceremony are immutable");
 
     const acceptanceReason = "I accept responsibility for this Guild.";
     const accepted = await withGuildTransaction(connectionString, ids.guild, async (connection) =>

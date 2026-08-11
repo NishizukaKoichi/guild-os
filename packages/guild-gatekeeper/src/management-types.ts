@@ -49,6 +49,7 @@ export interface UiBootstrapState {
   constitution: UiConstitution;
   agentDefaults: AgentLimits;
   rootOwnershipTransfer: UiRootOwnershipTransfer | null;
+  breakGlass: UiBreakGlassStatus;
 }
 
 export type UiConstitution = Omit<Constitution, "guildId">;
@@ -62,6 +63,48 @@ export interface UiRootOwnershipTransfer extends Omit<RootOwnershipTransfer, "gu
 export interface UiRootOwnershipCandidate {
   id: string;
   displayName: string;
+}
+
+export interface UiBreakGlassStatus {
+  available: boolean;
+  canRecover: boolean;
+  version: number;
+  currentCodeSetId: string | null;
+  generation: number | null;
+  outgoingRoleId: string | null;
+  outgoingRoleName: string | null;
+  reason: string | null;
+  expiresAt: string | null;
+  createdAt: string | null;
+  remainingCodeCount: number | null;
+}
+
+export interface RotateBreakGlassCodesRequest {
+  expectedVersion: number;
+  outgoingRoleId: string;
+  expiresInDays: number;
+  reason: string;
+  confirmation: string;
+}
+
+export interface RotatedBreakGlassCodes {
+  status: UiBreakGlassStatus;
+  codes: readonly string[];
+}
+
+export interface RevokeBreakGlassCodesRequest {
+  expectedVersion: number;
+  codeSetId: string;
+  reason: string;
+  confirmation: string;
+}
+
+export interface RecoverRootOwnershipRequest {
+  code: string;
+  displayName: string;
+  preferredLocale: AppLocale;
+  reason: string;
+  confirmation: string;
 }
 
 export interface UiDirectoryIdentity {
@@ -698,6 +741,11 @@ export interface ReviewAgentRunRequest {
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
+  rotateBreakGlassCodes(
+    input: RotateBreakGlassCodesRequest,
+  ): Promise<RotatedBreakGlassCodes>;
+  revokeBreakGlassCodes(input: RevokeBreakGlassCodesRequest): Promise<UiBreakGlassStatus>;
+  recoverRootOwnership(input: RecoverRootOwnershipRequest): Promise<UiBootstrapState>;
   updateConstitution(input: UpdateConstitutionRequest): Promise<UiConstitution>;
   proposeRootOwnershipTransfer(
     input: ProposeRootOwnershipTransferRequest,

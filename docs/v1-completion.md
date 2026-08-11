@@ -32,6 +32,13 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   the named active Human in a separate session. PostgreSQL rejects direct replacement, stale
   acceptance, unaudited transitions, Role mutation during a proposal, and history deletion; the
   outgoing Root retains the agreed Role.
+- Break Glass recovery uses ten 192-bit one-time codes whose plaintext is shown only once and whose
+  SHA-256 hashes are stored in PostgreSQL. Rotation, revocation, and successful use advance an
+  irreversible generation pointer. Recovery is rate-limited, rejects inactive and machine
+  Identities, preserves the old Root's configured Role, supersedes pending transfers, invalidates
+  the whole generation, and requires an atomic `break_glass.used` Chronicle record. PostgreSQL and
+  desktop/mobile browser tests cover enrolled and previously unknown Human recovery paths.
+  A normal two-party Root transfer also invalidates the prior recovery generation atomically.
 - Space grants inherit to descendants, not siblings, without loading the whole Guild per request.
 - One-time invitations reject replay; acceptance and lifecycle changes produce Chronicle events.
 - Suspended and departed Humans immediately return no authorized Spaces.

@@ -43,6 +43,7 @@ const rootId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b";
 const memberId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9c";
 const agentId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9d";
 const successorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a8d";
+const unknownId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a8c";
 const adminRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9e";
 const memberRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9f";
 const rootSpaceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa0";
@@ -62,6 +63,7 @@ const inboxKnowledgeId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad2";
 const connectorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad3";
 const agentRunId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad4";
 const agentApprovalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad5";
+const recoveryCodeSetId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad6";
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -104,13 +106,33 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       maxDelegationDepth: 1,
     },
     rootOwnershipTransfer: null,
+    breakGlass: {
+      available: true,
+      canRecover: false,
+      version: 1,
+      currentCodeSetId: recoveryCodeSetId,
+      generation: 1,
+      outgoingRoleId: adminRoleId,
+      outgoingRoleName: "Admin",
+      reason: "Maintain independent offline recovery custody.",
+      expiresAt: "2027-08-12T02:00:00.000Z",
+      createdAt: "2026-08-12T02:00:00.000Z",
+      remainingCodeCount: 10,
+    },
   };
   if (mode === "uninvited") {
-    bootstrap = { ...bootstrap, accountId: memberId, identityExists: false, membershipState: null, rootOwner: false };
+    bootstrap = { ...bootstrap, accountId: unknownId, identityExists: false, membershipState: null, rootOwner: false };
   } else if (mode === "suspended") {
     bootstrap = { ...bootstrap, accountId: memberId, membershipState: "suspended", rootOwner: false };
   } else if (mode === "member") {
     bootstrap = { ...bootstrap, accountId: memberId, membershipState: "preboarding", rootOwner: false };
+  } else if (mode === "recovery-human") {
+    bootstrap = {
+      ...bootstrap,
+      accountId: successorId,
+      membershipState: "active",
+      rootOwner: false,
+    };
   } else if (mode === "transfer-target") {
     bootstrap = {
       ...bootstrap,
@@ -132,6 +154,23 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         fromDisplayName: "Avery Morgan",
         toDisplayName: "Noah Chen",
         outgoingRoleName: "Admin",
+      },
+    };
+  }
+  if (!bootstrap.rootOwner) {
+    bootstrap = {
+      ...bootstrap,
+      breakGlass: {
+        ...bootstrap.breakGlass,
+        canRecover: !bootstrap.identityExists || bootstrap.membershipState === "active",
+        currentCodeSetId: null,
+        generation: null,
+        outgoingRoleId: null,
+        outgoingRoleName: null,
+        reason: null,
+        expiresAt: null,
+        createdAt: null,
+        remainingCodeCount: null,
       },
     };
   }
@@ -702,6 +741,156 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         identityExists: true,
         membershipState: "preboarding",
         preferredLocale: input.preferredLocale,
+        breakGlass: { ...bootstrap.breakGlass, canRecover: false },
+      };
+      return bootstrap;
+    },
+    async rotateBreakGlassCodes(input) {
+      if (!bootstrap.rootOwner || input.confirmation !== bootstrap.guildName ||
+          input.reason.trim() === "" || input.expectedVersion !== bootstrap.breakGlass.version) {
+        throw new Error("Only the current Root Owner can rotate recovery codes.");
+      }
+      const role = directory.roles.find((candidate) => candidate.id === input.outgoingRoleId);
+      if (!role || input.expiresInDays < 7 || input.expiresInDays > 730) {
+        throw new Error("Select a valid outgoing Role and expiry.");
+      }
+      const timestamp = now();
+      const nextVersion = bootstrap.breakGlass.version + 1;
+      const codeSetId = crypto.randomUUID();
+      const codes = Array.from({ length: 10 }, (_, index) =>
+        `gbr_${`DEMO${nextVersion}${index}`.padEnd(32, String(index)).slice(0, 32)}`);
+      const status = {
+        available: true,
+        canRecover: false,
+        version: nextVersion,
+        currentCodeSetId: codeSetId,
+        generation: nextVersion,
+        outgoingRoleId: role.id,
+        outgoingRoleName: role.name,
+        reason: input.reason.trim(),
+        expiresAt: new Date(
+          Date.now() + input.expiresInDays * 86_400_000,
+        ).toISOString(),
+        createdAt: timestamp,
+        remainingCodeCount: 10,
+      };
+      bootstrap = { ...bootstrap, breakGlass: status };
+      appendDemoChronicle(
+        "break_glass.codes.rotated",
+        "break_glass_code_set",
+        codeSetId,
+        {
+          spaceId: null,
+          ownerIdentityId: bootstrap.accountId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        { reason: input.reason.trim(), generation: nextVersion, source: "guild-ui" },
+      );
+      return { status, codes };
+    },
+    async revokeBreakGlassCodes(input) {
+      if (!bootstrap.rootOwner || input.confirmation !== bootstrap.guildName ||
+          input.reason.trim() === "" || input.expectedVersion !== bootstrap.breakGlass.version ||
+          input.codeSetId !== bootstrap.breakGlass.currentCodeSetId) {
+        throw new Error("Active recovery codes were not found or confirmation failed.");
+      }
+      appendDemoChronicle(
+        "break_glass.codes.revoked",
+        "break_glass_code_set",
+        input.codeSetId,
+        {
+          spaceId: null,
+          ownerIdentityId: bootstrap.accountId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        { reason: input.reason.trim(), source: "guild-ui" },
+      );
+      const status = {
+        ...bootstrap.breakGlass,
+        available: false,
+        version: bootstrap.breakGlass.version + 1,
+        currentCodeSetId: null,
+        generation: null,
+        outgoingRoleId: null,
+        outgoingRoleName: null,
+        reason: null,
+        expiresAt: null,
+        createdAt: null,
+        remainingCodeCount: 0,
+      };
+      bootstrap = { ...bootstrap, breakGlass: status };
+      return status;
+    },
+    async recoverRootOwnership(input) {
+      if (!bootstrap.breakGlass.canRecover ||
+          !/^gbr_[A-Za-z0-9_-]{32}$/.test(input.code.trim()) ||
+          input.confirmation !== bootstrap.guildName || input.displayName.trim() === "" ||
+          input.reason.trim() === "") {
+        throw new Error("Recovery code is invalid or unavailable.");
+      }
+      const previousRoot = bootstrap.rootOwnerIdentityId;
+      if (!bootstrap.identityExists) {
+        directory = {
+          ...directory,
+          identities: [...directory.identities, {
+            id: bootstrap.accountId,
+            kind: "human",
+            displayName: input.displayName.trim(),
+            status: "active",
+            preferredLocale: input.preferredLocale,
+            membershipState: "active",
+            clearance: "restricted",
+            joinedAt: now(),
+            departedAt: null,
+          }],
+        };
+      }
+      const recoveryId = crypto.randomUUID();
+      appendDemoChronicle(
+        "break_glass.used",
+        "break_glass_recovery",
+        recoveryId,
+        {
+          spaceId: null,
+          ownerIdentityId: bootstrap.accountId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        {
+          reason: input.reason.trim(),
+          previousRootIdentityId: previousRoot,
+          newRootIdentityId: bootstrap.accountId,
+          source: "guild-recovery",
+        },
+      );
+      bootstrap = {
+        ...bootstrap,
+        identityExists: true,
+        membershipState: "active",
+        preferredLocale: input.preferredLocale,
+        rootOwner: true,
+        rootOwnerIdentityId: bootstrap.accountId,
+        rootOwnerDisplayName: input.displayName.trim(),
+        rootOwnershipTransfer: null,
+        breakGlass: {
+          ...bootstrap.breakGlass,
+          available: false,
+          canRecover: false,
+          version: bootstrap.breakGlass.version + 1,
+          currentCodeSetId: null,
+          generation: null,
+          outgoingRoleId: null,
+          outgoingRoleName: null,
+          reason: null,
+          expiresAt: null,
+          createdAt: null,
+          remainingCodeCount: 0,
+        },
       };
       return bootstrap;
     },
@@ -1974,12 +2163,43 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         },
         { reason: input.reason.trim(), source: "guild-ui" },
       );
+      appendDemoChronicle(
+        "break_glass.codes.revoked",
+        "break_glass_code_set",
+        recoveryCodeSetId,
+        {
+          spaceId: null,
+          ownerIdentityId: successorId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        {
+          reason: "Invalidated automatically by an accepted Root ownership transfer.",
+          rootOwnershipTransferId: transfer.id,
+          source: "guild-governance",
+        },
+      );
       bootstrap = {
         ...bootstrap,
         rootOwner: true,
         rootOwnerIdentityId: successorId,
         rootOwnerDisplayName: "Noah Chen",
         rootOwnershipTransfer: null,
+        breakGlass: {
+          ...bootstrap.breakGlass,
+          available: false,
+          canRecover: false,
+          version: bootstrap.breakGlass.version + 1,
+          currentCodeSetId: null,
+          generation: null,
+          outgoingRoleId: null,
+          outgoingRoleName: null,
+          reason: null,
+          expiresAt: null,
+          createdAt: null,
+          remainingCodeCount: 0,
+        },
       };
       return bootstrap;
     },

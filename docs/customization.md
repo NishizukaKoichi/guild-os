@@ -163,12 +163,14 @@ Ask Guild has a separate Workers AI binding on the Guild Gatekeeper. Configure i
 "guild": {
   "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
   "aiGatewayId": "default",
-  "askRequestsPerMinute": 20
+  "askRequestsPerMinute": 20,
+  "recoveryAttemptsPerMinute": 5
 }
 ```
 
-The limit is applied per opaque Guild Identity and Cloudflare location. It limits bursts and is not
-a billing budget; Guild- and Agent-level monetary budgets remain an Agent runtime responsibility.
+The Ask limit and emergency-recovery limit are applied per opaque Cloudflare OS account and
+Cloudflare location. They limit bursts and are not a billing budget; Guild- and Agent-level monetary
+budgets remain an Agent runtime responsibility.
 Ask calls disable AI Gateway prompt logging and cache collection. The database Chronicle stores a
 question SHA-256 and citation count, not the question or answer text.
 

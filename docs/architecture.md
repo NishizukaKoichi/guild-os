@@ -60,6 +60,15 @@ changes the Root, grants the outgoing Role, resolves the proposal, sends the pri
 and records Chronicle evidence atomically. Deferred constraints reject a transfer mutation without
 its matching event and reject a direct Root update that did not finish an accepted proposal.
 
+Break Glass is isolated in `guild-postgres/recovery.ts`, typed through the management contract, and
+rendered by `RecoveryManager.tsx`. The Worker generates plaintext codes and returns them once; the
+repository accepts hashes only. A versioned PostgreSQL pointer selects the sole current generation.
+Recovery creates or validates one active Human, replaces Root, preserves the prior Root's Role,
+supersedes pending transfers, consumes one code, invalidates the generation, and writes Chronicle
+in one transaction. Database triggers recognize exactly one Root-change path: accepted two-party
+transfer or completed Break Glass recovery. A normal transfer also invalidates the previous Root's
+current recovery generation atomically before the ownership change can commit.
+
 Work follows the same boundary. `guild-domain/work.ts` owns lifecycle validation,
 `guild-postgres/work.ts` owns bounded queries and atomic mutations, `guild-gatekeeper/work-service.ts`
 owns request validation plus authorization, and the Work page owns presentation state only. Goal,

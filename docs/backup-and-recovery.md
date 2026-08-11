@@ -25,6 +25,33 @@ failure domain and account, and restrict access to named Human administrators.
 Chronicle is append-only application history, not a substitute for a backup. R2 and KV are not
 automatically reconstructed from PostgreSQL.
 
+Emergency recovery code plaintext is deliberately not part of any application backup. PostgreSQL
+contains only hashes and generation metadata. Store downloaded code sets offline, encrypted, and
+under separate Human custody. Do not place them beside database dumps or in the Git repository.
+
+## Break Glass custody and use
+
+1. The active Root opens **Settings > Emergency recovery**, selects the Role that the prior Root
+   should retain, chooses an expiry, records a reason, and types the exact Guild name.
+2. Download the ten codes from the one-time reveal. Verify the file before closing it; the server
+   cannot display the plaintext again.
+3. Split the codes between at least two trusted Human custodians and a separate failure domain.
+   Record who holds which sealed copy without recording the code itself.
+4. Revoke and regenerate the set whenever custody changes, a copy may have been exposed, or before
+   its expiry. Confirm `break_glass.codes.rotated` or `break_glass.codes.revoked` in Chronicle.
+5. During a real incident, an authenticated Human opens **Emergency recovery**, enters one code,
+   their display name, the exact Guild name, and a factual reason. After success, immediately review
+   `break_glass.used`, every superseded transfer, the outgoing Role, Access policy, active sessions,
+   Roles, connectors, Agent runs, and secrets.
+6. Generate a fresh code set under the new Root. A successful recovery invalidates the entire prior
+   generation, including its nine unused codes.
+
+A normal two-party Root transfer also invalidates the current generation automatically. The new
+Root must generate and distribute a fresh set after accepting ownership.
+
+The seller has no master credential and cannot reconstruct a code. Do not test this procedure in
+production merely to inspect it; rehearse with a separate deployment and database.
+
 ## Consistent backup
 
 1. Record the release commit and current `deployment.jsonc` resource identifiers.
@@ -88,7 +115,9 @@ buckets, new Hyperdrive configuration, and new Worker names.
    secret. Never reuse production Connector credentials in a rehearsal.
 8. Verify Root Owner integrity, cross-Guild RLS denial, published Knowledge/file reads, Ask citations,
    Work/Decision/Inbox state, Chronicle ordering, and one synthetic Agent Run.
-9. Record measured RPO/RTO, failed checks, and remediation. Delete the rehearsal environment only
+9. Before broadening Access, rotate Break Glass codes in the restored deployment. A point-in-time
+   restore can revive the code-set pointer that was current at that historical point.
+10. Record measured RPO/RTO, failed checks, and remediation. Delete the rehearsal environment only
    after the report is retained.
 
 ## Production recovery
@@ -96,7 +125,9 @@ buckets, new Hyperdrive configuration, and new Worker names.
 Choose the newest verified recovery point before the incident. Preserve the failed environment for
 forensics, restore into new resources, rotate all potentially exposed secrets, and deploy the code
 commit recorded in the manifest. Switch the Access-protected hostname only after the rehearsal
-checks pass. Keep the old environment denied but intact until owners approve disposal.
+checks pass. Keep Access restricted to recovery operators and rotate Break Glass codes before the
+hostname switch; an older database can contain a historically active generation pointer. Keep the
+old environment denied but intact until owners approve disposal.
 
 If only an R2 object is missing, restore that exact immutable object key and verify its database
 checksum. If PostgreSQL is rolled back, restore R2/KV to the same backup boundary; mixing recovery

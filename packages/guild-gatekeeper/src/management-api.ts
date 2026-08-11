@@ -10,6 +10,7 @@ import {
   assertAgentLimits,
   assertCanDelegatePermissions,
   assertNonBlank,
+  assertNonNegativeInteger,
   assertPositiveInteger,
   isAuthorized,
   validateConstitution,
@@ -24,7 +25,9 @@ import {
   GuildDirectoryRepository,
   GuildGovernanceRepository,
   GuildPostgresRepository,
+  GuildRecoveryRepository,
   loadActorAuthorizationSnapshot,
+  type BreakGlassStatus,
   type GuildTransactionConnection,
   withGuildTransaction,
 } from "@guild-os/postgres";
@@ -62,16 +65,21 @@ import type {
   MarkInboxReadRequest,
   PublishAnnouncementResponse,
   ProposeRootOwnershipTransferRequest,
+  RecoverRootOwnershipRequest,
+  RevokeBreakGlassCodesRequest,
   ReviewKnowledgeRequest,
   ReviewAgentRunRequest,
   ReviewDecisionRequest,
   ReviewDecisionResponse,
   ResolveRootOwnershipTransferRequest,
+  RotateBreakGlassCodesRequest,
+  RotatedBreakGlassCodes,
   SaveKnowledgeDraftRequest,
   SaveAnnouncementDraftRequest,
   SaveDecisionDraftRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
+  UiBreakGlassStatus,
   UiConstitution,
   UiAgentRunDetail,
   UiAgentRunPage,
@@ -105,10 +113,14 @@ import type {
 } from "./management-types.js";
 
 const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const BREAK_GLASS_CODE_PATTERN = /^gbr_[A-Za-z0-9_-]{32}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_INVITATION_DAYS = 90;
 const MAX_AGENT_TOOLS = 50;
 const ROOT_TRANSFER_EXPIRY_DAYS = 7;
+const BREAK_GLASS_CODE_COUNT = 10;
+const MIN_BREAK_GLASS_EXPIRY_DAYS = 7;
+const MAX_BREAK_GLASS_EXPIRY_DAYS = 730;
 const KNOWN_PERMISSIONS = new Set<string>(PERMISSIONS);
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -161,6 +173,43 @@ export async function hashInvitationToken(token: string): Promise<string> {
     "SHA-256",
     new TextEncoder().encode(token),
   )));
+}
+
+export function generateBreakGlassCode(): string {
+  return `gbr_${bytesToBase64Url(crypto.getRandomValues(new Uint8Array(24)))}`;
+}
+
+export async function hashBreakGlassCode(code: string): Promise<string> {
+  if (!BREAK_GLASS_CODE_PATTERN.test(code)) {
+    throw new Error("Recovery code is invalid or unavailable.");
+  }
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(code),
+  )));
+}
+
+function toUiBreakGlassStatus(
+  status: BreakGlassStatus,
+  rootOwner: boolean,
+  identityExists: boolean,
+  membershipState: UiBootstrapState["membershipState"],
+): UiBreakGlassStatus {
+  const canRecover = status.available && !rootOwner &&
+    (!identityExists || membershipState === "active");
+  return {
+    available: status.available,
+    canRecover,
+    version: status.version,
+    currentCodeSetId: rootOwner ? status.currentCodeSetId : null,
+    generation: rootOwner ? status.generation : null,
+    outgoingRoleId: rootOwner ? status.outgoingRoleId : null,
+    outgoingRoleName: rootOwner ? status.outgoingRoleName : null,
+    reason: rootOwner ? status.reason : null,
+    expiresAt: rootOwner ? status.expiresAt : null,
+    createdAt: rootOwner ? status.createdAt : null,
+    remainingCodeCount: rootOwner ? status.remainingCodeCount : null,
+  };
 }
 
 function assertLocale(locale: AppLocale): void {
@@ -312,6 +361,16 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           toDisplayName: transfer.to_display_name,
           outgoingRoleName: transfer.outgoing_role_name,
         } : null;
+        const rootOwner = row.root_owner_identity_id === this.#accountId;
+        const breakGlass = toUiBreakGlassStatus(
+          await new GuildRecoveryRepository(
+            connection,
+            this.#env.GUILD_ID,
+          ).getBreakGlassStatus(),
+          rootOwner,
+          state.identityExists,
+          state.membershipState,
+        );
         return {
           guildId: this.#env.GUILD_ID,
           guildName: this.#env.GUILD_NAME,
@@ -319,7 +378,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           accountId: this.#accountId,
           identityExists: state.identityExists,
           membershipState: state.membershipState,
-          rootOwner: row.root_owner_identity_id === this.#accountId,
+          rootOwner,
           rootOwnerIdentityId: row.root_owner_identity_id,
           rootOwnerDisplayName: row.root_owner_display_name,
           preferredLocale: row.preferred_locale ?? "en",
@@ -334,6 +393,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           },
           agentDefaults: row.agent_defaults,
           rootOwnershipTransfer,
+          breakGlass,
         };
       },
     );
@@ -360,6 +420,158 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
             "identity",
             this.#accountId,
             { source: "guild-ui" },
+          ),
+        });
+      },
+    );
+    return this.getBootstrap();
+  }
+
+  async rotateBreakGlassCodes(
+    input: RotateBreakGlassCodesRequest,
+  ): Promise<RotatedBreakGlassCodes> {
+    assertNonNegativeInteger(input.expectedVersion, "Expected Break Glass version");
+    assertUuid(input.outgoingRoleId, "Outgoing Role ID");
+    assertPositiveInteger(input.expiresInDays, "Break Glass expiry");
+    if (input.expiresInDays < MIN_BREAK_GLASS_EXPIRY_DAYS ||
+        input.expiresInDays > MAX_BREAK_GLASS_EXPIRY_DAYS) {
+      throw new Error("Break Glass expiry must be between 7 and 730 days.");
+    }
+    assertNonBlank(input.reason, "Break Glass rotation reason", 2_000);
+    if (input.confirmation !== this.#env.GUILD_NAME) {
+      throw new Error("Type the Guild name exactly to rotate emergency recovery codes.");
+    }
+    const plaintextCodes = Array.from(
+      { length: BREAK_GLASS_CODE_COUNT },
+      () => generateBreakGlassCode(),
+    );
+    if (new Set(plaintextCodes).size !== BREAK_GLASS_CODE_COUNT) {
+      throw new Error("Secure recovery code generation failed. Try again.");
+    }
+    const codeSetId = crypto.randomUUID();
+    const storedCodes = await Promise.all(plaintextCodes.map(async (code) => ({
+      id: crypto.randomUUID(),
+      hash: await hashBreakGlassCode(code),
+      hint: code.slice(-6),
+    })));
+    const status = await this.#authorizedWrite(
+      "constitution.update",
+      async (connection, snapshot) => {
+        if (snapshot.guild.rootOwnerIdentityId !== this.#accountId) {
+          throw new Error("Only the current human Root Owner can rotate recovery codes.");
+        }
+        return new GuildRecoveryRepository(
+          connection,
+          this.#env.GUILD_ID,
+        ).rotateBreakGlassCodes({
+          codeSetId,
+          expectedVersion: input.expectedVersion,
+          outgoingRoleId: input.outgoingRoleId,
+          expiresInDays: input.expiresInDays,
+          reason: input.reason,
+          actorIdentityId: this.#accountId,
+          codes: storedCodes,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            "break_glass.codes.rotated",
+            "break_glass_code_set",
+            codeSetId,
+            { reason: input.reason, source: "guild-ui" },
+          ),
+        });
+      },
+    );
+    return {
+      status: toUiBreakGlassStatus(status, true, true, "active"),
+      codes: plaintextCodes,
+    };
+  }
+
+  async revokeBreakGlassCodes(
+    input: RevokeBreakGlassCodesRequest,
+  ): Promise<UiBreakGlassStatus> {
+    assertPositiveInteger(input.expectedVersion, "Expected Break Glass version");
+    assertUuid(input.codeSetId, "Break Glass code set ID");
+    assertNonBlank(input.reason, "Break Glass revocation reason", 2_000);
+    if (input.confirmation !== this.#env.GUILD_NAME) {
+      throw new Error("Type the Guild name exactly to revoke emergency recovery codes.");
+    }
+    const status = await this.#authorizedWrite(
+      "constitution.update",
+      async (connection, snapshot) => {
+        if (snapshot.guild.rootOwnerIdentityId !== this.#accountId) {
+          throw new Error("Only the current human Root Owner can revoke recovery codes.");
+        }
+        return new GuildRecoveryRepository(
+          connection,
+          this.#env.GUILD_ID,
+        ).revokeBreakGlassCodes({
+          expectedVersion: input.expectedVersion,
+          reason: input.reason,
+          actorIdentityId: this.#accountId,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            "break_glass.codes.revoked",
+            "break_glass_code_set",
+            input.codeSetId,
+            { reason: input.reason, source: "guild-ui" },
+          ),
+        });
+      },
+    );
+    return toUiBreakGlassStatus(status, true, true, "active");
+  }
+
+  async recoverRootOwnership(
+    input: RecoverRootOwnershipRequest,
+  ): Promise<UiBootstrapState> {
+    const rateLimit = await this.#env.RECOVERY_RATE_LIMITER.limit({ key: this.#accountId });
+    if (!rateLimit.success) {
+      throw new Error("Too many emergency recovery attempts. Wait before trying again.");
+    }
+    assertNonBlank(input.displayName, "Recovery display name");
+    assertLocale(input.preferredLocale);
+    assertNonBlank(input.reason, "Break Glass recovery reason", 2_000);
+    if (input.confirmation !== this.#env.GUILD_NAME) {
+      throw new Error("Type the Guild name exactly to use emergency recovery.");
+    }
+    const codeHash = await hashBreakGlassCode(input.code.trim());
+    const recoveryId = crypto.randomUUID();
+    const viewedInformation =
+      "Guild name, current Root identity, recovery generation, and outgoing Role.";
+    const changesMade =
+      "Transferred Root ownership, assigned the configured Role to the previous Root, " +
+      "invalidated the entire recovery generation, and superseded pending ownership transfers.";
+    await withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => {
+        await new GuildRecoveryRepository(
+          connection,
+          this.#env.GUILD_ID,
+        ).recoverRootOwnership({
+          recoveryId,
+          codeHash,
+          accountIdentityId: this.#accountId,
+          displayName: input.displayName,
+          preferredLocale: input.preferredLocale,
+          reason: input.reason,
+          viewedInformation,
+          changesMade,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            "break_glass.used",
+            "break_glass_recovery",
+            recoveryId,
+            {
+              reason: input.reason,
+              viewedInformation,
+              changesMade,
+              source: "guild-ui",
+            },
           ),
         });
       },

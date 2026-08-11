@@ -21,6 +21,7 @@ const chronicleSearchMigrationUrl = new URL("../migrations/0017_chronicle_search
 const announcementProvenanceMigrationUrl = new URL("../migrations/0018_archived_announcement_provenance.sql", import.meta.url);
 const constitutionGovernanceMigrationUrl = new URL("../migrations/0022_constitution_governance.sql", import.meta.url);
 const rootOwnershipTransferMigrationUrl = new URL("../migrations/0023_root_ownership_transfer.sql", import.meta.url);
+const breakGlassRecoveryMigrationUrl = new URL("../migrations/0024_break_glass_recovery.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -155,5 +156,15 @@ describe("Guild PostgreSQL migration", () => {
     expect(rootOwnershipSql).toContain("A Role in a pending Root ownership transfer is immutable");
     expect(rootOwnershipSql).toContain("identities_active_human_name_search_idx");
     expect(rootOwnershipSql).toContain("root_owner_change_committed");
+    const recoverySql = await readFile(
+      fileURLToPath(breakGlassRecoveryMigrationUrl),
+      "utf8",
+    );
+    expect(recoverySql).toContain("CREATE TABLE break_glass_code_sets");
+    expect(recoverySql).toContain("CREATE TABLE break_glass_recoveries");
+    expect(recoverySql).toContain("Break Glass recovery did not complete atomically");
+    expect(recoverySql).toContain("Root ownership change requires one authorized governance path");
+    expect(recoverySql).toContain("Root ownership change must invalidate existing Break Glass codes");
+    expect(recoverySql).toContain("NEW.state = 'superseded'");
   });
 });

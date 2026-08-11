@@ -49,6 +49,7 @@ const validConfig = {
     askModel: "@cf/meta/llama-3.1-8b-instruct-fast",
     aiGatewayId: "default",
     askRequestsPerMinute: 20,
+    recoveryAttemptsPerMinute: 5,
     agentWorkflowName: "acme-guild-agent-execution",
     webhook: {
       connectorId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
@@ -147,6 +148,14 @@ test("rejects destructive or malformed deployment values", () => {
   const excessiveAskLimit = structuredClone(validConfig);
   excessiveAskLimit.guild.askRequestsPerMinute = 10_001;
   assert.throws(() => validateConfig(excessiveAskLimit), /cannot exceed/i);
+
+  const invalidRecoveryLimit = structuredClone(validConfig);
+  invalidRecoveryLimit.guild.recoveryAttemptsPerMinute = 0;
+  assert.throws(() => validateConfig(invalidRecoveryLimit), /positive integer/i);
+
+  const excessiveRecoveryLimit = structuredClone(validConfig);
+  excessiveRecoveryLimit.guild.recoveryAttemptsPerMinute = 101;
+  assert.throws(() => validateConfig(excessiveRecoveryLimit), /recovery attempt limit/i);
 
   const unsafeWebhook = structuredClone(validConfig);
   unsafeWebhook.guild.webhook.url = "http://127.0.0.1/internal";
@@ -297,11 +306,18 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     binding: "KNOWLEDGE_FILES",
     bucket_name: "acme-guild-knowledge",
   }]);
-  assert.deepEqual(generated.guildGatekeeper.ratelimits, [{
-    name: "ASK_RATE_LIMITER",
-    namespace_id: "26156863",
-    simple: { limit: 20, period: 60 },
-  }]);
+  assert.deepEqual(generated.guildGatekeeper.ratelimits, [
+    {
+      name: "ASK_RATE_LIMITER",
+      namespace_id: "26156863",
+      simple: { limit: 20, period: 60 },
+    },
+    {
+      name: "RECOVERY_RATE_LIMITER",
+      namespace_id: "26156864",
+      simple: { limit: 5, period: 60 },
+    },
+  ]);
   assert.deepEqual(generated.guildGatekeeper.workflows, [{
     name: "acme-guild-agent-execution",
     binding: "AGENT_EXECUTION",

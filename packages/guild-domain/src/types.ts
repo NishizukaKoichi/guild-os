@@ -67,13 +67,49 @@ export interface RootOwnershipTransfer {
   fromIdentityId: string;
   toIdentityId: string;
   outgoingRoleId: string;
-  state: "pending" | "accepted" | "cancelled" | "expired";
+  state: "pending" | "accepted" | "cancelled" | "expired" | "superseded";
   reason: string;
   version: number;
   expiresAt: string;
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BreakGlassConfiguration {
+  guildId: string;
+  currentCodeSetId: string | null;
+  version: number;
+  updatedByIdentityId: string;
+  updatedAt: string;
+}
+
+export interface BreakGlassCodeSet {
+  id: string;
+  guildId: string;
+  generation: number;
+  createdByIdentityId: string;
+  outgoingRoleId: string;
+  reason: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface BreakGlassRecovery {
+  id: string;
+  guildId: string;
+  codeSetId: string;
+  codeId: string;
+  previousRootIdentityId: string;
+  newRootIdentityId: string;
+  outgoingRoleId: string;
+  reason: string;
+  actorWasExistingIdentity: boolean;
+  viewedInformation: string;
+  changesMade: string;
+  state: "pending" | "completed";
+  completedAt: string | null;
+  createdAt: string;
 }
 
 export interface Space {

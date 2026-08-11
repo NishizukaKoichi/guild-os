@@ -41,6 +41,7 @@ const requiredPaths = [
   "guild.askModel",
   "guild.aiGatewayId",
   "guild.askRequestsPerMinute",
+  "guild.recoveryAttemptsPerMinute",
   "guild.agentWorkflowName",
   "guild.webhook.connectorId",
   "guild.webhook.name",
@@ -141,6 +142,7 @@ export function validateConfig(config) {
     "guild.level3ApprovalQuorum",
     "guild.dataRetentionDays",
     "guild.askRequestsPerMinute",
+    "guild.recoveryAttemptsPerMinute",
   ].includes(path));
   for (const path of stringPaths) {
     if (typeof valueAt(config, path) !== "string") {
@@ -190,6 +192,7 @@ export function validateConfig(config) {
     "guild.level3ApprovalQuorum",
     "guild.dataRetentionDays",
     "guild.askRequestsPerMinute",
+    "guild.recoveryAttemptsPerMinute",
   ]) {
     const value = valueAt(config, path);
     if (!Number.isSafeInteger(value) || value <= 0) {
@@ -198,6 +201,9 @@ export function validateConfig(config) {
   }
   if (config.guild.askRequestsPerMinute > 10_000) {
     throw new Error("Guild Ask request limit cannot exceed 10,000 requests per minute.");
+  }
+  if (config.guild.recoveryAttemptsPerMinute > 100) {
+    throw new Error("Guild recovery attempt limit cannot exceed 100 attempts per minute.");
   }
   const workerNames = Object.entries(config.workers)
     .filter(([key]) =>
@@ -501,11 +507,22 @@ export function generateConfigs(config, bases) {
       ? { bucket_name: config.resources.knowledgeFilesBucket }
       : {}),
   }];
-  guildGatekeeper.ratelimits = [{
-    name: "ASK_RATE_LIMITER",
-    namespace_id: String(Number.parseInt(config.guild.id.replaceAll("-", "").slice(0, 8), 16) + 1),
-    simple: { limit: config.guild.askRequestsPerMinute, period: 60 },
-  }];
+  const rateLimitNamespaceBase = Number.parseInt(
+    config.guild.id.replaceAll("-", "").slice(0, 8),
+    16,
+  );
+  guildGatekeeper.ratelimits = [
+    {
+      name: "ASK_RATE_LIMITER",
+      namespace_id: String(rateLimitNamespaceBase + 1),
+      simple: { limit: config.guild.askRequestsPerMinute, period: 60 },
+    },
+    {
+      name: "RECOVERY_RATE_LIMITER",
+      namespace_id: String(rateLimitNamespaceBase + 2),
+      simple: { limit: config.guild.recoveryAttemptsPerMinute, period: 60 },
+    },
+  ];
   guildGatekeeper.workflows = [{
     name: config.guild.agentWorkflowName,
     binding: "AGENT_EXECUTION",

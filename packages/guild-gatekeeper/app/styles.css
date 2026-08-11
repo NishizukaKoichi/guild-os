@@ -317,6 +317,7 @@ textarea:focus-visible {
 
 .primary-button,
 .secondary-button,
+.danger-action-button,
 .text-button,
 .icon-button {
   display: inline-flex;
@@ -329,6 +330,7 @@ textarea:focus-visible {
 
 .primary-button,
 .secondary-button,
+.danger-action-button,
 .text-button {
   padding: 7px 12px;
 }
@@ -355,6 +357,17 @@ textarea:focus-visible {
 .text-button:hover:not(:disabled),
 .icon-button:hover:not(:disabled) {
   background: var(--surface-strong);
+}
+
+.danger-action-button {
+  border: 1px solid var(--danger);
+  background: var(--surface);
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.danger-action-button:hover:not(:disabled) {
+  background: var(--danger-soft);
 }
 
 .text-button {
@@ -1107,6 +1120,113 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.recovery-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 16px;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.recovery-summary > div {
+  min-width: 0;
+  padding: 13px 14px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.recovery-summary > div:nth-child(3n) {
+  border-right: 0;
+}
+
+.recovery-summary > div:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.recovery-summary dt {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recovery-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.recovery-manager > .notice {
+  margin-bottom: 14px;
+}
+
+.recovery-dialog {
+  width: min(100%, 620px);
+}
+
+.recovery-dialog .dialog-header {
+  align-items: flex-start;
+}
+
+.recovery-dialog .dialog-header small {
+  overflow: visible;
+  line-height: 1.4;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.recovery-dialog > .notice,
+.recovery-dialog > .recovery-code-list,
+.recovery-dialog > .recovery-code-actions,
+.recovery-dialog > .dialog-actions {
+  margin-right: 18px;
+  margin-left: 18px;
+}
+
+.recovery-dialog > .notice {
+  margin-top: 18px;
+}
+
+.recovery-code-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 16px;
+  margin-bottom: 0;
+  padding: 1px;
+  border: 1px solid var(--border-strong);
+  background: var(--border);
+  list-style-position: inside;
+}
+
+.recovery-code-list li {
+  min-width: 0;
+  padding: 10px 11px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.recovery-code-list code {
+  color: var(--text);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.recovery-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.recovery-dialog > .dialog-actions {
+  margin-top: 18px;
+  margin-bottom: 18px;
+}
+
 .dialog-header small:has(svg) {
   display: flex;
   align-items: center;
@@ -1365,6 +1485,21 @@ textarea:focus-visible {
 .security-note svg {
   flex: 0 0 auto;
   margin-top: 1px;
+}
+
+.access-recovery {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.access-recovery button {
+  width: 100%;
 }
 
 .sidebar-scrim {
@@ -3932,6 +4067,29 @@ textarea:focus-visible {
 
   .ownership-search-row > button {
     width: 100%;
+  }
+
+  .recovery-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recovery-summary > div,
+  .recovery-summary > div:nth-child(3n),
+  .recovery-summary > div:nth-last-child(-n + 3) {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .recovery-summary > div:last-child {
+    border-bottom: 0;
+  }
+
+  .recovery-code-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recovery-code-actions > button {
+    flex: 1 1 100%;
   }
 
   .manager-row {

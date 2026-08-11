@@ -55,6 +55,7 @@ production use:
 - Cloudflare Access issuer and audience
 - Hyperdrive ID
 - KV namespace IDs and R2 bucket names after automatic provisioning
+- Per-Identity Ask and emergency-recovery attempt limits
 
 For first deployment, `null` KV/R2 values allow Wrangler automatic provisioning. Immediately after
 the deploy, record the created namespace IDs and bucket names in `deployment.jsonc`; explicit
@@ -115,9 +116,12 @@ in command arguments, generated configs, logs, or child-process environments.
    Owner login.
 6. Rehearse a Root handover to that Human and back again. The current Root proposes the transfer in
    **Settings**, the named Human accepts from their own session, and both sides verify the proposal
-   and acceptance in **Chronicle**.
-7. Expand the Access Allow policy only after Guild invitation, claim, and Root transfer have been
-   tested.
+   and acceptance in **Chronicle**. Acceptance invalidates the prior Root's recovery-code generation.
+7. In **Settings > Emergency recovery**, select the Role retained by the prior Root and generate a
+   code set. Verify ten codes are shown exactly once, store them under separate offline custody,
+   rotate once to prove the first set is invalidated, and retain only the latest set.
+8. Expand the Access Allow policy only after Guild invitation, claim, Root transfer, and recovery
+   custody have been tested.
 
 Root ownership cannot be assigned to an Agent, disabled, suspended, departed, or deleted through
 the application.
@@ -144,8 +148,12 @@ Use synthetic names and non-sensitive content for the first test:
 10. Test desktop and 390 px mobile navigation with English, Japanese, and Simplified Chinese modes.
 11. Propose, cancel, repropose, and accept one Root ownership transfer; verify the outgoing Role,
     private notifications, expiry behavior, and append-only Chronicle evidence.
+12. Before admitting real users, use one current recovery code from a separate authenticated Human
+    account. Verify Root changes atomically, the old Root receives its configured Role, all sibling
+    codes and pending transfers become invalid, `break_glass.used` records the disclosure and
+    changes, and a fresh generation can be created under the new Root.
 
-Do not admit real users until all eleven checks pass and the results are attached to the release record.
+Do not admit real users until all twelve checks pass and the results are attached to the release record.
 For the bundled receiver, the repeat-delivery test is executable as `pnpm smoke:webhook`; see
 [`packages/webhook-receiver/README.md`](../packages/webhook-receiver/README.md).
 

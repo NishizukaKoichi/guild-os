@@ -5,10 +5,17 @@ import {
   describeGuildVendor,
 } from "../src/guild.js";
 import type { GuildAgentExecutionContext, GuildOverview } from "../src/types.js";
-import { generateInvitationToken, hashInvitationToken } from "../src/management-api.js";
+import {
+  generateBreakGlassCode,
+  generateInvitationToken,
+  hashBreakGlassCode,
+  hashInvitationToken,
+  GuildManagementApiImpl,
+} from "../src/management-api.js";
 import { deliverSignedWebhook } from "../src/agent-webhook.js";
 import type { AgentExecutionClaim } from "../src/agent-service.js";
 import { BUILTIN_ROLES } from "../src/config.js";
+import type { GuildEnv } from "../src/config.js";
 
 describe("guild-gatekeeper", () => {
   it("never delegates Root-only authority through built-in Roles", () => {
@@ -143,6 +150,37 @@ describe("guild-gatekeeper", () => {
     await expect(hashInvitationToken(first)).resolves.toMatch(/^[a-f0-9]{64}$/);
     await expect(hashInvitationToken(first)).resolves.toBe(await hashInvitationToken(first));
     await expect(hashInvitationToken("short")).rejects.toThrow("malformed");
+  });
+
+  it("creates prefixed high-entropy recovery codes and hashes the full credential", async () => {
+    const first = generateBreakGlassCode();
+    const second = generateBreakGlassCode();
+    expect(first).toMatch(/^gbr_[A-Za-z0-9_-]{32}$/);
+    expect(second).toMatch(/^gbr_[A-Za-z0-9_-]{32}$/);
+    expect(second).not.toBe(first);
+    await expect(hashBreakGlassCode(first)).resolves.toMatch(/^[a-f0-9]{64}$/);
+    await expect(hashBreakGlassCode(first)).resolves.toBe(await hashBreakGlassCode(first));
+    await expect(hashBreakGlassCode("gbr_short")).rejects.toThrow("invalid or unavailable");
+  });
+
+  it("fails closed at the recovery rate-limit boundary before database access", async () => {
+    let attempts = 0;
+    const api = new GuildManagementApiImpl({
+      RECOVERY_RATE_LIMITER: {
+        async limit() {
+          attempts += 1;
+          return { success: false };
+        },
+      },
+    } as unknown as GuildEnv, "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9c");
+    await expect(api.recoverRootOwnership({
+      code: "gbr_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+      displayName: "Recovery Human",
+      preferredLocale: "en",
+      reason: "Verified offline recovery.",
+      confirmation: "Example Guild",
+    })).rejects.toThrow("Too many emergency recovery attempts");
+    expect(attempts).toBe(1);
   });
 
   it("stages a session Agent action through its governed callback", async () => {

@@ -10,7 +10,10 @@ import type {
   GuildUiApi,
   IssueInvitationInput,
   ProposeRootOwnershipTransferRequest,
+  RecoverRootOwnershipRequest,
+  RevokeBreakGlassCodesRequest,
   ResolveRootOwnershipTransferRequest,
+  RotateBreakGlassCodesRequest,
   UiBootstrapState,
   UiDirectory,
   UpdateConstitutionRequest,
@@ -98,6 +101,11 @@ export function App({ api }: { api: GuildUiApi }) {
         bootstrap={bootstrap}
         onClaim={async (input) => {
           const state = await api.claimInvitation(input);
+          setBootstrap(state);
+          await loadDirectory(state);
+        }}
+        onRecover={async (input: RecoverRootOwnershipRequest) => {
+          const state = await api.recoverRootOwnership(input);
           setBootstrap(state);
           await loadDirectory(state);
         }}
@@ -270,6 +278,20 @@ export function App({ api }: { api: GuildUiApi }) {
             await loadDirectory(state);
           }}
           onSearchRootOwnershipCandidates={(search) => api.searchRootOwnershipCandidates(search)}
+          onRotateBreakGlassCodes={async (input: RotateBreakGlassCodesRequest) => {
+            const result = await api.rotateBreakGlassCodes(input);
+            setBootstrap((current) => current ? { ...current, breakGlass: result.status } : current);
+            return result;
+          }}
+          onRevokeBreakGlassCodes={async (input: RevokeBreakGlassCodesRequest) => {
+            const status = await api.revokeBreakGlassCodes(input);
+            setBootstrap((current) => current ? { ...current, breakGlass: status } : current);
+          }}
+          onRecoverRootOwnership={async (input: RecoverRootOwnershipRequest) => {
+            const state = await api.recoverRootOwnership(input);
+            setBootstrap(state);
+            await loadDirectory(state);
+          }}
           onCreateRole={async (input: CreateRoleRequest) => {
             await api.createRole(input);
             await refreshDirectory();

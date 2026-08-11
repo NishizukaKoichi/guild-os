@@ -85,11 +85,16 @@ product requirement must be resolved explicitly rather than silently weakened.
   Humans. Proposal terms and the outgoing Role are frozen, direct Root replacement and unaudited
   transitions fail in PostgreSQL, and desktop/mobile browser tests cover propose, cancel, and
   acceptance from the successor's separate session.
+- Purchaser-owned Break Glass recovery is implemented with one-time 192-bit offline codes,
+  SHA-256-only storage, irreversible generation rotation/revocation, per-account rate limiting,
+  active-Human enforcement, prior-Root Role preservation, pending-transfer supersession, mandatory
+  disclosure/change Chronicle evidence, and desktop/mobile browser coverage.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Complete backup/restore tooling and full local verification.
-2. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
+1. Complete permission-filtered Conversations/comments and remaining recovery/export tooling.
+2. Run full local release verification and produce an immutable release manifest.
+3. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
    smoke test.
-3. Record the production evidence in the v1 completion matrix and release manifest.
+4. Record the production evidence in the v1 completion matrix and release manifest.

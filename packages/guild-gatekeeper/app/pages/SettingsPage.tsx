@@ -5,7 +5,11 @@ import type {
   CreateRoleRequest,
   CreateSpaceRequest,
   ProposeRootOwnershipTransferRequest,
+  RecoverRootOwnershipRequest,
+  RevokeBreakGlassCodesRequest,
   ResolveRootOwnershipTransferRequest,
+  RotateBreakGlassCodesRequest,
+  RotatedBreakGlassCodes,
   UiBootstrapState,
   UiDirectory,
   UiRootOwnershipCandidate,
@@ -14,6 +18,7 @@ import type {
 } from "../../src/management-types";
 import { ConstitutionManager } from "../components/ConstitutionManager";
 import { OwnershipManager } from "../components/OwnershipManager";
+import { RecoveryManager } from "../components/RecoveryManager";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { RoleManager } from "../components/RoleManager";
@@ -29,6 +34,9 @@ export function SettingsPage({
   onCancelRootOwnershipTransfer,
   onAcceptRootOwnershipTransfer,
   onSearchRootOwnershipCandidates,
+  onRotateBreakGlassCodes,
+  onRevokeBreakGlassCodes,
+  onRecoverRootOwnership,
   onCreateRole,
   onUpdateRole,
   onDeleteRole,
@@ -44,6 +52,9 @@ export function SettingsPage({
   onCancelRootOwnershipTransfer(input: ResolveRootOwnershipTransferRequest): Promise<void>;
   onAcceptRootOwnershipTransfer(input: ResolveRootOwnershipTransferRequest): Promise<void>;
   onSearchRootOwnershipCandidates(search: string): Promise<readonly UiRootOwnershipCandidate[]>;
+  onRotateBreakGlassCodes(input: RotateBreakGlassCodesRequest): Promise<RotatedBreakGlassCodes>;
+  onRevokeBreakGlassCodes(input: RevokeBreakGlassCodesRequest): Promise<void>;
+  onRecoverRootOwnership(input: RecoverRootOwnershipRequest): Promise<void>;
   onCreateRole(input: CreateRoleRequest): Promise<void>;
   onUpdateRole(input: UpdateRoleRequest): Promise<void>;
   onDeleteRole(roleId: string): Promise<void>;
@@ -100,6 +111,14 @@ export function SettingsPage({
         onCancel={onCancelRootOwnershipTransfer}
         onAccept={onAcceptRootOwnershipTransfer}
         onSearchCandidates={onSearchRootOwnershipCandidates}
+      />
+
+      <RecoveryManager
+        bootstrap={bootstrap}
+        directory={directory}
+        onRotate={onRotateBreakGlassCodes}
+        onRevoke={onRevokeBreakGlassCodes}
+        onRecover={onRecoverRootOwnership}
       />
 
       {directory ? (

@@ -415,6 +415,16 @@ export class GuildGovernanceRepository {
         transfer.target_membership_state !== "active") {
       throw new Error("Only the designated active Human can accept Root ownership.");
     }
+    const breakGlassConfiguration = (await this.#connection.query<{
+      version: number;
+      current_code_set_id: string | null;
+    }>(
+      `SELECT version, current_code_set_id::text
+         FROM break_glass_configurations
+        WHERE guild_id = $1
+        FOR UPDATE`,
+      [this.#guildId],
+    )).rows[0];
 
     await this.#connection.query("SELECT set_config('app.actor_identity_id', $1, true)", [
       input.actorIdentityId,
@@ -435,6 +445,24 @@ export class GuildGovernanceRepository {
         )`,
       [crypto.randomUUID(), this.#guildId, transfer.from_identity_id, transfer.outgoing_role_id],
     );
+    const revokedCodeSetId = breakGlassConfiguration?.current_code_set_id ?? null;
+    if (breakGlassConfiguration && revokedCodeSetId) {
+      const invalidated = await this.#connection.query(
+        `UPDATE break_glass_configurations
+            SET current_code_set_id = NULL, version = version + 1,
+                updated_by_identity_id = $2, updated_at = now()
+          WHERE guild_id = $1 AND version = $3 AND current_code_set_id = $4`,
+        [
+          this.#guildId,
+          input.actorIdentityId,
+          breakGlassConfiguration.version,
+          revokedCodeSetId,
+        ],
+      );
+      if (invalidated.rowCount !== 1) {
+        throw new Error("Break Glass codes changed before Root ownership acceptance.");
+      }
+    }
     const accepted = (await this.#connection.query<RootOwnershipTransferRow>(
       `UPDATE root_ownership_transfers
           SET state = 'accepted', version = version + 1, resolved_at = now()
@@ -465,6 +493,21 @@ export class GuildGovernanceRepository {
       ],
     );
     await this.#chronicle.appendChronicle(input.chronicleEvent);
+    if (revokedCodeSetId) {
+      await this.#chronicle.appendChronicle({
+        ...input.chronicleEvent,
+        id: crypto.randomUUID(),
+        action: "break_glass.codes.revoked",
+        subjectType: "break_glass_code_set",
+        subjectId: revokedCodeSetId,
+        occurredAt: new Date().toISOString(),
+        details: {
+          reason: "Invalidated automatically by an accepted Root ownership transfer.",
+          rootOwnershipTransferId: input.transferId,
+          source: "guild-governance",
+        },
+      });
+    }
     return mapRootOwnershipTransfer(this.#guildId, accepted);
   }
 

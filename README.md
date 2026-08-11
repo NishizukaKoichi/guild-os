@@ -23,6 +23,8 @@ Implemented and tested:
 - Root Owner and private-data invariants
 - Root-only, versioned Constitution management with mandatory Chronicle reasons
 - Two-party, expiring Root ownership transfer with outgoing Role preservation and atomic Chronicle
+- Purchaser-owned Break Glass recovery with one-time offline codes, whole-generation invalidation,
+  rate limiting, previous-Root Role preservation, and mandatory Chronicle disclosure
 - Agent/requester/workflow/connector permission intersection
 - Knowledge lifecycle and risk-based approval rules
 - Agent budget, duration, step, retry, and delegation limits
@@ -161,7 +163,8 @@ Edit `deployment.jsonc`:
 3. Set the Cloudflare Access issuer, audience, and narrow administrator list.
 4. Generate a stable Guild UUID with `node -e "console.log(crypto.randomUUID())"`.
 5. Set the Guild name, purpose, first Space, approval quorums, retention period, and Hyperdrive ID.
-6. Select the Workers AI model, AI Gateway ID, and per-Identity Ask Guild rate limit.
+6. Select the Workers AI model, AI Gateway ID, per-Identity Ask Guild rate limit, and emergency
+   recovery attempt limit.
 7. Set a unique Agent Workflow name and a new Webhook Connector UUID, name, and fixed HTTPS URL.
 8. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
 
@@ -193,6 +196,12 @@ Root ownership is not assigned through Roles. In **Settings**, the current Root 
 active Human and chooses the Role retained after handover. That Human accepts from their own
 session. PostgreSQL rejects a direct replacement, expired acceptance, mutable proposal terms, and
 any transition without its Chronicle event.
+
+For loss of every administrator, **Settings > Emergency recovery** generates ten one-time offline
+codes. Plaintext appears once and never enters PostgreSQL, Git, Cloudflare variables, or Chronicle.
+Store codes under separate purchaser custody. Using one current code from an authenticated account
+changes Root atomically, preserves the configured Role for the prior Root, invalidates the full
+generation, and records the incident. See [backup and recovery](docs/backup-and-recovery.md).
 
 The current v1 completion evidence and remaining gates are tracked in
 [v1 completion](docs/v1-completion.md).

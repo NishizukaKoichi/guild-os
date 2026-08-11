@@ -21,6 +21,7 @@ export type GuildEnv = Cloudflare.Env & {
   HYPERDRIVE: { connectionString: string };
   KNOWLEDGE_FILES: R2Bucket;
   ASK_RATE_LIMITER: RateLimit;
+  RECOVERY_RATE_LIMITER: RateLimit;
   AGENT_EXECUTION: Workflow<{ guildId: string; runId: string }>;
   AI: {
     run(

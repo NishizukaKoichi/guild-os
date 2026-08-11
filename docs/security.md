@@ -33,8 +33,7 @@ identities are rejected before role evaluation.
 
 Root ownership does not bypass Private visibility. Constitution update and Break Glass are
 Root-only authorities, not delegable Role permissions; database constraints reject either grant
-even if an application path is bypassed. Break Glass is reserved until its recovery ceremony and
-mandatory Chronicle disclosure are implemented.
+even if an application path is bypassed.
 
 The Settings surface lets every authorized member read the current Constitution, but only the
 current active human Root Owner can edit it. Every edit supplies the expected version and a reason.
@@ -49,6 +48,24 @@ their own authenticated account and confirm the Guild name. Neither an administr
 current Root can accept on the successor's behalf. PostgreSQL freezes the proposal and referenced
 Role while it is live, rejects acceptance after expiry, performs the Root change and outgoing Role
 grant atomically, and requires matching Chronicle events at commit. Transfer history is append-only.
+Acceptance also invalidates the current Break Glass generation atomically. PostgreSQL rejects a
+Root change that leaves prior recovery codes active, so the previous Root cannot use retained codes
+to undo a completed handover. The new Root creates a fresh custody set after acceptance.
+
+Break Glass is the independent recovery path when the two-party protocol cannot be completed. The
+current Root creates ten 192-bit one-time codes and receives the plaintext only once. PostgreSQL
+stores SHA-256 hashes, an identifying hint, immutable generation metadata, and no recoverable
+secret. Rotation or revocation advances a versioned pointer, so an old code set cannot be selected
+again. A successful recovery consumes one code and invalidates its entire generation.
+
+Recovery is available only through an authenticated Cloudflare OS account. It accepts an existing
+active Human or creates a restricted active Human for an account not yet represented in the Guild;
+existing inactive Humans and machine Identities are rejected. The exact Guild name, a reason, and a
+per-account Cloudflare rate-limit check are required. Root replacement, outgoing Role assignment,
+pending-transfer supersession, code consumption, generation invalidation, and Chronicle disclosure
+commit in one transaction. Deferred PostgreSQL constraints reject a forged Root update, partial
+completion, history mutation, or missing audit event. The Chronicle records what classes of
+information were viewed and what changed, but never records a plaintext code or its hash.
 
 An administrator may invite an Identity or assign a Role only when the administrator holds every
 permission in that Role globally. Creating or editing a custom Role applies the same rule. This
@@ -216,6 +233,8 @@ does not make deleted files visible or lose the cleanup obligation.
 | Secret disclosure | Wrangler secret, no config/log/prompt storage, HMAC verification | Rotate receiver and Worker secret, provision a new Connector ID, kill old runs |
 | Prompt injection in Knowledge | Canonical-only, permission-filtered context; model output cannot bypass policy or approval | Humans must inspect Level 2 action payloads before approval |
 | Stolen Root session attempts silent handover | Immutable expiring proposal plus acceptance by the named active Human in a separate account session | A compromise of both Human accounts still requires incident recovery and credential rotation |
+| Lost Root and administrator access | Offline 192-bit one-time codes, purchaser custody, rate limit, exact confirmation, atomic generation invalidation, and mandatory Chronicle | Loss of every offline code requires purchaser-controlled infrastructure recovery; the seller has no bypass |
+| Stolen or replayed recovery code | SHA-256-only storage, current-generation pointer, one-time consumption, whole-generation invalidation, expiry, and generic failures | A thief with both a current code and an allowed Cloudflare OS account can recover; use split offline custody and short Access policy scope |
 
 ## Known security gates
 
@@ -223,6 +242,7 @@ Before a production release, complete and verify:
 
 - Keep Level 3 actions disabled until a reauthentication-capable, multi-approver connector is added
 - External Access/session recovery rehearsal in the deployed environment
+- Break Glass custody, use, alert review, and post-database-restore rotation rehearsal
 - Backup restore rehearsal
 - Receiver-side signature, replay-window, and durable idempotency smoke
 
