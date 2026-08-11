@@ -14,7 +14,7 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 | 5 | Ask Guild with authorized citations | Partial | Canonical-only search, bounded context, Workers AI call, version citations, no-evidence behavior, rate limit, and leakage tests | Production Workers AI citation smoke; derived semantic index remains post-MVP quality work |
 | 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Domain lifecycle; database-enforced hierarchy, Space containment, optimistic versions, and Human/Agent assignment; permission-prefiltered services; responsive management UI; PostgreSQL, Gatekeeper, and full hierarchy E2E tests | Production Hyperdrive assignment and Chronicle smoke |
 | 7 | Agent Plan, approval, one external write | Not started | Risk/quorum and authority intersection policy | Workflow, connector, idempotent write, approval UI/E2E |
-| 8 | Formal Decision with evidence and approvals | Partial | Relational schema | Commands, views, approval and supersession E2E |
+| 8 | Formal Decision with evidence and approvals | Partial | Permission-prefiltered commands and views; immutable proposal; Constitution quorum; append-only human reviews; same-option approval; evidence; dissent; exact-boundary supersession; PostgreSQL, Gatekeeper, and responsive E2E tests | Production Hyperdrive Decision lifecycle and notification smoke |
 | 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Isolated tables and indexes | Commands, delivery fan-out, views, read state E2E |
 | 10 | Chronicle all important Human/Agent actions | Partial | Immutable/RLS table; bootstrap/invitation/membership events | Chronicle query UI and complete action coverage assertions |
 | 11 | Human departure and Agent stop revoke access/tokens immediately | Partial | Human, Agent, and Service lifecycle disables access; Agent stop revokes Connectors and kills unfinished runs in one transaction; PostgreSQL tests | Workflow cancellation and production cached-capability smoke |
@@ -45,6 +45,11 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   cannot broaden its parent's Space, terminal parents require terminal children, and only active
   Humans or Agents with access to the Work resource can receive an assignment. Assignment
   notifications and Chronicle evidence commit with the Work mutation.
+- Decision proposal freezes content, evidence, options, and its authorization boundary. Only
+  eligible active Humans can add an append-only review, one option must independently reach the
+  Constitution quorum, and terminal results cannot be rewritten. Supersession requires an approved
+  replacement with the exact same boundary. Approver counting and Inbox fan-out remain set-based
+  and are integration-tested above twenty eligible reviewers.
 - Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
-  states plus the complete Knowledge, Ask, and Goal-to-Step Work paths have Playwright interaction
-  and overflow checks.
+  states plus the complete Knowledge, Ask, Goal-to-Step Work, and Decision paths have Playwright
+  interaction and overflow checks.

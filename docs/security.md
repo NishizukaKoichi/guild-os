@@ -79,6 +79,16 @@ a different boundary requires a new Knowledge record and review. Each R2 file al
 upload-time boundary, and reading it requires authorization against both the current Knowledge and
 the immutable file boundary.
 
+Decision lists are permission-filtered in PostgreSQL before rows reach the Gatekeeper, then each
+result is authorized again by the domain policy. A draft can be edited only by an authorized Human.
+Proposal freezes its content, evidence references, options, Space, visibility, classification, and
+explicit-share boundary. Reviews are append-only and human-only; an Agent, Service, inactive
+Membership, or Human outside that boundary cannot vote. Approval is reached only when one option
+meets the Constitution quorum. A rejection records dissent and closes the proposal. Approved or
+rejected results cannot be rewritten. An approved Decision can be superseded only by another
+approved Decision with the exact same authorization boundary, preserving access rather than
+silently broadening or narrowing it.
+
 Knowledge and Space metadata are authorization-filtered before they are returned through the
 Gatekeeper. The agent catalog is bounded by Cloudflare OS and contains only permitted Spaces. The
 Gatekeeper asks the Workshop to authorize each observation before returning data to a Gadget or
@@ -107,6 +117,10 @@ Additional triggers enforce one root Space, acyclic Space ancestry, immutable Id
 nonempty Roles, valid Agent limits and tools, and the pairing between an active Agent profile, its
 Agent Identity, and active Membership. These checks repeat domain validation so direct SQL cannot
 create an authorization state that the application refuses.
+
+Decision triggers independently enforce draft-only edits, human reviewer eligibility, append-only
+reviews, same-option quorum, immutable terminal results, and exact-boundary supersession. This keeps
+the governance record valid even if a future service implementation bypasses TypeScript checks.
 
 R2 uploads are two-phase: a pending PostgreSQL row is committed before bytes are written, and only
 then becomes ready. Draft publication, archival, and version replacement reject pending uploads.

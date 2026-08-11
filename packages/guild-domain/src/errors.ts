@@ -14,7 +14,8 @@ export type GuildErrorCode =
   | "AGENT_LIMIT_EXCEEDED"
   | "RATE_LIMITED"
   | "INVALID_KNOWLEDGE_TRANSITION"
-  | "INVALID_WORK_TRANSITION";
+  | "INVALID_WORK_TRANSITION"
+  | "INVALID_DECISION_TRANSITION";
 
 export class GuildDomainError extends Error {
   readonly code: GuildErrorCode;

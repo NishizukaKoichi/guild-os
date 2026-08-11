@@ -5,6 +5,7 @@ import type {
   IssuedInvitation,
   UiBootstrapState,
   UiDirectory,
+  UiDecisionDetail,
   UiKnowledgeDetail,
   UiKnowledgeFile,
   UiGoal,
@@ -22,6 +23,10 @@ import {
   assertQuestTransition,
   assertStepStatus,
   assertStepTransition,
+  assertDecisionContent,
+  assertDecisionOptions,
+  assertDecisionReview,
+  assertDecisionTransition,
 } from "@guild-os/domain";
 
 const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
@@ -38,6 +43,9 @@ const projectId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab1";
 const questId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab2";
 const completedStepId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab3";
 const pendingStepId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab4";
+const decisionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac0";
+const decisionOptionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac1";
+const alternativeOptionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac2";
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -323,9 +331,72 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     updatedAt: "2026-08-11T01:06:00.000Z",
     capabilities: workCapabilities,
   }];
+  const decisionCapabilities = (status: UiDecisionDetail["decision"]["status"], reviewed = false) => ({
+    edit: mode === "root" && status === "draft",
+    propose: mode === "root" && status === "draft",
+    review: mode === "root" && status === "proposed" && !reviewed,
+    supersede: mode === "root" && status === "approved",
+  });
+  let decisions: UiDecisionDetail[] = [{
+    decision: {
+      id: decisionId,
+      spaceId: researchSpaceId,
+      proposerIdentityId: memberId,
+      ownerIdentityId: memberId,
+      title: "Adopt a citation requirement for Agent research",
+      description: "Decide whether every Agent research result must cite Canonical Knowledge.",
+      rationale: "Citations let reviewers distinguish sourced findings from inference.",
+      status: "proposed",
+      visibility: "space",
+      classification: "internal",
+      allowedIdentityIds: [],
+      sourceIds: [knowledgeId],
+      requiredApprovals: 1,
+      approvalCount: 0,
+      selectedOptionId: null,
+      reviewAt: "2026-08-20T00:00:00.000Z",
+      decidedAt: null,
+      supersededByDecisionId: null,
+      version: 2,
+      createdAt: "2026-08-11T02:00:00.000Z",
+      updatedAt: "2026-08-12T02:20:00.000Z",
+      capabilities: decisionCapabilities("proposed"),
+    },
+    options: [{
+      id: decisionOptionId,
+      label: "Require citations",
+      description: "Every factual Agent finding must reference visible Canonical Knowledge.",
+      position: 0,
+      selected: false,
+    }, {
+      id: alternativeOptionId,
+      label: "Keep citations optional",
+      description: "Reviewers decide when a citation is necessary.",
+      position: 1,
+      selected: false,
+    }],
+    approvals: [],
+  }];
 
   function assertCurrentVersion(current: number, expected: number): void {
     if (current !== expected) throw new Error("Work changed since it was loaded.");
+  }
+
+  function assertDecisionVersion(current: number, expected: number): void {
+    if (current !== expected) throw new Error("Decision changed since it was loaded.");
+  }
+
+  function updateDecisionCapabilities(detail: UiDecisionDetail): UiDecisionDetail {
+    const reviewed = detail.approvals.some(
+      (approval) => approval.approverIdentityId === bootstrap.accountId,
+    );
+    return {
+      ...detail,
+      decision: {
+        ...detail.decision,
+        capabilities: decisionCapabilities(detail.decision.status, reviewed),
+      },
+    };
   }
 
   function assertAssignable(identityId: string | null): void {
@@ -956,6 +1027,183 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         version,
         updatedAt: timestamp,
       } : candidate);
+      return version;
+    },
+    async getDecisionPage() {
+      return {
+        items: decisions.map((detail) => updateDecisionCapabilities(detail).decision),
+        nextCursor: null,
+        canCreate: mode === "root",
+      };
+    },
+    async getDecision(requestedDecisionId) {
+      const detail = decisions.find((candidate) => candidate.decision.id === requestedDecisionId);
+      if (!detail) throw new Error("Decision was not found.");
+      return updateDecisionCapabilities(detail);
+    },
+    async createDecision(input) {
+      if (mode !== "root") throw new Error("This identity cannot create Decisions.");
+      assertDecisionContent(input.title, input.description, input.rationale);
+      assertDecisionOptions(input.options);
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      const { options: requestedOptions, ...resource } = input;
+      const detail: UiDecisionDetail = {
+        decision: {
+          ...resource,
+          id,
+          proposerIdentityId: bootstrap.accountId,
+          ownerIdentityId: bootstrap.accountId,
+          status: "draft",
+          requiredApprovals: 1,
+          approvalCount: 0,
+          selectedOptionId: null,
+          decidedAt: null,
+          supersededByDecisionId: null,
+          version: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          capabilities: decisionCapabilities("draft"),
+        },
+        options: requestedOptions.map((option, position) => ({
+          ...option,
+          id: crypto.randomUUID(),
+          position,
+          selected: false,
+        })),
+        approvals: [],
+      };
+      decisions = [detail, ...decisions];
+      return id;
+    },
+    async saveDecisionDraft(input) {
+      if (mode !== "root") throw new Error("This identity cannot edit Decisions.");
+      assertDecisionContent(input.title, input.description, input.rationale);
+      assertDecisionOptions(input.options);
+      const detail = decisions.find((candidate) => candidate.decision.id === input.decisionId);
+      if (!detail || detail.decision.status !== "draft") {
+        throw new Error("Only a draft Decision can be edited.");
+      }
+      assertDecisionVersion(detail.decision.version, input.expectedVersion);
+      const version = detail.decision.version + 1;
+      decisions = decisions.map((candidate) => candidate.decision.id === input.decisionId ? {
+        decision: {
+          ...candidate.decision,
+          spaceId: input.spaceId,
+          title: input.title,
+          description: input.description,
+          rationale: input.rationale,
+          visibility: input.visibility,
+          classification: input.classification,
+          allowedIdentityIds: input.allowedIdentityIds,
+          sourceIds: input.sourceIds,
+          reviewAt: input.reviewAt,
+          version,
+          updatedAt: now(),
+        },
+        options: input.options.map((option, position) => ({
+          ...option,
+          id: crypto.randomUUID(),
+          position,
+          selected: false,
+        })),
+        approvals: [],
+      } : candidate);
+      return version;
+    },
+    async proposeDecision(input) {
+      if (mode !== "root") throw new Error("This identity cannot propose Decisions.");
+      const detail = decisions.find((candidate) => candidate.decision.id === input.decisionId);
+      if (!detail) throw new Error("Decision was not found.");
+      assertDecisionVersion(detail.decision.version, input.expectedVersion);
+      assertDecisionTransition(detail.decision.status, "proposed");
+      const version = detail.decision.version + 1;
+      decisions = decisions.map((candidate) => candidate.decision.id === input.decisionId
+        ? updateDecisionCapabilities({
+          ...candidate,
+          decision: {
+            ...candidate.decision,
+            status: "proposed",
+            requiredApprovals: 1,
+            version,
+            updatedAt: now(),
+          },
+        })
+        : candidate);
+      return version;
+    },
+    async reviewDecision(input) {
+      if (mode !== "root") throw new Error("Only a Human approver can review Decisions.");
+      assertDecisionReview(input.verdict, input.selectedOptionId, input.reason);
+      const detail = decisions.find((candidate) => candidate.decision.id === input.decisionId);
+      if (!detail || detail.decision.status !== "proposed") {
+        throw new Error("Only a proposed Decision can be reviewed.");
+      }
+      assertDecisionVersion(detail.decision.version, input.expectedVersion);
+      if (detail.approvals.some((approval) => approval.approverIdentityId === bootstrap.accountId)) {
+        throw new Error("This Human has already reviewed the Decision.");
+      }
+      if (input.selectedOptionId !== null &&
+          !detail.options.some((option) => option.id === input.selectedOptionId)) {
+        throw new Error("Decision option does not belong to this Decision.");
+      }
+      const approvalCount = detail.decision.approvalCount + (input.verdict === "approve" ? 1 : 0);
+      const status = input.verdict === "reject"
+        ? "rejected" as const
+        : approvalCount >= detail.decision.requiredApprovals ? "approved" as const : "proposed" as const;
+      const version = detail.decision.version + 1;
+      const timestamp = now();
+      decisions = decisions.map((candidate) => candidate.decision.id === input.decisionId
+        ? updateDecisionCapabilities({
+          decision: {
+            ...candidate.decision,
+            status,
+            approvalCount,
+            selectedOptionId: status === "approved" ? input.selectedOptionId : null,
+            decidedAt: status === "proposed" ? null : timestamp,
+            version,
+            updatedAt: timestamp,
+          },
+          options: candidate.options.map((option) => ({
+            ...option,
+            selected: status === "approved" && option.id === input.selectedOptionId,
+          })),
+          approvals: [...candidate.approvals, {
+            approverIdentityId: bootstrap.accountId,
+            verdict: input.verdict,
+            selectedOptionId: input.selectedOptionId,
+            reason: input.reason,
+            createdAt: timestamp,
+          }],
+        })
+        : candidate);
+      return { version, status, approvalCount };
+    },
+    async supersedeDecision(input) {
+      if (mode !== "root") throw new Error("This identity cannot supersede Decisions.");
+      const detail = decisions.find((candidate) => candidate.decision.id === input.decisionId);
+      const replacement = decisions.find(
+        (candidate) => candidate.decision.id === input.replacementDecisionId,
+      );
+      if (!detail || !replacement) throw new Error("Both Decisions must exist.");
+      assertDecisionVersion(detail.decision.version, input.expectedVersion);
+      assertDecisionTransition(detail.decision.status, "superseded");
+      if (replacement.decision.status !== "approved") {
+        throw new Error("Replacement Decision must be approved.");
+      }
+      const version = detail.decision.version + 1;
+      decisions = decisions.map((candidate) => candidate.decision.id === input.decisionId
+        ? updateDecisionCapabilities({
+          ...candidate,
+          decision: {
+            ...candidate.decision,
+            status: "superseded",
+            supersededByDecisionId: input.replacementDecisionId,
+            version,
+            updatedAt: now(),
+          },
+        })
+        : candidate);
       return version;
     },
     async setPreferredLocale(locale) {

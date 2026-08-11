@@ -28,12 +28,14 @@ import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
 import { GuildKnowledgeService } from "./knowledge-service.js";
 import { GuildWorkService } from "./work-service.js";
+import { GuildDecisionService } from "./decision-service.js";
 import type {
   AskGuildRequest,
   AskGuildResponse,
   AssignRoleRequest,
   ClaimInvitationInput,
   CreateAgentRequest,
+  CreateDecisionRequest,
   CreateGoalRequest,
   CreateKnowledgeRequest,
   CreateProjectRequest,
@@ -42,12 +44,17 @@ import type {
   CreateServiceRequest,
   CreateSpaceRequest,
   CreateStepRequest,
+  DecisionTransitionRequest,
   GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
   KnowledgeTransitionRequest,
   ReviewKnowledgeRequest,
+  ReviewDecisionRequest,
+  ReviewDecisionResponse,
   SaveKnowledgeDraftRequest,
+  SaveDecisionDraftRequest,
+  SupersedeDecisionRequest,
   UiBootstrapState,
   UiDirectory,
   UiDirectoryRequest,
@@ -55,6 +62,9 @@ import type {
   UiKnowledgeFile,
   UiKnowledgePage,
   UiKnowledgePageRequest,
+  UiDecisionDetail,
+  UiDecisionPage,
+  UiDecisionPageRequest,
   UiQuestDetail,
   UiWorkPage,
   UiWorkPageRequest,
@@ -739,6 +749,34 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   assignWork(input: WorkAssignmentRequest): Promise<number> {
     return new GuildWorkService(this.#env, this.#accountId).assign(input);
+  }
+
+  getDecisionPage(request: UiDecisionPageRequest = {}): Promise<UiDecisionPage> {
+    return new GuildDecisionService(this.#env, this.#accountId).getPage(request);
+  }
+
+  getDecision(decisionId: string): Promise<UiDecisionDetail> {
+    return new GuildDecisionService(this.#env, this.#accountId).getDecision(decisionId);
+  }
+
+  createDecision(input: CreateDecisionRequest): Promise<string> {
+    return new GuildDecisionService(this.#env, this.#accountId).create(input);
+  }
+
+  saveDecisionDraft(input: SaveDecisionDraftRequest): Promise<number> {
+    return new GuildDecisionService(this.#env, this.#accountId).saveDraft(input);
+  }
+
+  proposeDecision(input: DecisionTransitionRequest): Promise<number> {
+    return new GuildDecisionService(this.#env, this.#accountId).propose(input);
+  }
+
+  reviewDecision(input: ReviewDecisionRequest): Promise<ReviewDecisionResponse> {
+    return new GuildDecisionService(this.#env, this.#accountId).review(input);
+  }
+
+  supersedeDecision(input: SupersedeDecisionRequest): Promise<number> {
+    return new GuildDecisionService(this.#env, this.#accountId).supersede(input);
   }
 
   async setPreferredLocale(locale: AppLocale): Promise<void> {

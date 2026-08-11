@@ -17,6 +17,7 @@ import { AppShell, type AppPage } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { AskGuildPage } from "./pages/AskGuildPage";
+import { DecisionsPage } from "./pages/DecisionsPage";
 import { HomePage } from "./pages/HomePage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { PeoplePage } from "./pages/PeoplePage";
@@ -132,6 +133,16 @@ export function App({ api }: { api: GuildUiApi }) {
       ) : null}
       {visiblePage === "work" ? (
         <WorkPage
+          api={api}
+          directory={directory}
+          onOpenKnowledge={(knowledgeId) => {
+            setKnowledgeTarget(knowledgeId);
+            setPage("knowledge");
+          }}
+        />
+      ) : null}
+      {visiblePage === "decisions" ? (
+        <DecisionsPage
           api={api}
           directory={directory}
           onOpenKnowledge={(knowledgeId) => {

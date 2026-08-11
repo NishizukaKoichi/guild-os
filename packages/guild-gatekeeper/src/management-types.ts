@@ -2,6 +2,9 @@ import type {
   AgentLimits,
   AppLocale,
   Classification,
+  Decision,
+  DecisionApproval,
+  DecisionOption,
   Goal,
   GoalStatus,
   IdentityKind,
@@ -408,6 +411,82 @@ export interface WorkAssignmentRequest {
   assigneeIdentityId: string | null;
 }
 
+export interface UiDecisionCapabilities {
+  edit: boolean;
+  propose: boolean;
+  review: boolean;
+  supersede: boolean;
+}
+
+export interface UiDecisionSummary extends Omit<Decision, "guildId"> {
+  capabilities: UiDecisionCapabilities;
+}
+
+export type UiDecisionOption = Omit<DecisionOption, "guildId" | "decisionId">;
+export type UiDecisionApproval = Omit<DecisionApproval, "guildId" | "decisionId">;
+
+export interface UiDecisionDetail {
+  decision: UiDecisionSummary;
+  options: readonly UiDecisionOption[];
+  approvals: readonly UiDecisionApproval[];
+}
+
+export interface UiDecisionPage {
+  items: readonly UiDecisionSummary[];
+  nextCursor: string | null;
+  canCreate: boolean;
+}
+
+export interface UiDecisionPageRequest {
+  cursor?: string | null;
+}
+
+export interface DecisionOptionRequest {
+  label: string;
+  description: string;
+}
+
+export interface DecisionResourceRequest {
+  spaceId: string | null;
+  title: string;
+  description: string;
+  rationale: string;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+  sourceIds: readonly string[];
+  reviewAt: string | null;
+  options: readonly DecisionOptionRequest[];
+}
+
+export type CreateDecisionRequest = DecisionResourceRequest;
+
+export interface SaveDecisionDraftRequest extends DecisionResourceRequest {
+  decisionId: string;
+  expectedVersion: number;
+}
+
+export interface DecisionTransitionRequest {
+  decisionId: string;
+  expectedVersion: number;
+}
+
+export interface ReviewDecisionRequest extends DecisionTransitionRequest {
+  verdict: "approve" | "reject";
+  selectedOptionId: string | null;
+  reason: string;
+}
+
+export interface ReviewDecisionResponse {
+  version: number;
+  status: "proposed" | "approved" | "rejected";
+  approvalCount: number;
+}
+
+export interface SupersedeDecisionRequest extends DecisionTransitionRequest {
+  replacementDecisionId: string;
+}
+
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
@@ -454,5 +533,12 @@ export interface GuildUiApi {
   createStep(input: CreateStepRequest): Promise<string>;
   changeWorkStatus(input: WorkStatusRequest): Promise<number>;
   assignWork(input: WorkAssignmentRequest): Promise<number>;
+  getDecisionPage(request?: UiDecisionPageRequest): Promise<UiDecisionPage>;
+  getDecision(decisionId: string): Promise<UiDecisionDetail>;
+  createDecision(input: CreateDecisionRequest): Promise<string>;
+  saveDecisionDraft(input: SaveDecisionDraftRequest): Promise<number>;
+  proposeDecision(input: DecisionTransitionRequest): Promise<number>;
+  reviewDecision(input: ReviewDecisionRequest): Promise<ReviewDecisionResponse>;
+  supersedeDecision(input: SupersedeDecisionRequest): Promise<number>;
   setPreferredLocale(locale: AppLocale): Promise<void>;
 }

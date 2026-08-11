@@ -64,12 +64,16 @@ product requirement must be resolved explicitly rather than silently weakened.
   keyset lists, SQL-before-service authorization, legal status transitions, optimistic versions,
   hierarchical Space containment, active Human/Agent assignment, Inbox notification writes,
   Chronicle evidence, and responsive browser flows.
-- Decision/Inbox/Chronicle screens and Agent write workflows are not yet implemented.
+- Governed Decisions are implemented with bounded SQL-prefiltered reads, draft versioning,
+  immutable proposals, Constitution-defined human quorum, evidence references, dissent,
+  security-boundary-preserving supersession, Inbox fan-out, Chronicle evidence, and responsive
+  browser flows.
+- Inbox/Announcement/Chronicle screens and Agent write workflows are not yet implemented.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Add Decision, Inbox, Announcement, and Chronicle product flows.
+1. Add Inbox, Announcement, and Chronicle product flows.
 2. Add one Level 2 Agent write workflow with durable approval,
    idempotency, limits, and a kill switch.
 3. Verify the complete owner-to-agent demo before production deployment.

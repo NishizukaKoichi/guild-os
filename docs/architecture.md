@@ -54,6 +54,14 @@ parent reassignment, Space-scope broadening, invalid transitions, and nonmateria
 Assignments are limited to active Humans and active Agents whose Role and Space can read the target;
 Service identities cannot own executable Work.
 
+Decisions follow the same module boundary. `guild-domain/decision.ts` owns content, lifecycle, and
+review validation; `guild-postgres/decision.ts` owns permission-prefiltered keyset reads and atomic
+proposal, review, and supersession transactions; `guild-gatekeeper/decision-service.ts` validates
+transport input and repeats domain authorization; the Decisions page owns presentation only.
+Proposal freezes content, evidence, options, and the authorization boundary. Only authorized active
+Humans can review, and approval requires the Constitution quorum to converge on one option.
+Notifications are inserted with one set-based query rather than one application call per approver.
+
 ## Source-of-truth rules
 
 - PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge

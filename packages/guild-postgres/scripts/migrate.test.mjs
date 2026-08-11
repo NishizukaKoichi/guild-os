@@ -22,6 +22,9 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0010_published_knowledge_security_lock.sql",
     "0011_work_governance.sql",
     "0012_work_parent_concurrency.sql",
+    "0013_decision_governance.sql",
+    "0014_decision_approval_scale.sql",
+    "0015_decision_terminal_integrity.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -35,4 +38,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[6].sql, /A file cannot cross Knowledge records/);
   assert.match(migrations[7].sql, /knowledge\.approve/);
   assert.match(migrations[11].sql, /Terminal Work requires every child Work item to be terminal/);
+  assert.match(migrations[12].sql, /Decision approval quorum has not been reached/);
+  assert.match(migrations[13].sql, /decisions_approval_count_check CHECK \(approval_count >= 0\)/);
+  assert.match(migrations[14].sql, /A terminal Decision result is immutable/);
 });

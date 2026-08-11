@@ -13,6 +13,9 @@ const knowledgeFilePolicyMigrationUrl = new URL("../migrations/0009_knowledge_fi
 const knowledgeSecurityLockMigrationUrl = new URL("../migrations/0010_published_knowledge_security_lock.sql", import.meta.url);
 const workGovernanceMigrationUrl = new URL("../migrations/0011_work_governance.sql", import.meta.url);
 const workConcurrencyMigrationUrl = new URL("../migrations/0012_work_parent_concurrency.sql", import.meta.url);
+const decisionGovernanceMigrationUrl = new URL("../migrations/0013_decision_governance.sql", import.meta.url);
+const decisionApprovalScaleMigrationUrl = new URL("../migrations/0014_decision_approval_scale.sql", import.meta.url);
+const decisionTerminalIntegrityMigrationUrl = new URL("../migrations/0015_decision_terminal_integrity.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -107,5 +110,15 @@ describe("Guild PostgreSQL migration", () => {
     const concurrencySql = await readFile(fileURLToPath(workConcurrencyMigrationUrl), "utf8");
     expect(concurrencySql).toContain("Terminal Work cannot accept or reactivate child Work");
     expect(concurrencySql).toContain("Terminal Work requires every child Work item to be terminal");
+    const decisionSql = await readFile(fileURLToPath(decisionGovernanceMigrationUrl), "utf8");
+    expect(decisionSql).toContain("Decision options are immutable after proposal");
+    expect(decisionSql).toContain("Decision approval requires an authorized active Human");
+    expect(decisionSql).toContain("Decision approval quorum has not been reached");
+    const decisionScaleSql = await readFile(fileURLToPath(decisionApprovalScaleMigrationUrl), "utf8");
+    expect(decisionScaleSql).toContain("decisions_required_approvals_check CHECK (required_approvals > 0)");
+    expect(decisionScaleSql).toContain("decisions_approval_count_check CHECK (approval_count >= 0)");
+    const decisionTerminalSql = await readFile(fileURLToPath(decisionTerminalIntegrityMigrationUrl), "utf8");
+    expect(decisionTerminalSql).toContain("A terminal Decision result is immutable");
+    expect(decisionTerminalSql).toContain("must preserve the original security boundary");
   });
 });

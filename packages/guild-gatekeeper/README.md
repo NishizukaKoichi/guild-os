@@ -24,14 +24,17 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
   operators can create children, move them through legal states, and assign Quests or Steps only to
   active Humans and Agents that can read the resource. Every mutation records Chronicle evidence;
   assignment also creates an Inbox notification in the same transaction.
+- Authorized Humans can create and revise Decision drafts, propose immutable options and evidence,
+  and review them under the Constitution quorum. Approval must converge on one option; rejection
+  records dissent. Approved Decisions can only be superseded inside the same security boundary.
 - Failed or interrupted R2 cleanup remains in the PostgreSQL outbox and is retried by a five-minute
   Cron Trigger.
 - `GuildSession.getOverview()` checks Guild authorization, removes unauthorized Spaces, requests an
   observation authorization, and only then returns data to the agent or Gadget.
 - A Guild observation cannot be shared with another Workshop account by default.
 
-The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, Ask Guild, and
-Work. Its Agent action catalog remains empty, so unfinished Agent execution and external-write
+The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, Ask Guild, Work,
+and Decisions. Its Agent action catalog remains empty, so unfinished Agent execution and external-write
 operations cannot appear or be invoked.
 
 ## Package layout
@@ -44,6 +47,7 @@ operations cannot appear or be invoked.
 | `src/management-api.ts` | Account-bound management RPC, invitation hashing, and write authorization |
 | `src/knowledge-service.ts` | Knowledge policy, R2 lifecycle, Ask context construction, and cleanup |
 | `src/work-service.ts` | Work input validation, authorization, assignment, and UI projections |
+| `src/decision-service.ts` | Decision validation, authorization, proposal, review, and supersession |
 | `src/session.ts` | Observation-authorized `GuildSession` RPC |
 | `src/guild.ts` | Cloudflare Gatekeeper, account, verifier, and vendor adapters |
 | `app/` | Sandboxed management iframe source |
@@ -71,6 +75,11 @@ Knowledge list and search queries apply the active Identity, Membership, Role, S
 classification, visibility, owner, and explicit-share boundary in PostgreSQL. The service repeats
 domain authorization before content is returned or supplied to Workers AI. File reads additionally
 check the immutable security boundary captured when the file was uploaded.
+
+Decision list queries use the same SQL-first boundary. Draft edits require authorization against
+both old and proposed boundaries; proposal freezes the record, and database triggers independently
+enforce human-only append-only reviews, quorum, terminal immutability, and exact-boundary
+supersession.
 
 ## Build and verify
 

@@ -21,6 +21,7 @@ export const GOAL_STATUSES = ["draft", "active", "completed", "cancelled"] as co
 export const PROJECT_STATUSES = ["planned", "active", "blocked", "completed", "cancelled"] as const;
 export const QUEST_STATUSES = ["backlog", "ready", "in_progress", "blocked", "completed", "cancelled"] as const;
 export const STEP_STATUSES = ["pending", "in_progress", "completed", "skipped"] as const;
+export const DECISION_STATUSES = ["draft", "proposed", "approved", "rejected", "superseded"] as const;
 
 export const PERMISSIONS = [
   "guild.read",
@@ -165,4 +166,15 @@ export const STEP_TRANSITIONS = {
 } as const satisfies Record<
   (typeof STEP_STATUSES)[number],
   readonly (typeof STEP_STATUSES)[number][]
+>;
+
+export const DECISION_TRANSITIONS = {
+  draft: ["proposed"],
+  proposed: ["approved", "rejected"],
+  approved: ["superseded"],
+  rejected: [],
+  superseded: [],
+} as const satisfies Record<
+  (typeof DECISION_STATUSES)[number],
+  readonly (typeof DECISION_STATUSES)[number][]
 >;

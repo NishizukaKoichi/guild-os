@@ -5,6 +5,7 @@ import {
   Languages,
   Menu,
   MessageCircleQuestion,
+  Scale,
   ListTodo,
   Settings,
   ShieldCheck,
@@ -15,7 +16,7 @@ import { useState, type ReactNode } from "react";
 import type { UiBootstrapState } from "../../src/management-types";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
-export type AppPage = "home" | "ask" | "knowledge" | "work" | "people" | "agents" | "settings";
+export type AppPage = "home" | "ask" | "knowledge" | "work" | "decisions" | "people" | "agents" | "settings";
 
 interface AppShellProps {
   bootstrap: UiBootstrapState;
@@ -41,6 +42,7 @@ export function AppShell({
     { id: "ask" as const, label: t("nav.ask"), icon: MessageCircleQuestion },
     { id: "knowledge" as const, label: t("nav.knowledge"), icon: BookOpen },
     { id: "work" as const, label: t("nav.work"), icon: ListTodo },
+    { id: "decisions" as const, label: t("nav.decisions"), icon: Scale },
     ...(peopleAvailable
       ? [{ id: "people" as const, label: t("nav.people"), icon: Users }]
       : []),

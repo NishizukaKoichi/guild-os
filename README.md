@@ -39,13 +39,15 @@ Implemented and tested:
 - Ask Guild over permission-filtered Canonical Knowledge with citations and per-Identity rate limits
 - Governed Goal, Project, Quest, and Step planning with status lifecycles, Human/Agent assignment,
   Inbox notifications, optimistic concurrency, and Chronicle evidence
+- Governed Decisions with evidence, immutable proposals, Constitution-defined human approval
+  quorum, dissent records, and security-boundary-preserving supersession
 - English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
 
 Not exposed as finished product features yet:
 
 - Scoped People views for non-global administrators
-- Decisions, Inbox, and Chronicle management screens
+- Inbox and Chronicle management screens
 - Semantic search index beyond the current PostgreSQL full-text retrieval
 - Agent write actions, approval quorum execution, Workflows, and kill-switch UI
 - Guild federation

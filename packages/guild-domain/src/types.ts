@@ -1,5 +1,6 @@
 import type {
   CLASSIFICATIONS,
+  DECISION_STATUSES,
   GOAL_STATUSES,
   IDENTITY_KINDS,
   IDENTITY_STATUSES,
@@ -26,6 +27,7 @@ export type GoalStatus = (typeof GOAL_STATUSES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type QuestStatus = (typeof QUEST_STATUSES)[number];
 export type StepStatus = (typeof STEP_STATUSES)[number];
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
 export type LocalizedText = Partial<Record<AppLocale, string>>;
 
 export interface Guild {
@@ -185,6 +187,44 @@ export interface Step {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Decision extends SecuredResource {
+  proposerIdentityId: string;
+  title: string;
+  description: string;
+  rationale: string;
+  status: DecisionStatus;
+  sourceIds: readonly string[];
+  requiredApprovals: number;
+  approvalCount: number;
+  selectedOptionId: string | null;
+  reviewAt: string | null;
+  decidedAt: string | null;
+  supersededByDecisionId: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DecisionOption {
+  id: string;
+  guildId: string;
+  decisionId: string;
+  label: string;
+  description: string;
+  position: number;
+  selected: boolean;
+}
+
+export interface DecisionApproval {
+  guildId: string;
+  decisionId: string;
+  approverIdentityId: string;
+  verdict: "approve" | "reject";
+  selectedOptionId: string | null;
+  reason: string;
+  createdAt: string;
 }
 
 export interface AgentLimits {
