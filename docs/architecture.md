@@ -33,12 +33,18 @@ later implemented as an explicit, revocable federation connector.
 | --- | --- |
 | `cloudflare-os/` | Pinned upstream Workshop, agents, Gadgets, Blueprints, and built-in Gatekeepers |
 | `packages/guild-domain` | Types, validation, permissions, lifecycle invariants, and commands |
-| `packages/guild-postgres` | SQL repository and transactional Chronicle outbox |
-| `packages/guild-gatekeeper` | Agent/Gadget capability boundary and approval integration |
+| `packages/guild-postgres` | SQL repositories, migrations, transactional Chronicle, and outbox |
+| `packages/guild-gatekeeper` | Agent/Gadget capability boundary, management API, and management UI |
 
 The current Guild management surface is bundled inside `guild-gatekeeper`. A separate API or console
 package will be introduced only if the supported Gatekeeper UI boundary becomes insufficient. Empty
 architectural placeholders are not created.
+
+Management responsibilities stay separated inside those packages: domain validation and permission
+delegation are framework independent; PostgreSQL administration owns Role, Space, Identity, and
+Membership transactions; the Gatekeeper validates transport input and authorizes each operation;
+React pages and dialogs only call typed management methods. Adding a later module does not require
+placing its conditions in a central page or a shared untyped data client.
 
 ## Source-of-truth rules
 

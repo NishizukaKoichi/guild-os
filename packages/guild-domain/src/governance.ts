@@ -1,5 +1,5 @@
 import { GuildDomainError } from "./errors.js";
-import { MEMBERSHIP_TRANSITIONS } from "./constants.js";
+import { HUMAN_ONLY_PERMISSIONS, MEMBERSHIP_TRANSITIONS } from "./constants.js";
 import type {
   AgentProfile,
   AgentRunUsage,
@@ -9,9 +9,11 @@ import type {
   Identity,
   IdentityStatus,
   MembershipState,
+  Permission,
+  Role,
   RiskLevel,
 } from "./types.js";
-import { assertAgentLimits, assertPositiveInteger } from "./validation.js";
+import { assertAgentLimits, assertNonBlank, assertPositiveInteger } from "./validation.js";
 
 export function assertRootOwnerIntegrity(snapshot: AuthorizationSnapshot): void {
   const rootOwner = snapshot.identities.find(
@@ -95,12 +97,49 @@ export function assertAgentIdentity(identity: Identity, profile: AgentProfile): 
       identity.guildId !== profile.guildId) {
     throw new GuildDomainError("INVALID_INPUT", "Agent profile does not match its identity.");
   }
+  assertNonBlank(profile.instructions, "Agent instructions", 20_000);
+  assertNonBlank(profile.model, "Agent model");
+  if (profile.toolIds.length > 50 || new Set(profile.toolIds).size !== profile.toolIds.length) {
+    throw new GuildDomainError(
+      "INVALID_INPUT",
+      "Agent tools must contain at most 50 unique IDs.",
+    );
+  }
+  for (const toolId of profile.toolIds) assertNonBlank(toolId, "Agent tool ID");
   assertAgentLimits(profile.limits);
 }
 
 export function assertAgentCannotBecomeRoot(identity: Identity): void {
   if (identity.kind !== "human") {
     throw new GuildDomainError("AGENT_ROOT_FORBIDDEN", "Only a human can become Root Owner.");
+  }
+}
+
+export function validateRolePermissions(permissions: readonly Permission[]): void {
+  if (permissions.length === 0 || new Set(permissions).size !== permissions.length) {
+    throw new GuildDomainError(
+      "INVALID_INPUT",
+      "A Role requires at least one unique permission.",
+    );
+  }
+  if (permissions.includes("break-glass.use")) {
+    throw new GuildDomainError(
+      "PERMISSION_DENIED",
+      "Break Glass authority belongs only to the current human Root Owner.",
+    );
+  }
+}
+
+export function assertRoleAssignableToIdentity(role: Role, identity: Identity): void {
+  if (role.guildId !== identity.guildId) {
+    throw new GuildDomainError("INVALID_INPUT", "Role and Identity belong to different Guilds.");
+  }
+  if (identity.kind !== "human" && role.permissions.some((permission) =>
+    HUMAN_ONLY_PERMISSIONS.has(permission))) {
+    throw new GuildDomainError(
+      "PERMISSION_DENIED",
+      "Agent and Service identities cannot receive a Role with human-only permissions.",
+    );
   }
 }
 

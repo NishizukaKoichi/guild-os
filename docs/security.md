@@ -32,7 +32,14 @@ to a Space; a Space binding applies to descendants, never siblings. Suspended, d
 identities are rejected before role evaluation.
 
 Root ownership does not bypass Private visibility. Break Glass is a separate human-only permission
-and must produce Chronicle records when implemented.
+and must produce Chronicle records when implemented. It cannot be placed in an ordinary Role;
+database constraints reject it even if an application path is bypassed.
+
+An administrator may invite an Identity or assign a Role only when the administrator holds every
+permission in that Role globally. Creating or editing a custom Role applies the same rule. This
+prevents a Space-scoped manager from manufacturing or delegating Guild-wide authority. Roles must
+remain nonempty, built-in Roles are immutable, and machine identities cannot receive permissions
+reserved for Humans.
 
 Agent authority is:
 
@@ -78,6 +85,10 @@ classification.
 Chronicle has a database trigger rejecting updates and deletes. Material mutations, Chronicle
 events, and outbox records must commit in one transaction. Deferred database constraint triggers
 also reject a final state where the Root Owner is not an active Human with an active Membership.
+Additional triggers enforce one root Space, acyclic Space ancestry, immutable Identity kinds,
+nonempty Roles, valid Agent limits and tools, and the pairing between an active Agent profile, its
+Agent Identity, and active Membership. These checks repeat domain validation so direct SQL cannot
+create an authorization state that the application refuses.
 
 ## Secrets
 

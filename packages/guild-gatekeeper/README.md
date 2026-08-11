@@ -11,14 +11,19 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
 - Unknown users remain unregistered until they claim a one-time administrator invitation.
 - Invitation claims bind the stable Cloudflare OS account UUID to a selected Role, Space, and
   `preboarding` or `active` Membership. Only the invitation hash is stored.
-- Root and Admin users can issue or revoke invitations and activate, suspend, restore, or depart a
-  Human from the sandboxed People UI. Root cannot be suspended or departed.
+- Authorized administrators can issue or revoke invitations; create Agent and Service identities;
+  assign scoped Roles; and activate, suspend, restore, stop, or depart identities from the
+  sandboxed management UI. Root cannot be suspended or departed.
+- Authorized administrators can create and edit custom Roles and hierarchical Spaces. Delegated
+  Roles cannot exceed the administrator's global authority, and machine identities cannot receive
+  human-only permissions.
 - `GuildSession.getOverview()` checks Guild authorization, removes unauthorized Spaces, requests an
   observation authorization, and only then returns data to the agent or Gadget.
 - A Guild observation cannot be shared with another Workshop account by default.
 
-The Gatekeeper management UI exposes Human invitation and Membership writes. Its Agent action
-catalog remains empty, so unfinished Agent write operations cannot appear or be invoked.
+The Gatekeeper management UI exposes identity, Membership, Role, and Space administration. Its
+Agent action catalog remains empty, so unfinished Agent execution and external-write operations
+cannot appear or be invoked.
 
 ## Package layout
 

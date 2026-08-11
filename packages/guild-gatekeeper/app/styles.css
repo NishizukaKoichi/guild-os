@@ -59,7 +59,8 @@ input:disabled {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -301,6 +302,13 @@ select:focus-visible {
 
 .page-action {
   flex: 0 0 auto;
+}
+
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .primary-button,
@@ -730,6 +738,10 @@ select:focus-visible {
   box-shadow: 0 18px 55px rgba(22, 31, 27, 0.25);
 }
 
+.dialog-wide {
+  width: min(100%, 760px);
+}
+
 .dialog-header {
   display: flex;
   min-height: 58px;
@@ -738,6 +750,20 @@ select:focus-visible {
   gap: 16px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--border);
+}
+
+.dialog-header > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.dialog-header small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stack-form {
@@ -763,6 +789,7 @@ select:focus-visible {
 
 .stack-form input,
 .stack-form select,
+.stack-form textarea,
 .field-inline select {
   width: 100%;
   min-height: 40px;
@@ -771,6 +798,11 @@ select:focus-visible {
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
+}
+
+.stack-form textarea {
+  resize: vertical;
+  line-height: 1.5;
 }
 
 .stack-form fieldset {
@@ -788,6 +820,71 @@ select:focus-visible {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+.limits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.permission-grid {
+  display: grid;
+  max-height: 350px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px 18px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.checkbox-row {
+  display: flex !important;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 9px !important;
+  border-bottom: 1px solid var(--border);
+}
+
+.checkbox-row input {
+  width: 16px;
+  min-height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+}
+
+.checkbox-row code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.assignment-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+
+.assignment-list > div {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.assignment-list span,
+.assignment-list small {
+  overflow-wrap: anywhere;
+}
+
+.assignment-list small {
+  color: var(--text-muted);
+}
+
+.compact-empty {
+  padding: 10px 0;
 }
 
 .segmented-control {
@@ -878,6 +975,134 @@ select:focus-visible {
 
 .settings-section {
   max-width: 860px;
+}
+
+.manager-heading {
+  align-items: center;
+}
+
+.manager-heading > div {
+  min-width: 0;
+}
+
+.manager-heading > button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.manager-list {
+  border-top: 1px solid var(--border-strong);
+}
+
+.manager-row {
+  display: grid;
+  min-height: 66px;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.8fr) minmax(72px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.manager-row > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.manager-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manager-row small {
+  color: var(--text-muted);
+}
+
+.permission-summary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.permission-summary code,
+.permission-summary span {
+  padding: 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.agent-list {
+  padding-top: 0;
+  border-top: 1px solid var(--border-strong);
+}
+
+.agent-list-head,
+.agent-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 0.8fr) minmax(180px, 1.1fr) minmax(135px, 0.8fr) minmax(100px, 0.55fr) minmax(145px, auto);
+  gap: 14px;
+  align-items: center;
+}
+
+.agent-list-head {
+  min-height: 42px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agent-list-head > span:last-child {
+  text-align: right;
+}
+
+.agent-row {
+  min-height: 92px;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.agent-avatar {
+  border-radius: 6px;
+  color: var(--accent);
+}
+
+.agent-detail {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.agent-detail strong,
+.agent-detail span,
+.agent-detail small {
+  overflow-wrap: anywhere;
+}
+
+.agent-detail small,
+.agent-detail > span {
+  color: var(--text-muted);
+}
+
+.agent-actions {
+  flex-wrap: wrap;
+}
+
+.manager-row > .status-pill {
+  justify-self: start;
 }
 
 .field-inline {
@@ -1027,6 +1252,10 @@ select:focus-visible {
     display: none;
   }
 
+  .agent-list-head {
+    display: none;
+  }
+
   .data-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px 20px;
@@ -1054,6 +1283,28 @@ select:focus-visible {
 
   .invitation-row {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .agent-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-identity,
+  .agent-actions {
+    grid-column: 1 / -1;
+  }
+
+  .agent-actions {
+    justify-content: flex-start;
+  }
+
+  .agent-detail::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text-muted);
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
   }
 }
 
@@ -1131,8 +1382,14 @@ select:focus-visible {
   }
 
   .page-action,
-  .page-action .primary-button {
+  .page-action .primary-button,
+  .page-action .secondary-button,
+  .action-group {
     width: 100%;
+  }
+
+  .action-group > button {
+    flex: 1 1 180px;
   }
 
   .definition-list > div {
@@ -1193,8 +1450,42 @@ select:focus-visible {
   }
 
   .form-grid,
-  .segmented-control {
+  .segmented-control,
+  .limits-grid,
+  .permission-grid {
     grid-template-columns: 1fr;
+  }
+
+  .manager-heading {
+    align-items: flex-start;
+  }
+
+  .manager-heading > button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .manager-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .manager-row .permission-summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .manager-row .row-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .agent-row {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-identity,
+  .agent-actions {
+    grid-column: 1;
   }
 
   .field-inline {

@@ -4,21 +4,28 @@ import {
   LogOut,
   Plus,
   RotateCcw,
+  ServerCog,
   Shield,
+  ShieldPlus,
   UserCheck,
   UserX,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type {
+  AssignRoleRequest,
+  CreateServiceRequest,
   IssueInvitationInput,
   IssuedInvitation,
   UiBootstrapState,
   UiDirectory,
+  UiDirectoryIdentity,
 } from "../../src/management-types";
+import { IdentityRoleDialog } from "../components/IdentityRoleDialog";
 import { InviteDialog } from "../components/InviteDialog";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
+import { ServiceDialog } from "../components/ServiceDialog";
 import {
   identityTranslationKey,
   invitationTranslationKey,
@@ -35,6 +42,13 @@ interface PeoplePageProps {
     identityId: string,
     nextState: "preboarding" | "active" | "suspended" | "departed",
   ): Promise<void>;
+  onMachineMembershipChange(
+    identityId: string,
+    nextState: "active" | "suspended" | "departed",
+  ): Promise<void>;
+  onAssignRole(input: AssignRoleRequest): Promise<void>;
+  onRemoveRole(bindingId: string): Promise<void>;
+  onCreateService(input: CreateServiceRequest): Promise<void>;
   onLoadMoreIdentities: (() => Promise<void>) | null;
   onLoadMoreInvitations: (() => Promise<void>) | null;
 }
@@ -45,11 +59,17 @@ export function PeoplePage({
   onIssue,
   onRevoke,
   onMembershipChange,
+  onMachineMembershipChange,
+  onAssignRole,
+  onRemoveRole,
+  onCreateService,
   onLoadMoreIdentities,
   onLoadMoreInvitations,
 }: PeoplePageProps) {
   const { locale, t } = useI18n();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [serviceOpen, setServiceOpen] = useState(false);
+  const [roleIdentity, setRoleIdentity] = useState<UiDirectoryIdentity | null>(null);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -88,15 +108,19 @@ export function PeoplePage({
   }
 
   async function change(
-    identityId: string,
+    identity: UiDirectoryIdentity,
     nextState: "active" | "suspended" | "departed",
   ) {
     if (nextState === "suspended" && !window.confirm(t("people.confirmSuspend"))) return;
-    if (nextState === "departed" && !window.confirm(t("people.confirmDepart"))) return;
-    setBusy(identityId);
+    if (identity.kind === "human" && nextState === "departed" &&
+        !window.confirm(t("people.confirmDepart"))) return;
+    if (identity.kind === "service" && nextState === "departed" &&
+        !window.confirm(t("people.confirmServiceDepart"))) return;
+    setBusy(identity.id);
     setError(null);
     try {
-      await onMembershipChange(identityId, nextState);
+      if (identity.kind === "human") await onMembershipChange(identity.id, nextState);
+      else await onMachineMembershipChange(identity.id, nextState);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("error.generic"));
     } finally {
@@ -132,11 +156,21 @@ export function PeoplePage({
       <PageHeader
         title={t("people.title")}
         subtitle={t("people.subtitle")}
-        action={directory.canManageMemberships ? (
-          <button className="primary-button" type="button" onClick={() => setInviteOpen(true)}>
-            <Plus size={17} /><span>{t("people.invite")}</span>
-          </button>
-        ) : undefined}
+        action={directory.capabilities.manageMemberships ||
+          directory.capabilities.manageIdentities && directory.capabilities.manageRoles ? (
+            <div className="action-group">
+              {directory.capabilities.manageIdentities && directory.capabilities.manageRoles ? (
+                <button className="secondary-button" type="button" onClick={() => setServiceOpen(true)}>
+                  <ServerCog size={17} /><span>{t("people.addService")}</span>
+                </button>
+              ) : null}
+              {directory.capabilities.manageMemberships ? (
+                <button className="primary-button" type="button" onClick={() => setInviteOpen(true)}>
+                  <Plus size={17} /><span>{t("people.invite")}</span>
+                </button>
+              ) : null}
+            </div>
+          ) : undefined}
       />
       {error ? <Notice kind="error">{error}</Notice> : null}
 
@@ -170,22 +204,41 @@ export function PeoplePage({
                   <span className={`status-pill status-${identity.membershipState}`}>{t(membershipTranslationKey(identity.membershipState))}</span>
                 </div>
                 <div className="row-actions">
-                  {directory.canManageMemberships && identity.kind === "human" && !isRoot ? (
+                  {directory.capabilities.manageRoles ? (
+                    <button className="icon-button" type="button" title={t("people.manageRoles")} aria-label={t("people.manageRoles")} onClick={() => setRoleIdentity(identity)}><ShieldPlus size={17} /></button>
+                  ) : null}
+                  {directory.capabilities.manageMemberships && identity.kind === "human" && !isRoot ? (
                     <>
                       {identity.membershipState === "preboarding" ? (
-                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity.id, "active")}><UserCheck size={16} />{t("people.activate")}</button>
+                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "active")}><UserCheck size={16} />{t("people.activate")}</button>
                       ) : null}
                       {identity.membershipState === "active" ? (
-                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity.id, "suspended")}><UserX size={16} />{t("people.suspend")}</button>
+                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "suspended")}><UserX size={16} />{t("people.suspend")}</button>
                       ) : null}
                       {identity.membershipState === "suspended" ? (
-                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity.id, "active")}><RotateCcw size={16} />{t("people.restore")}</button>
+                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "active")}><RotateCcw size={16} />{t("people.restore")}</button>
                       ) : null}
                       {identity.membershipState !== "departed" ? (
-                        <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => void change(identity.id, "departed")}><LogOut size={17} /></button>
+                        <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => void change(identity, "departed")}><LogOut size={17} /></button>
                       ) : null}
                     </>
-                  ) : <span className="muted-dash">-</span>}
+                  ) : null}
+                  {directory.capabilities.manageIdentities && identity.kind === "service" ? (
+                    <>
+                      {identity.membershipState === "active" ? (
+                        <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "suspended")}><UserX size={16} />{t("people.suspend")}</button>
+                      ) : null}
+                      {identity.membershipState === "suspended" ? (
+                        <>
+                          <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "active")}><RotateCcw size={16} />{t("people.restore")}</button>
+                          <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => void change(identity, "departed")}><LogOut size={17} /></button>
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {!directory.capabilities.manageRoles &&
+                    !(directory.capabilities.manageMemberships && identity.kind === "human" && !isRoot) &&
+                    !(directory.capabilities.manageIdentities && identity.kind === "service") ? <span className="muted-dash">-</span> : null}
                 </div>
               </article>
             );
@@ -198,7 +251,7 @@ export function PeoplePage({
         ) : null}
       </section>
 
-      {directory.canManageMemberships ? (
+      {directory.capabilities.manageMemberships ? (
         <section className="content-section">
           <div className="section-heading-row compact-heading"><h2>{t("people.invitations")}</h2><span>{directory.invitations.length}</span></div>
           {directory.invitations.length === 0 ? <p className="empty-state">{t("people.noInvitations")}</p> : (
@@ -224,6 +277,16 @@ export function PeoplePage({
       ) : null}
 
       {inviteOpen ? <InviteDialog directory={directory} onClose={() => setInviteOpen(false)} onIssue={issue} /> : null}
+      {serviceOpen ? <ServiceDialog directory={directory} onCreate={onCreateService} onClose={() => setServiceOpen(false)} /> : null}
+      {roleIdentity ? (
+        <IdentityRoleDialog
+          directory={directory}
+          identity={roleIdentity}
+          onAssign={onAssignRole}
+          onRemove={onRemoveRole}
+          onClose={() => setRoleIdentity(null)}
+        />
+      ) : null}
       {issued ? (
         <div className="dialog-backdrop" role="presentation">
           <section className="dialog token-dialog" role="dialog" aria-modal="true" aria-labelledby="token-title">

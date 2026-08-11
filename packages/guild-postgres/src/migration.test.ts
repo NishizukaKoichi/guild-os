@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const migrationUrl = new URL("../migrations/0001_guild_core.sql", import.meta.url);
 const productMigrationUrl = new URL("../migrations/0002_product_v1.sql", import.meta.url);
+const governanceMigrationUrl = new URL("../migrations/0003_identity_governance.sql", import.meta.url);
+const identityIntegrityMigrationUrl = new URL("../migrations/0004_identity_profile_integrity.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -57,5 +59,21 @@ describe("Guild PostgreSQL migration", () => {
     }
     expect(sql).toContain("role_permissions_known_permission");
     expect(sql).toContain("ALTER TABLE %I FORCE ROW LEVEL SECURITY");
+  });
+
+  it("enforces machine identity, Role, and Space invariants in PostgreSQL", async () => {
+    const sql = await readFile(fileURLToPath(governanceMigrationUrl), "utf8");
+    expect(sql).toContain("role_binding_machine_boundary");
+    expect(sql).toContain("role_permission_set_nonempty");
+    expect(sql).toContain("space_hierarchy_integrity");
+    expect(sql).toContain("agent_profile_identity_kind");
+    expect(sql).toContain("role_permissions_no_break_glass");
+  });
+
+  it("keeps Identity, Membership, and Agent profile state consistent", async () => {
+    const sql = await readFile(fileURLToPath(identityIntegrityMigrationUrl), "utf8");
+    expect(sql).toContain("agent_tool_ids_valid");
+    expect(sql).toContain("identity_membership_pair");
+    expect(sql).toContain("identity_agent_profile_pair");
   });
 });

@@ -30,17 +30,19 @@ Implemented and tested:
 - Hyperdrive transaction boundary
 - Guild Gatekeeper with administrator bootstrap, one-time invitation binding, observation approval,
   and permission-filtered Space discovery
-- Sandboxed, mobile-responsive Home, People, invitation, offboarding, and Settings UI
+- Sandboxed, mobile-responsive Home, People, Agents, invitation, offboarding, and Settings UI
+- Human, Agent, and Service registration with scoped Role assignment and lifecycle controls
+- Custom Role and hierarchical Space administration with database-enforced invariants
 - English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
 
 Not exposed as finished product features yet:
 
-- Role and Space editing plus scoped People views for non-global administrators
-- Knowledge, Work, Decisions, Agents, Inbox, and Chronicle management screens
+- Scoped People views for non-global administrators
+- Knowledge, Work, Decisions, Inbox, and Chronicle management screens
 - Knowledge semantic search and citations
 - Agent write actions, approval quorum execution, Workflows, and kill-switch UI
-- Agent/Service offboarding orchestration and Guild federation
+- Guild federation
 
 These incomplete capabilities are absent from the user-facing action surface rather than presented
 as nonfunctional controls.

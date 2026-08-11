@@ -1,4 +1,5 @@
 import {
+  Bot,
   Home,
   Languages,
   Menu,
@@ -11,12 +12,13 @@ import { useState, type ReactNode } from "react";
 import type { UiBootstrapState } from "../../src/management-types";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
-export type AppPage = "home" | "people" | "settings";
+export type AppPage = "home" | "people" | "agents" | "settings";
 
 interface AppShellProps {
   bootstrap: UiBootstrapState;
   page: AppPage;
   peopleAvailable: boolean;
+  agentsAvailable: boolean;
   onPageChange(page: AppPage): void;
   children: ReactNode;
 }
@@ -25,6 +27,7 @@ export function AppShell({
   bootstrap,
   page,
   peopleAvailable,
+  agentsAvailable,
   onPageChange,
   children,
 }: AppShellProps) {
@@ -34,6 +37,9 @@ export function AppShell({
     { id: "home" as const, label: t("nav.home"), icon: Home },
     ...(peopleAvailable
       ? [{ id: "people" as const, label: t("nav.people"), icon: Users }]
+      : []),
+    ...(agentsAvailable
+      ? [{ id: "agents" as const, label: t("nav.agents"), icon: Bot }]
       : []),
     { id: "settings" as const, label: t("nav.settings"), icon: Settings },
   ];

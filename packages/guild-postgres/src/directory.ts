@@ -3,6 +3,7 @@ import {
   assertIdentityStatusTransition,
   assertMembershipTransition,
   type AppLocale,
+  type AgentLimits,
   type ChronicleEvent,
   type Classification,
   type IdentityKind,
@@ -68,10 +69,20 @@ export interface GuildDirectory {
   identities: readonly DirectoryIdentity[];
   roles: readonly DirectoryRole[];
   roleBindings: readonly DirectoryRoleBinding[];
+  agentProfiles: readonly DirectoryAgentProfile[];
   spaces: readonly DirectorySpace[];
   invitations: readonly GuildInvitation[];
   nextIdentityCursor: DirectoryIdentityCursor | null;
   nextInvitationCursor: DirectoryInvitationCursor | null;
+}
+
+export interface DirectoryAgentProfile {
+  identityId: string;
+  instructions: string;
+  model: string;
+  toolIds: readonly string[];
+  limits: AgentLimits;
+  status: "active" | "stopped";
 }
 
 export interface DirectoryIdentityCursor {
@@ -142,6 +153,15 @@ type BindingRow = QueryResultRow & {
   identity_id: string;
   role_id: string;
   space_id: string | null;
+};
+
+type AgentProfileRow = QueryResultRow & {
+  identity_id: string;
+  instructions: string;
+  model: string;
+  tool_ids: string[];
+  limits: AgentLimits;
+  status: "active" | "stopped";
 };
 
 type SpaceRow = QueryResultRow & {
@@ -258,6 +278,15 @@ export class GuildDirectoryRepository {
         ORDER BY created_at, id`,
       [this.#guildId, identityIds],
     )).rows;
+    const agentProfileRows = identityIds.length === 0
+      ? []
+      : (await this.#connection.query<AgentProfileRow>(
+        `SELECT identity_id::text, instructions, model, tool_ids, limits, status
+           FROM agent_profiles
+          WHERE guild_id = $1 AND identity_id = ANY($2::uuid[])
+          ORDER BY identity_id`,
+        [this.#guildId, identityIds],
+      )).rows;
     const spaceResult = await this.#connection.query<SpaceRow>(
       `SELECT id::text, parent_space_id::text, name, status
          FROM spaces WHERE guild_id = $1 ORDER BY name, id`,
@@ -316,6 +345,14 @@ export class GuildDirectoryRepository {
         identityId: row.identity_id,
         roleId: row.role_id,
         spaceId: row.space_id,
+      })),
+      agentProfiles: agentProfileRows.map((row) => ({
+        identityId: row.identity_id,
+        instructions: row.instructions,
+        model: row.model,
+        toolIds: row.tool_ids,
+        limits: row.limits,
+        status: row.status,
       })),
       spaces: spaceResult.rows.map((row) => ({
         id: row.id,
@@ -491,6 +528,12 @@ export class GuildDirectoryRepository {
             SET status = 'killed', kill_requested_at = now(), finished_at = now()
           WHERE guild_id = $1 AND (agent_identity_id = $2 OR requester_identity_id = $2)
             AND status IN ('planning', 'awaiting_approval', 'running')`,
+        [this.#guildId, input.identityId],
+      );
+    } else {
+      await this.#connection.query(
+        `UPDATE agent_profiles SET status = 'active'
+          WHERE guild_id = $1 AND identity_id = $2`,
         [this.#guildId, input.identityId],
       );
     }

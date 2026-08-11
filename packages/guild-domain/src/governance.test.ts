@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { GuildDomainError } from "./errors.js";
 import {
   approvalRequirement,
+  assertAgentIdentity,
   assertAgentCannotBecomeRoot,
   assertIdentityStatusTransition,
   assertMembershipTransition,
   assertRootOwnerIntegrity,
   assertRootOwnershipTransfer,
   assertRunWithinLimits,
+  assertRoleAssignableToIdentity,
+  validateRolePermissions,
 } from "./governance.js";
 import { makeSnapshot } from "./test-fixtures.js";
 
@@ -72,6 +75,25 @@ describe("Guild governance", () => {
     });
   });
 
+  it("keeps Break Glass out of Roles and human-only authority away from machines", () => {
+    const snapshot = makeSnapshot();
+    expect(() => validateRolePermissions(["guild.read", "space.read"])).not.toThrow();
+    expect(() => validateRolePermissions([]))
+      .toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
+    expect(() => validateRolePermissions(["guild.read", "guild.read"]))
+      .toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
+    expect(() => validateRolePermissions(["break-glass.use"]))
+      .toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
+    expect(() => assertRoleAssignableToIdentity(snapshot.roles[2]!, snapshot.identities[5]!))
+      .not.toThrow();
+    expect(() => assertRoleAssignableToIdentity({
+      ...snapshot.roles[2]!,
+      permissions: ["identity.manage"],
+    }, snapshot.identities[5]!)).toThrowError(
+      expect.objectContaining({ code: "PERMISSION_DENIED" }),
+    );
+  });
+
   it("enforces every agent run hard limit", () => {
     const profile = makeSnapshot().agents[0]!;
     expect(() => assertRunWithinLimits(profile, {
@@ -88,5 +110,13 @@ describe("Guild governance", () => {
       retries: 1,
       delegationDepth: 0,
     })).toThrowError(GuildDomainError);
+    expect(() => assertAgentIdentity(makeSnapshot().identities[5]!, {
+      ...profile,
+      limits: { ...profile.limits, currency: "usd" },
+    })).toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
+    expect(() => assertAgentIdentity(makeSnapshot().identities[5]!, {
+      ...profile,
+      toolIds: ["knowledge-search", "knowledge-search"],
+    })).toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
   });
 });

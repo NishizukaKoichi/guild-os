@@ -1,4 +1,5 @@
 import type {
+  AgentLimits,
   AppLocale,
   Classification,
   IdentityKind,
@@ -17,6 +18,7 @@ export interface UiBootstrapState {
   rootOwner: boolean;
   rootOwnerIdentityId: string;
   preferredLocale: AppLocale;
+  agentDefaults: AgentLimits;
 }
 
 export interface UiDirectoryIdentity {
@@ -45,6 +47,24 @@ export interface UiDirectoryRoleBinding {
   spaceId: string | null;
 }
 
+export interface UiAgentProfile {
+  identityId: string;
+  instructions: string;
+  model: string;
+  toolIds: readonly string[];
+  limits: AgentLimits;
+  status: "active" | "stopped";
+}
+
+export interface UiCapabilities {
+  manageMemberships: boolean;
+  manageRoles: boolean;
+  manageSpaces: boolean;
+  manageIdentities: boolean;
+  manageAgents: boolean;
+  stopAgents: boolean;
+}
+
 export interface UiDirectorySpace {
   id: string;
   parentSpaceId: string | null;
@@ -70,9 +90,11 @@ export interface UiDirectory {
   identities: readonly UiDirectoryIdentity[];
   roles: readonly UiDirectoryRole[];
   roleBindings: readonly UiDirectoryRoleBinding[];
+  agentProfiles: readonly UiAgentProfile[];
   spaces: readonly UiDirectorySpace[];
   invitations: readonly UiInvitation[];
-  canManageMemberships: boolean;
+  capabilities: UiCapabilities;
+  grantablePermissions: readonly Permission[];
   nextIdentityCursor: string | null;
   nextInvitationCursor: string | null;
 }
@@ -103,6 +125,44 @@ export interface ClaimInvitationInput {
   preferredLocale: AppLocale;
 }
 
+export interface CreateRoleRequest {
+  name: string;
+  permissions: readonly Permission[];
+}
+
+export interface UpdateRoleRequest extends CreateRoleRequest {
+  roleId: string;
+}
+
+export interface CreateSpaceRequest {
+  name: string;
+  parentSpaceId: string;
+}
+
+export interface AssignRoleRequest {
+  identityId: string;
+  roleId: string;
+  spaceId: string | null;
+}
+
+export interface CreateAgentRequest {
+  displayName: string;
+  clearance: Classification;
+  roleId: string;
+  spaceId: string | null;
+  instructions: string;
+  model: string;
+  toolIds: readonly string[];
+  limits: AgentLimits;
+}
+
+export interface CreateServiceRequest {
+  displayName: string;
+  clearance: Classification;
+  roleId: string;
+  spaceId: string | null;
+}
+
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
@@ -112,6 +172,20 @@ export interface GuildUiApi {
   changeMembership(
     identityId: string,
     nextState: "preboarding" | "active" | "suspended" | "departed",
+  ): Promise<void>;
+  createRole(input: CreateRoleRequest): Promise<string>;
+  updateRole(input: UpdateRoleRequest): Promise<void>;
+  deleteRole(roleId: string): Promise<void>;
+  createSpace(input: CreateSpaceRequest): Promise<string>;
+  renameSpace(spaceId: string, name: string): Promise<void>;
+  archiveSpace(spaceId: string): Promise<void>;
+  assignRole(input: AssignRoleRequest): Promise<void>;
+  removeRoleBinding(bindingId: string): Promise<void>;
+  createAgent(input: CreateAgentRequest): Promise<string>;
+  createService(input: CreateServiceRequest): Promise<string>;
+  changeMachineMembership(
+    identityId: string,
+    nextState: "active" | "suspended" | "departed",
   ): Promise<void>;
   setPreferredLocale(locale: AppLocale): Promise<void>;
 }

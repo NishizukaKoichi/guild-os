@@ -1,12 +1,36 @@
 import { Database, KeyRound, Languages, LockKeyhole, ShieldCheck } from "lucide-react";
 import type { AppLocale } from "@guild-os/domain";
 import { useState } from "react";
+import type {
+  CreateRoleRequest,
+  CreateSpaceRequest,
+  UiDirectory,
+  UpdateRoleRequest,
+} from "../../src/management-types";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
+import { RoleManager } from "../components/RoleManager";
+import { SpaceManager } from "../components/SpaceManager";
 import { useI18n } from "../i18n";
 
-export function SettingsPage({ onLocaleChange }: {
+export function SettingsPage({
+  directory,
+  onLocaleChange,
+  onCreateRole,
+  onUpdateRole,
+  onDeleteRole,
+  onCreateSpace,
+  onRenameSpace,
+  onArchiveSpace,
+}: {
+  directory: UiDirectory | null;
   onLocaleChange(locale: AppLocale): Promise<void>;
+  onCreateRole(input: CreateRoleRequest): Promise<void>;
+  onUpdateRole(input: UpdateRoleRequest): Promise<void>;
+  onDeleteRole(roleId: string): Promise<void>;
+  onCreateSpace(input: CreateSpaceRequest): Promise<void>;
+  onRenameSpace(spaceId: string, name: string): Promise<void>;
+  onArchiveSpace(spaceId: string): Promise<void>;
 }) {
   const { locale, setLocale, t } = useI18n();
   const [saved, setSaved] = useState(false);
@@ -43,6 +67,13 @@ export function SettingsPage({ onLocaleChange }: {
         {saved ? <Notice kind="success">{t("toast.saved")}</Notice> : null}
         {error ? <Notice kind="error">{error}</Notice> : null}
       </section>
+
+      {directory ? (
+        <>
+          <RoleManager directory={directory} onCreate={onCreateRole} onUpdate={onUpdateRole} onDelete={onDeleteRole} />
+          <SpaceManager directory={directory} onCreate={onCreateSpace} onRename={onRenameSpace} onArchive={onArchiveSpace} />
+        </>
+      ) : null}
 
       <section className="content-section settings-section">
         <div className="section-heading-row">

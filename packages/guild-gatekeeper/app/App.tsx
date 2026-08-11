@@ -2,13 +2,20 @@ import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { AppLocale } from "@guild-os/domain";
 import type {
+  AssignRoleRequest,
+  CreateAgentRequest,
+  CreateRoleRequest,
+  CreateServiceRequest,
+  CreateSpaceRequest,
   GuildUiApi,
   IssueInvitationInput,
   UiBootstrapState,
   UiDirectory,
+  UpdateRoleRequest,
 } from "../src/management-types";
 import { AppShell, type AppPage } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
+import { AgentsPage } from "./pages/AgentsPage";
 import { HomePage } from "./pages/HomePage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -88,13 +95,19 @@ export function App({ api }: { api: GuildUiApi }) {
     );
   }
 
-  const visiblePage = page === "people" && !directory ? "home" : page;
+  const visiblePage = (page === "people" || page === "agents") && !directory ? "home" : page;
+  const activeBootstrap = bootstrap;
+
+  async function refreshDirectory() {
+    await loadDirectory(activeBootstrap);
+  }
 
   return (
     <AppShell
       bootstrap={bootstrap}
       page={visiblePage}
       peopleAvailable={directory !== null}
+      agentsAvailable={directory !== null}
       onPageChange={setPage}
     >
       {visiblePage === "home" ? <HomePage bootstrap={bootstrap} directory={directory} /> : null}
@@ -113,7 +126,23 @@ export function App({ api }: { api: GuildUiApi }) {
           }}
           onMembershipChange={async (identityId, nextState) => {
             await api.changeMembership(identityId, nextState);
-            await loadDirectory(bootstrap);
+            await refreshDirectory();
+          }}
+          onMachineMembershipChange={async (identityId, nextState) => {
+            await api.changeMachineMembership(identityId, nextState);
+            await refreshDirectory();
+          }}
+          onAssignRole={async (input: AssignRoleRequest) => {
+            await api.assignRole(input);
+            await refreshDirectory();
+          }}
+          onRemoveRole={async (bindingId) => {
+            await api.removeRoleBinding(bindingId);
+            await refreshDirectory();
+          }}
+          onCreateService={async (input: CreateServiceRequest) => {
+            await api.createService(input);
+            await refreshDirectory();
           }}
           onLoadMoreIdentities={directory.nextIdentityCursor ? async () => {
             const next = await api.getDirectory({
@@ -124,6 +153,7 @@ export function App({ api }: { api: GuildUiApi }) {
               ...current,
               identities: [...current.identities, ...next.identities],
               roleBindings: [...current.roleBindings, ...next.roleBindings],
+              agentProfiles: [...current.agentProfiles, ...next.agentProfiles],
               nextIdentityCursor: next.nextIdentityCursor,
             } : next);
           } : null}
@@ -140,8 +170,57 @@ export function App({ api }: { api: GuildUiApi }) {
           } : null}
         />
       ) : null}
+      {visiblePage === "agents" && directory ? (
+        <AgentsPage
+          bootstrap={bootstrap}
+          directory={directory}
+          onCreate={async (input: CreateAgentRequest) => {
+            await api.createAgent(input);
+            await refreshDirectory();
+          }}
+          onMembershipChange={async (identityId, nextState) => {
+            await api.changeMachineMembership(identityId, nextState);
+            await refreshDirectory();
+          }}
+          onAssignRole={async (input: AssignRoleRequest) => {
+            await api.assignRole(input);
+            await refreshDirectory();
+          }}
+          onRemoveRole={async (bindingId) => {
+            await api.removeRoleBinding(bindingId);
+            await refreshDirectory();
+          }}
+        />
+      ) : null}
       {visiblePage === "settings" ? (
-        <SettingsPage onLocaleChange={async (locale: AppLocale) => api.setPreferredLocale(locale)} />
+        <SettingsPage
+          directory={directory}
+          onLocaleChange={async (locale: AppLocale) => api.setPreferredLocale(locale)}
+          onCreateRole={async (input: CreateRoleRequest) => {
+            await api.createRole(input);
+            await refreshDirectory();
+          }}
+          onUpdateRole={async (input: UpdateRoleRequest) => {
+            await api.updateRole(input);
+            await refreshDirectory();
+          }}
+          onDeleteRole={async (roleId) => {
+            await api.deleteRole(roleId);
+            await refreshDirectory();
+          }}
+          onCreateSpace={async (input: CreateSpaceRequest) => {
+            await api.createSpace(input);
+            await refreshDirectory();
+          }}
+          onRenameSpace={async (spaceId, name) => {
+            await api.renameSpace(spaceId, name);
+            await refreshDirectory();
+          }}
+          onArchiveSpace={async (spaceId) => {
+            await api.archiveSpace(spaceId);
+            await refreshDirectory();
+          }}
+        />
       ) : null}
     </AppShell>
   );

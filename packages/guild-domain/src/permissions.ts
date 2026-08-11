@@ -155,6 +155,16 @@ export function isAuthorized(
   }
 }
 
+export function assertCanDelegatePermissions(
+  snapshot: AuthorizationSnapshot,
+  actorIdentityId: string,
+  permissions: readonly Permission[],
+): void {
+  for (const permission of permissions) {
+    authorize(snapshot, { actorIdentityId, permission });
+  }
+}
+
 export function authorizeAgent(
   snapshot: AuthorizationSnapshot,
   request: AgentAuthorizationRequest,

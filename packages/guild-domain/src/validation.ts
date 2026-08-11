@@ -24,6 +24,9 @@ export function assertNonNegativeInteger(value: number, field: string): void {
 
 export function assertAgentLimits(limits: AgentLimits): void {
   assertNonBlank(limits.currency, "Agent currency", 3);
+  if (!/^[A-Z]{3}$/.test(limits.currency)) {
+    throw new GuildDomainError("INVALID_INPUT", "Agent currency must be a three-letter ISO code.");
+  }
   assertNonNegativeInteger(limits.maxBudgetMinor, "Agent budget");
   assertPositiveInteger(limits.maxDurationSeconds, "Agent duration");
   assertPositiveInteger(limits.maxSteps, "Agent step limit");

@@ -3,6 +3,7 @@ import { GuildDomainError } from "./errors.js";
 import {
   authorize,
   authorizeAgent,
+  assertCanDelegatePermissions,
   effectiveAgentPermissions,
   filterAgentAuthorizedResources,
   filterAuthorizedResources,
@@ -144,5 +145,26 @@ describe("Guild authorization", () => {
         permission,
       })).toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
     }
+  });
+
+  it("prevents Role and invitation delegation above the actor's global authority", () => {
+    const base = makeSnapshot();
+    expect(() => assertCanDelegatePermissions(base, "owner", [
+      "knowledge.read",
+      "identity.manage",
+    ])).not.toThrow();
+    expect(() => assertCanDelegatePermissions(base, "manager", ["knowledge.read"]))
+      .toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
+
+    const globalManager = {
+      ...base,
+      roleBindings: base.roleBindings.map((binding) => binding.identityId === "manager"
+        ? { ...binding, spaceId: null }
+        : binding),
+    };
+    expect(() => assertCanDelegatePermissions(globalManager, "manager", ["knowledge.read"]))
+      .not.toThrow();
+    expect(() => assertCanDelegatePermissions(globalManager, "manager", ["identity.manage"]))
+      .toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
   });
 });

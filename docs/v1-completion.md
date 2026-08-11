@@ -8,8 +8,8 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 | # | v1.0 acceptance condition | Status | Current evidence | Remaining gate |
 | --- | --- | --- | --- | --- |
 | 1 | Create Guild and invite Humans | Partial | First Admin bootstrap; hashed one-time invitation; People UI; PostgreSQL replay test | Production Access/bootstrap/invitation smoke |
-| 2 | Register Human, Agent, Service identities | Partial | Domain/schema support all three; Human claim flow works | Agent and Service creation/stop UI and tests |
-| 3 | Enforce Role, Space, Permission before model context | Partial | Domain intersection tests; bounded PostgreSQL Space query; immediate suspension denial | Resource queries and Ask context-builder leakage test |
+| 2 | Register Human, Agent, Service identities | Partial | Human invitation claim plus Agent and Service creation, Role assignment, stop/suspend/depart controls, PostgreSQL integration tests, responsive UI smoke | Production identity lifecycle smoke |
+| 3 | Enforce Role, Space, Permission before model context | Partial | Domain intersection and delegation tests; PostgreSQL Role/Space/profile constraints; descendant-only Space grants; immediate suspension denial | Resource queries and Ask context-builder leakage test |
 | 4 | Knowledge files, versions, approval, publish, deprecate | Partial | Schema and lifecycle policy | Repository, R2, UI, complete lifecycle E2E |
 | 5 | Ask Guild with authorized citations | Not started | Authorization filter primitive only | Search index, context builder, model call, citations, denial test |
 | 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Relational schema | Commands, views, validation, assignment E2E |
@@ -17,8 +17,8 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 | 8 | Formal Decision with evidence and approvals | Partial | Relational schema | Commands, views, approval and supersession E2E |
 | 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Isolated tables and indexes | Commands, delivery fan-out, views, read state E2E |
 | 10 | Chronicle all important Human/Agent actions | Partial | Immutable/RLS table; bootstrap/invitation/membership events | Chronicle query UI and complete action coverage assertions |
-| 11 | Human departure and Agent stop revoke access/tokens immediately | Partial | Human lifecycle disables access, revokes Connectors, kills runs; PostgreSQL test | Agent stop path, Workflow termination, production cached-capability smoke |
-| 12 | Agent budget/time/step/retry limits and Kill Switch | Partial | Domain limit policy and run columns | Durable enforcement, Workflow termination, UI, over-limit E2E |
+| 11 | Human departure and Agent stop revoke access/tokens immediately | Partial | Human, Agent, and Service lifecycle disables access; Agent stop revokes Connectors and kills unfinished runs in one transaction; PostgreSQL tests | Workflow cancellation and production cached-capability smoke |
+| 12 | Agent budget/time/step/retry limits and Kill Switch | Partial | Domain and database limit policy, Agent configuration UI, and stopped-profile constraints | Runtime enforcement, Workflow termination, run-level kill UI, over-limit E2E |
 
 ## Current verified slice
 
@@ -28,6 +28,12 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 - Space grants inherit to descendants, not siblings, without loading the whole Guild per request.
 - One-time invitations reject replay; acceptance and lifecycle changes produce Chronicle events.
 - Suspended and departed Humans immediately return no authorized Spaces.
+- Custom Roles cannot contain Break Glass, become empty, or grant authority that the administrator
+  does not hold globally. Machine identities cannot receive human-only permissions.
+- Space ancestry, one-root topology, identity kind, Agent profile ownership, and active profile /
+  Membership pairing are enforced in PostgreSQL as well as application code.
+- Human, Agent, and Service management plus custom Role and Space administration have PostgreSQL
+  integration coverage and responsive management screens.
 - English, Japanese, and Simplified Chinese UI modes render without missing-key breakage.
-- Desktop and 390 px mobile Home, People, invitation, uninvited, and suspended states have Playwright
-  interaction and overflow checks.
+- Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
+  states have Playwright interaction and overflow checks.

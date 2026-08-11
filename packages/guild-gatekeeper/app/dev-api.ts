@@ -6,6 +6,7 @@ import type {
   UiBootstrapState,
   UiDirectory,
 } from "../src/management-types";
+import { PERMISSIONS } from "@guild-os/domain";
 
 const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
 const rootId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b";
@@ -31,6 +32,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     rootOwner: true,
     rootOwnerIdentityId: rootId,
     preferredLocale: "en",
+    agentDefaults: {
+      currency: "USD",
+      maxBudgetMinor: 1000,
+      maxDurationSeconds: 900,
+      maxSteps: 20,
+      maxRetries: 2,
+      maxDelegationDepth: 1,
+    },
   };
   if (mode === "uninvited") {
     bootstrap = { ...bootstrap, accountId: memberId, identityExists: false, membershipState: null, rootOwner: false };
@@ -85,6 +94,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       { id: "binding-member", identityId: memberId, roleId: memberRoleId, spaceId: researchSpaceId },
       { id: "binding-agent", identityId: agentId, roleId: memberRoleId, spaceId: researchSpaceId },
     ],
+    agentProfiles: [{
+      identityId: agentId,
+      instructions: "Synthesize research only from Knowledge visible in the assigned Space.",
+      model: "workers-ai/default",
+      toolIds: ["knowledge-search"],
+      limits: bootstrap.agentDefaults,
+      status: "active",
+    }],
     spaces: [
       { id: rootSpaceId, parentSpaceId: null, name: "Guild", status: "active" },
       { id: researchSpaceId, parentSpaceId: rootSpaceId, name: "Research", status: "active" },
@@ -102,7 +119,17 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       acceptedAt: null,
       createdAt: "2026-08-12T02:00:00.000Z",
     }],
-    canManageMemberships: mode === "root",
+    capabilities: {
+      manageMemberships: mode === "root",
+      manageRoles: mode === "root",
+      manageSpaces: mode === "root",
+      manageIdentities: mode === "root",
+      manageAgents: mode === "root",
+      stopAgents: mode === "root",
+    },
+    grantablePermissions: mode === "root"
+      ? PERMISSIONS.filter((permission) => permission !== "break-glass.use")
+      : [],
     nextIdentityCursor: null,
     nextInvitationCursor: null,
   };
@@ -156,6 +183,136 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           membershipState: nextState,
           status: nextState === "suspended" || nextState === "departed" ? "disabled" : "active",
         } : identity),
+      };
+    },
+    async createRole(input) {
+      const id = crypto.randomUUID();
+      directory = {
+        ...directory,
+        roles: [...directory.roles, { id, name: input.name, system: false, permissions: input.permissions }],
+      };
+      return id;
+    },
+    async updateRole(input) {
+      directory = {
+        ...directory,
+        roles: directory.roles.map((role) => role.id === input.roleId
+          ? { ...role, name: input.name, permissions: input.permissions }
+          : role),
+      };
+    },
+    async deleteRole(roleId) {
+      directory = { ...directory, roles: directory.roles.filter((role) => role.id !== roleId) };
+    },
+    async createSpace(input) {
+      const id = crypto.randomUUID();
+      directory = {
+        ...directory,
+        spaces: [...directory.spaces, {
+          id,
+          parentSpaceId: input.parentSpaceId,
+          name: input.name,
+          status: "active",
+        }],
+      };
+      return id;
+    },
+    async renameSpace(spaceId, name) {
+      directory = {
+        ...directory,
+        spaces: directory.spaces.map((space) => space.id === spaceId ? { ...space, name } : space),
+      };
+    },
+    async archiveSpace(spaceId) {
+      directory = {
+        ...directory,
+        spaces: directory.spaces.map((space) => space.id === spaceId
+          ? { ...space, status: "archived" }
+          : space),
+      };
+    },
+    async assignRole(input) {
+      if (directory.roleBindings.some((binding) =>
+        binding.identityId === input.identityId && binding.roleId === input.roleId &&
+        binding.spaceId === input.spaceId)) return;
+      directory = {
+        ...directory,
+        roleBindings: [...directory.roleBindings, { id: crypto.randomUUID(), ...input }],
+      };
+    },
+    async removeRoleBinding(bindingId) {
+      directory = {
+        ...directory,
+        roleBindings: directory.roleBindings.filter((binding) => binding.id !== bindingId),
+      };
+    },
+    async createAgent(input) {
+      const id = crypto.randomUUID();
+      directory = {
+        ...directory,
+        identities: [...directory.identities, {
+          id,
+          kind: "agent",
+          displayName: input.displayName,
+          status: "active",
+          preferredLocale: "en",
+          membershipState: "active",
+          clearance: input.clearance,
+          joinedAt: new Date().toISOString(),
+          departedAt: null,
+        }],
+        agentProfiles: [...directory.agentProfiles, {
+          identityId: id,
+          instructions: input.instructions,
+          model: input.model,
+          toolIds: input.toolIds,
+          limits: input.limits,
+          status: "active",
+        }],
+        roleBindings: [...directory.roleBindings, {
+          id: crypto.randomUUID(),
+          identityId: id,
+          roleId: input.roleId,
+          spaceId: input.spaceId,
+        }],
+      };
+      return id;
+    },
+    async createService(input) {
+      const id = crypto.randomUUID();
+      directory = {
+        ...directory,
+        identities: [...directory.identities, {
+          id,
+          kind: "service",
+          displayName: input.displayName,
+          status: "active",
+          preferredLocale: "en",
+          membershipState: "active",
+          clearance: input.clearance,
+          joinedAt: new Date().toISOString(),
+          departedAt: null,
+        }],
+        roleBindings: [...directory.roleBindings, {
+          id: crypto.randomUUID(),
+          identityId: id,
+          roleId: input.roleId,
+          spaceId: input.spaceId,
+        }],
+      };
+      return id;
+    },
+    async changeMachineMembership(identityId, nextState) {
+      directory = {
+        ...directory,
+        identities: directory.identities.map((identity) => identity.id === identityId ? {
+          ...identity,
+          membershipState: nextState,
+          status: nextState === "active" ? "active" : "disabled",
+        } : identity),
+        agentProfiles: directory.agentProfiles.map((profile) => profile.identityId === identityId
+          ? { ...profile, status: nextState === "active" ? "active" : "stopped" }
+          : profile),
       };
     },
     async setPreferredLocale(locale) {
