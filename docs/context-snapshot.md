@@ -81,6 +81,10 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Constitution management is implemented as a Root-only, versioned, reason-required transaction.
   Role delegation, stale writes, forged SQL actors, invalid policy, and deletion are rejected at
   the database boundary; the responsive Settings UI exposes read-only policy to non-Root members.
+- Root ownership handover is implemented as an expiring two-party transaction between active
+  Humans. Proposal terms and the outgoing Role are frozen, direct Root replacement and unaudited
+  transitions fail in PostgreSQL, and desktop/mobile browser tests cover propose, cancel, and
+  acceptance from the successor's separate session.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence

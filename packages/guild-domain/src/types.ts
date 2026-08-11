@@ -61,6 +61,21 @@ export interface Constitution {
   updatedAt: string;
 }
 
+export interface RootOwnershipTransfer {
+  id: string;
+  guildId: string;
+  fromIdentityId: string;
+  toIdentityId: string;
+  outgoingRoleId: string;
+  state: "pending" | "accepted" | "cancelled" | "expired";
+  reason: string;
+  version: number;
+  expiresAt: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Space {
   id: string;
   guildId: string;

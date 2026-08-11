@@ -4,12 +4,16 @@ import { useState } from "react";
 import type {
   CreateRoleRequest,
   CreateSpaceRequest,
+  ProposeRootOwnershipTransferRequest,
+  ResolveRootOwnershipTransferRequest,
   UiBootstrapState,
   UiDirectory,
+  UiRootOwnershipCandidate,
   UpdateConstitutionRequest,
   UpdateRoleRequest,
 } from "../../src/management-types";
 import { ConstitutionManager } from "../components/ConstitutionManager";
+import { OwnershipManager } from "../components/OwnershipManager";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { RoleManager } from "../components/RoleManager";
@@ -21,6 +25,10 @@ export function SettingsPage({
   directory,
   onLocaleChange,
   onUpdateConstitution,
+  onProposeRootOwnershipTransfer,
+  onCancelRootOwnershipTransfer,
+  onAcceptRootOwnershipTransfer,
+  onSearchRootOwnershipCandidates,
   onCreateRole,
   onUpdateRole,
   onDeleteRole,
@@ -32,6 +40,10 @@ export function SettingsPage({
   directory: UiDirectory | null;
   onLocaleChange(locale: AppLocale): Promise<void>;
   onUpdateConstitution(input: UpdateConstitutionRequest): Promise<void>;
+  onProposeRootOwnershipTransfer(input: ProposeRootOwnershipTransferRequest): Promise<void>;
+  onCancelRootOwnershipTransfer(input: ResolveRootOwnershipTransferRequest): Promise<void>;
+  onAcceptRootOwnershipTransfer(input: ResolveRootOwnershipTransferRequest): Promise<void>;
+  onSearchRootOwnershipCandidates(search: string): Promise<readonly UiRootOwnershipCandidate[]>;
   onCreateRole(input: CreateRoleRequest): Promise<void>;
   onUpdateRole(input: UpdateRoleRequest): Promise<void>;
   onDeleteRole(roleId: string): Promise<void>;
@@ -79,6 +91,15 @@ export function SettingsPage({
         constitution={bootstrap.constitution}
         rootOwner={bootstrap.rootOwner}
         onUpdate={onUpdateConstitution}
+      />
+
+      <OwnershipManager
+        bootstrap={bootstrap}
+        directory={directory}
+        onPropose={onProposeRootOwnershipTransfer}
+        onCancel={onCancelRootOwnershipTransfer}
+        onAccept={onAcceptRootOwnershipTransfer}
+        onSearchCandidates={onSearchRootOwnershipCandidates}
       />
 
       {directory ? (

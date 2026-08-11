@@ -42,6 +42,7 @@ const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
 const rootId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b";
 const memberId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9c";
 const agentId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9d";
+const successorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a8d";
 const adminRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9e";
 const memberRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9f";
 const rootSpaceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa0";
@@ -76,6 +77,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     membershipState: "active",
     rootOwner: true,
     rootOwnerIdentityId: rootId,
+    rootOwnerDisplayName: "Avery Morgan",
     preferredLocale: "en",
     constitution: {
       version: 1,
@@ -101,6 +103,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       maxRetries: 2,
       maxDelegationDepth: 1,
     },
+    rootOwnershipTransfer: null,
   };
   if (mode === "uninvited") {
     bootstrap = { ...bootstrap, accountId: memberId, identityExists: false, membershipState: null, rootOwner: false };
@@ -108,6 +111,29 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     bootstrap = { ...bootstrap, accountId: memberId, membershipState: "suspended", rootOwner: false };
   } else if (mode === "member") {
     bootstrap = { ...bootstrap, accountId: memberId, membershipState: "preboarding", rootOwner: false };
+  } else if (mode === "transfer-target") {
+    bootstrap = {
+      ...bootstrap,
+      accountId: successorId,
+      membershipState: "active",
+      rootOwner: false,
+      rootOwnershipTransfer: {
+        id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a8e",
+        fromIdentityId: rootId,
+        toIdentityId: successorId,
+        outgoingRoleId: adminRoleId,
+        state: "pending",
+        reason: "Transfer operational stewardship to the incoming Guild lead.",
+        version: 1,
+        expiresAt: "2026-08-19T02:00:00.000Z",
+        resolvedAt: null,
+        createdAt: "2026-08-12T02:00:00.000Z",
+        updatedAt: "2026-08-12T02:00:00.000Z",
+        fromDisplayName: "Avery Morgan",
+        toDisplayName: "Noah Chen",
+        outgoingRoleName: "Admin",
+      },
+    };
   }
 
   let directory: UiDirectory = {
@@ -145,6 +171,17 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         joinedAt: "2026-08-11T04:30:00.000Z",
         departedAt: null,
       },
+      {
+        id: successorId,
+        kind: "human",
+        displayName: "Noah Chen",
+        status: "active",
+        preferredLocale: "en",
+        membershipState: "active",
+        clearance: "restricted",
+        joinedAt: "2026-08-09T05:00:00.000Z",
+        departedAt: null,
+      },
     ],
     roles: [
       {
@@ -164,6 +201,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       { id: "binding-root", identityId: rootId, roleId: adminRoleId, spaceId: null },
       { id: "binding-member", identityId: memberId, roleId: memberRoleId, spaceId: researchSpaceId },
       { id: "binding-agent", identityId: agentId, roleId: memberRoleId, spaceId: researchSpaceId },
+      { id: "binding-successor", identityId: successorId, roleId: memberRoleId, spaceId: null },
     ],
     agentProfiles: [{
       identityId: agentId,
@@ -608,7 +646,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       classification: boundary.classification,
       allowedIdentityIds: boundary.allowedIdentityIds,
       actorIdentityId: bootstrap.accountId,
-      actorDisplayName: "Avery Morgan",
+      actorDisplayName: directory.identities.find(
+        (identity) => identity.id === bootstrap.accountId,
+      )?.displayName ?? "Guild Human",
       action,
       subjectType,
       subjectId,
@@ -666,7 +706,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       return bootstrap;
     },
     async getDirectory() {
-      if (mode !== "root") throw new Error("Directory is outside this development identity scope.");
+      if (mode !== "root" && !bootstrap.rootOwner) {
+        throw new Error("Directory is outside this development identity scope.");
+      }
       return directory;
     },
     async issueInvitation(input: IssueInvitationInput): Promise<IssuedInvitation> {
@@ -1846,6 +1888,110 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         },
       );
       return constitution;
+    },
+    async proposeRootOwnershipTransfer(input) {
+      if (mode !== "root") throw new Error("Only the current Root Owner can propose a transfer.");
+      const target = directory.identities.find((identity) =>
+        identity.id === input.toIdentityId && identity.kind === "human" &&
+        identity.status === "active" && identity.membershipState === "active");
+      const role = directory.roles.find((candidate) => candidate.id === input.outgoingRoleId);
+      if (!target || !role || input.confirmation !== target.displayName || input.reason.trim() === "") {
+        throw new Error("Select an active Human, Role, reason, and exact confirmation.");
+      }
+      const timestamp = now();
+      const transfer = {
+        id: crypto.randomUUID(),
+        fromIdentityId: rootId,
+        toIdentityId: target.id,
+        outgoingRoleId: role.id,
+        state: "pending" as const,
+        reason: input.reason.trim(),
+        version: 1,
+        expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+        resolvedAt: null,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        fromDisplayName: "Avery Morgan",
+        toDisplayName: target.displayName,
+        outgoingRoleName: role.name,
+      };
+      bootstrap = { ...bootstrap, rootOwnershipTransfer: transfer };
+      appendDemoChronicle(
+        "root_ownership.transfer.proposed",
+        "root_ownership_transfer",
+        transfer.id,
+        {
+          spaceId: null,
+          ownerIdentityId: rootId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        { reason: transfer.reason, toIdentityId: target.id, source: "guild-ui" },
+      );
+      return bootstrap;
+    },
+    async cancelRootOwnershipTransfer(input) {
+      const transfer = bootstrap.rootOwnershipTransfer;
+      if (mode !== "root" || !transfer || transfer.id !== input.transferId ||
+          transfer.version !== input.expectedVersion || input.reason.trim() === "" ||
+          input.confirmation !== bootstrap.guildName) {
+        throw new Error("Pending Root ownership transfer was not found or confirmation failed.");
+      }
+      appendDemoChronicle(
+        "root_ownership.transfer.cancelled",
+        "root_ownership_transfer",
+        transfer.id,
+        {
+          spaceId: null,
+          ownerIdentityId: rootId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        { reason: input.reason.trim(), source: "guild-ui" },
+      );
+      bootstrap = { ...bootstrap, rootOwnershipTransfer: null };
+      return bootstrap;
+    },
+    async acceptRootOwnershipTransfer(input) {
+      const transfer = bootstrap.rootOwnershipTransfer;
+      if (mode !== "transfer-target" || !transfer || transfer.id !== input.transferId ||
+          transfer.version !== input.expectedVersion || input.reason.trim() === "" ||
+          input.confirmation !== bootstrap.guildName) {
+        throw new Error("Pending Root ownership transfer was not found or confirmation failed.");
+      }
+      appendDemoChronicle(
+        "root_ownership.transfer.accepted",
+        "root_ownership_transfer",
+        transfer.id,
+        {
+          spaceId: null,
+          ownerIdentityId: successorId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        { reason: input.reason.trim(), source: "guild-ui" },
+      );
+      bootstrap = {
+        ...bootstrap,
+        rootOwner: true,
+        rootOwnerIdentityId: successorId,
+        rootOwnerDisplayName: "Noah Chen",
+        rootOwnershipTransfer: null,
+      };
+      return bootstrap;
+    },
+    async searchRootOwnershipCandidates(search) {
+      if (mode !== "root") throw new Error("Only the current Root Owner can search candidates.");
+      const prefix = search.trim().toLocaleLowerCase("en-US");
+      return directory.identities
+        .filter((identity) => identity.kind === "human" && identity.status === "active" &&
+          identity.membershipState === "active" && identity.id !== bootstrap.rootOwnerIdentityId &&
+          identity.displayName.toLocaleLowerCase("en-US").startsWith(prefix))
+        .slice(0, 25)
+        .map((identity) => ({ id: identity.id, displayName: identity.displayName }));
     },
   };
 }

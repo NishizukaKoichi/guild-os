@@ -32,6 +32,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0020_agent_execution_compatibility.sql",
     "0021_agent_approval_trigger_fix.sql",
     "0022_constitution_governance.sql",
+    "0023_root_ownership_transfer.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -57,4 +58,8 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[21].sql, /role_permissions_no_root_authority/);
   assert.match(migrations[21].sql, /app\.actor_identity_id/);
   assert.match(migrations[21].sql, /Constitution version must increment exactly once/);
+  assert.match(migrations[22].sql, /Root ownership change requires an accepted two-party transfer/);
+  assert.match(migrations[22].sql, /Root ownership transfer requires an atomic Chronicle event/);
+  assert.match(migrations[22].sql, /pending_transfer_role_permission_guard/);
+  assert.match(migrations[22].sql, /identities_active_human_name_search_idx/);
 });

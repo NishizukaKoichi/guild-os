@@ -28,6 +28,10 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 - Constitution changes are Root-only, expected-version guarded, reasoned, and atomically recorded
   in Chronicle. PostgreSQL rejects delegated update authority, actor forgery, invalid policy, and
   deletion; desktop and mobile browser tests cover editable and read-only states.
+- Root ownership transfer requires an immutable proposal from the current Root and acceptance by
+  the named active Human in a separate session. PostgreSQL rejects direct replacement, stale
+  acceptance, unaudited transitions, Role mutation during a proposal, and history deletion; the
+  outgoing Root retains the agreed Role.
 - Space grants inherit to descendants, not siblings, without loading the whole Guild per request.
 - One-time invitations reject replay; acceptance and lifecycle changes produce Chronicle events.
 - Suspended and departed Humans immediately return no authorized Spaces.

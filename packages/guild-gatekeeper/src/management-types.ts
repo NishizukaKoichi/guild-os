@@ -32,6 +32,7 @@ import type {
   Constitution,
   ConnectorStatus,
   JsonObject,
+  RootOwnershipTransfer,
 } from "@guild-os/domain";
 
 export interface UiBootstrapState {
@@ -43,12 +44,25 @@ export interface UiBootstrapState {
   membershipState: MembershipState | null;
   rootOwner: boolean;
   rootOwnerIdentityId: string;
+  rootOwnerDisplayName: string;
   preferredLocale: AppLocale;
   constitution: UiConstitution;
   agentDefaults: AgentLimits;
+  rootOwnershipTransfer: UiRootOwnershipTransfer | null;
 }
 
 export type UiConstitution = Omit<Constitution, "guildId">;
+
+export interface UiRootOwnershipTransfer extends Omit<RootOwnershipTransfer, "guildId"> {
+  fromDisplayName: string;
+  toDisplayName: string;
+  outgoingRoleName: string;
+}
+
+export interface UiRootOwnershipCandidate {
+  id: string;
+  displayName: string;
+}
 
 export interface UiDirectoryIdentity {
   id: string;
@@ -170,6 +184,20 @@ export interface UpdateConstitutionRequest {
   dataRetentionDays: number;
   agentDefaults: AgentLimits;
   reason: string;
+}
+
+export interface ProposeRootOwnershipTransferRequest {
+  toIdentityId: string;
+  outgoingRoleId: string;
+  reason: string;
+  confirmation: string;
+}
+
+export interface ResolveRootOwnershipTransferRequest {
+  transferId: string;
+  expectedVersion: number;
+  reason: string;
+  confirmation: string;
 }
 
 export interface CreateSpaceRequest {
@@ -671,6 +699,16 @@ export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
   updateConstitution(input: UpdateConstitutionRequest): Promise<UiConstitution>;
+  proposeRootOwnershipTransfer(
+    input: ProposeRootOwnershipTransferRequest,
+  ): Promise<UiBootstrapState>;
+  cancelRootOwnershipTransfer(
+    input: ResolveRootOwnershipTransferRequest,
+  ): Promise<UiBootstrapState>;
+  acceptRootOwnershipTransfer(
+    input: ResolveRootOwnershipTransferRequest,
+  ): Promise<UiBootstrapState>;
+  searchRootOwnershipCandidates(search: string): Promise<readonly UiRootOwnershipCandidate[]>;
   getDirectory(request?: UiDirectoryRequest): Promise<UiDirectory>;
   issueInvitation(input: IssueInvitationInput): Promise<IssuedInvitation>;
   revokeInvitation(invitationId: string): Promise<void>;

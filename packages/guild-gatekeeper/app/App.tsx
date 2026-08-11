@@ -9,6 +9,8 @@ import type {
   CreateSpaceRequest,
   GuildUiApi,
   IssueInvitationInput,
+  ProposeRootOwnershipTransferRequest,
+  ResolveRootOwnershipTransferRequest,
   UiBootstrapState,
   UiDirectory,
   UpdateConstitutionRequest,
@@ -254,6 +256,20 @@ export function App({ api }: { api: GuildUiApi }) {
               agentDefaults: constitution.agentDefaults,
             } : current);
           }}
+          onProposeRootOwnershipTransfer={async (input: ProposeRootOwnershipTransferRequest) => {
+            const state = await api.proposeRootOwnershipTransfer(input);
+            setBootstrap(state);
+          }}
+          onCancelRootOwnershipTransfer={async (input: ResolveRootOwnershipTransferRequest) => {
+            const state = await api.cancelRootOwnershipTransfer(input);
+            setBootstrap(state);
+          }}
+          onAcceptRootOwnershipTransfer={async (input: ResolveRootOwnershipTransferRequest) => {
+            const state = await api.acceptRootOwnershipTransfer(input);
+            setBootstrap(state);
+            await loadDirectory(state);
+          }}
+          onSearchRootOwnershipCandidates={(search) => api.searchRootOwnershipCandidates(search)}
           onCreateRole={async (input: CreateRoleRequest) => {
             await api.createRole(input);
             await refreshDirectory();

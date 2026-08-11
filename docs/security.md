@@ -43,6 +43,13 @@ actor, active Root state, exact one-version increment, quorum ordering, retentio
 limit shape. The mutation and `constitution.updated` Chronicle event commit atomically. The
 Constitution cannot be deleted.
 
+Root ownership transfer uses a nondelegable two-party protocol. The current Root proposes one
+different active Human, an outgoing Role, a reason, and an expiry. The named Human must accept from
+their own authenticated account and confirm the Guild name. Neither an administrator nor the
+current Root can accept on the successor's behalf. PostgreSQL freezes the proposal and referenced
+Role while it is live, rejects acceptance after expiry, performs the Root change and outgoing Role
+grant atomically, and requires matching Chronicle events at commit. Transfer history is append-only.
+
 An administrator may invite an Identity or assign a Role only when the administrator holds every
 permission in that Role globally. Creating or editing a custom Role applies the same rule. This
 prevents a Space-scoped manager from manufacturing or delegating Guild-wide authority. Roles must
@@ -208,6 +215,7 @@ does not make deleted files visible or lose the cleanup obligation.
 | Kill/offboarding race | Database-first Kill, outbox cancellation, Workflow termination, late-delivery Chronicle event | In-flight network bytes may win; execute the receiver's compensating operation |
 | Secret disclosure | Wrangler secret, no config/log/prompt storage, HMAC verification | Rotate receiver and Worker secret, provision a new Connector ID, kill old runs |
 | Prompt injection in Knowledge | Canonical-only, permission-filtered context; model output cannot bypass policy or approval | Humans must inspect Level 2 action payloads before approval |
+| Stolen Root session attempts silent handover | Immutable expiring proposal plus acceptance by the named active Human in a separate account session | A compromise of both Human accounts still requires incident recovery and credential rotation |
 
 ## Known security gates
 

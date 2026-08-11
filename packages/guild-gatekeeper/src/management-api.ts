@@ -61,10 +61,12 @@ import type {
   KnowledgeTransitionRequest,
   MarkInboxReadRequest,
   PublishAnnouncementResponse,
+  ProposeRootOwnershipTransferRequest,
   ReviewKnowledgeRequest,
   ReviewAgentRunRequest,
   ReviewDecisionRequest,
   ReviewDecisionResponse,
+  ResolveRootOwnershipTransferRequest,
   SaveKnowledgeDraftRequest,
   SaveAnnouncementDraftRequest,
   SaveDecisionDraftRequest,
@@ -91,6 +93,8 @@ import type {
   UiDecisionPage,
   UiDecisionPageRequest,
   UiQuestDetail,
+  UiRootOwnershipCandidate,
+  UiRootOwnershipTransfer,
   UiWorkPage,
   UiWorkPageRequest,
   UpdateRoleRequest,
@@ -104,6 +108,7 @@ const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_INVITATION_DAYS = 90;
 const MAX_AGENT_TOOLS = 50;
+const ROOT_TRANSFER_EXPIRY_DAYS = 7;
 const KNOWN_PERMISSIONS = new Set<string>(PERMISSIONS);
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -223,6 +228,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         const state = await repository.getSetupState(this.#accountId);
         const result = await connection.query<{
           root_owner_identity_id: string;
+          root_owner_display_name: string;
           preferred_locale: AppLocale | null;
           constitution_version: number;
           level2_approval_quorum: number;
@@ -233,6 +239,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           constitution_updated_at: string;
         }>(
           `SELECT g.root_owner_identity_id::text,
+                  root.display_name AS root_owner_display_name,
                   (SELECT preferred_locale FROM identities
                     WHERE guild_id = g.id AND id = $2) AS preferred_locale,
                   c.version AS constitution_version,
@@ -244,11 +251,67 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
                   c.updated_at::text AS constitution_updated_at
              FROM guilds g
              JOIN constitutions c ON c.guild_id = g.id
+             JOIN identities root
+               ON root.guild_id = g.id AND root.id = g.root_owner_identity_id
             WHERE g.id = $1`,
           [this.#env.GUILD_ID, this.#accountId],
         );
         const row = result.rows[0];
         if (!row) throw new Error("Guild is not initialized.");
+        const transfer = state.identityExists ? (await connection.query<{
+          id: string;
+          from_identity_id: string;
+          to_identity_id: string;
+          outgoing_role_id: string;
+          state: "pending";
+          reason: string;
+          version: number;
+          expires_at: string;
+          resolved_at: null;
+          created_at: string;
+          updated_at: string;
+          from_display_name: string;
+          to_display_name: string;
+          outgoing_role_name: string;
+        }>(
+          `SELECT transfer.id::text, transfer.from_identity_id::text,
+                  transfer.to_identity_id::text, transfer.outgoing_role_id::text,
+                  transfer.state, transfer.reason, transfer.version,
+                  transfer.expires_at::text, transfer.resolved_at::text,
+                  transfer.created_at::text, transfer.updated_at::text,
+                  source.display_name AS from_display_name,
+                  target.display_name AS to_display_name,
+                  outgoing_role.name AS outgoing_role_name
+             FROM root_ownership_transfers transfer
+             JOIN identities source
+               ON source.guild_id = transfer.guild_id AND source.id = transfer.from_identity_id
+             JOIN identities target
+               ON target.guild_id = transfer.guild_id AND target.id = transfer.to_identity_id
+             JOIN roles outgoing_role
+               ON outgoing_role.guild_id = transfer.guild_id
+              AND outgoing_role.id = transfer.outgoing_role_id
+            WHERE transfer.guild_id = $1 AND transfer.state = 'pending'
+              AND transfer.expires_at > now()
+              AND $2::uuid IN (transfer.from_identity_id, transfer.to_identity_id)
+            ORDER BY transfer.created_at DESC LIMIT 1`,
+          [this.#env.GUILD_ID, this.#accountId],
+        )).rows[0] : undefined;
+        const rootOwnershipTransfer: UiRootOwnershipTransfer | null = transfer ? {
+          id: transfer.id,
+          fromIdentityId: transfer.from_identity_id,
+          toIdentityId: transfer.to_identity_id,
+          outgoingRoleId: transfer.outgoing_role_id,
+          state: transfer.state,
+          reason: transfer.reason,
+          version: transfer.version,
+          expiresAt: new Date(transfer.expires_at).toISOString(),
+          resolvedAt: transfer.resolved_at,
+          createdAt: new Date(transfer.created_at).toISOString(),
+          updatedAt: new Date(transfer.updated_at).toISOString(),
+          fromDisplayName: transfer.from_display_name,
+          toDisplayName: transfer.to_display_name,
+          outgoingRoleName: transfer.outgoing_role_name,
+        } : null;
         return {
           guildId: this.#env.GUILD_ID,
           guildName: this.#env.GUILD_NAME,
@@ -258,6 +321,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           membershipState: state.membershipState,
           rootOwner: row.root_owner_identity_id === this.#accountId,
           rootOwnerIdentityId: row.root_owner_identity_id,
+          rootOwnerDisplayName: row.root_owner_display_name,
           preferredLocale: row.preferred_locale ?? "en",
           constitution: {
             version: row.constitution_version,
@@ -269,6 +333,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
             updatedAt: row.constitution_updated_at,
           },
           agentDefaults: row.agent_defaults,
+          rootOwnershipTransfer,
         };
       },
     );
@@ -350,6 +415,163 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     );
     const { guildId: _guildId, ...constitution } = updated;
     return constitution;
+  }
+
+  async proposeRootOwnershipTransfer(
+    input: ProposeRootOwnershipTransferRequest,
+  ): Promise<UiBootstrapState> {
+    assertUuid(input.toIdentityId, "Target Identity ID");
+    assertUuid(input.outgoingRoleId, "Outgoing Role ID");
+    assertNonBlank(input.reason, "Root ownership transfer reason", 2_000);
+    assertNonBlank(input.confirmation, "Root ownership transfer confirmation", 200);
+    const transferId = crypto.randomUUID();
+    const expiresAt = new Date(
+      Date.now() + ROOT_TRANSFER_EXPIRY_DAYS * 86_400_000,
+    ).toISOString();
+    await this.#authorizedWrite("constitution.update", async (connection, snapshot) => {
+      if (snapshot.guild.rootOwnerIdentityId !== this.#accountId) {
+        throw new Error("Only the current human Root Owner can propose a transfer.");
+      }
+      const target = (await connection.query<{ display_name: string }>(
+        `SELECT identity_row.display_name
+           FROM identities identity_row
+           JOIN memberships membership_row
+             ON membership_row.guild_id = identity_row.guild_id
+            AND membership_row.identity_id = identity_row.id
+          WHERE identity_row.guild_id = $1 AND identity_row.id = $2
+            AND identity_row.kind = 'human' AND identity_row.status = 'active'
+            AND membership_row.state = 'active'`,
+        [this.#env.GUILD_ID, input.toIdentityId],
+      )).rows[0];
+      if (!target || input.confirmation !== target.display_name) {
+        throw new Error("Type the selected Human's display name exactly to confirm the transfer.");
+      }
+      await new GuildGovernanceRepository(
+        connection,
+        this.#env.GUILD_ID,
+      ).proposeRootOwnershipTransfer({
+        id: transferId,
+        toIdentityId: input.toIdentityId,
+        outgoingRoleId: input.outgoingRoleId,
+        reason: input.reason,
+        expiresAt,
+        actorIdentityId: this.#accountId,
+        chronicleEvent: makeChronicleEvent(
+          this.#env.GUILD_ID,
+          this.#accountId,
+          "root_ownership.transfer.proposed",
+          "root_ownership_transfer",
+          transferId,
+          {
+            toIdentityId: input.toIdentityId,
+            outgoingRoleId: input.outgoingRoleId,
+            reason: input.reason,
+            expiresAt,
+            source: "guild-ui",
+          },
+        ),
+      });
+    });
+    return this.getBootstrap();
+  }
+
+  async cancelRootOwnershipTransfer(
+    input: ResolveRootOwnershipTransferRequest,
+  ): Promise<UiBootstrapState> {
+    assertUuid(input.transferId, "Root ownership transfer ID");
+    assertPositiveInteger(input.expectedVersion, "Expected transfer version");
+    assertNonBlank(input.reason, "Root ownership cancellation reason", 2_000);
+    if (input.confirmation !== this.#env.GUILD_NAME) {
+      throw new Error("Type the Guild name exactly to cancel the transfer.");
+    }
+    await this.#authorizedWrite("constitution.update", async (connection, snapshot) => {
+      if (snapshot.guild.rootOwnerIdentityId !== this.#accountId) {
+        throw new Error("Only the current human Root Owner can cancel the transfer.");
+      }
+      await new GuildGovernanceRepository(
+        connection,
+        this.#env.GUILD_ID,
+      ).cancelRootOwnershipTransfer({
+        transferId: input.transferId,
+        expectedVersion: input.expectedVersion,
+        reason: input.reason,
+        actorIdentityId: this.#accountId,
+        chronicleEvent: makeChronicleEvent(
+          this.#env.GUILD_ID,
+          this.#accountId,
+          "root_ownership.transfer.cancelled",
+          "root_ownership_transfer",
+          input.transferId,
+          { reason: input.reason, source: "guild-ui" },
+        ),
+      });
+    });
+    return this.getBootstrap();
+  }
+
+  async acceptRootOwnershipTransfer(
+    input: ResolveRootOwnershipTransferRequest,
+  ): Promise<UiBootstrapState> {
+    assertUuid(input.transferId, "Root ownership transfer ID");
+    assertPositiveInteger(input.expectedVersion, "Expected transfer version");
+    assertNonBlank(input.reason, "Root ownership acceptance reason", 2_000);
+    if (input.confirmation !== this.#env.GUILD_NAME) {
+      throw new Error("Type the Guild name exactly to accept Root ownership.");
+    }
+    await withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => {
+        await new GuildGovernanceRepository(
+          connection,
+          this.#env.GUILD_ID,
+        ).acceptRootOwnershipTransfer({
+          transferId: input.transferId,
+          expectedVersion: input.expectedVersion,
+          reason: input.reason,
+          actorIdentityId: this.#accountId,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            "root_ownership.transfer.accepted",
+            "root_ownership_transfer",
+            input.transferId,
+            { reason: input.reason, source: "guild-ui" },
+          ),
+        });
+      },
+    );
+    return this.getBootstrap();
+  }
+
+  async searchRootOwnershipCandidates(
+    search: string,
+  ): Promise<readonly UiRootOwnershipCandidate[]> {
+    if (typeof search !== "string" || search.length > 100) {
+      throw new Error("Successor search must be at most 100 characters.");
+    }
+    const prefix = search.trim();
+    return this.#authorizedWrite("constitution.update", async (connection, snapshot) => {
+      if (snapshot.guild.rootOwnerIdentityId !== this.#accountId) {
+        throw new Error("Only the current human Root Owner can search transfer candidates.");
+      }
+      const result = await connection.query<{ id: string; display_name: string }>(
+        `SELECT identity_row.id::text, identity_row.display_name
+           FROM identities identity_row
+           JOIN memberships membership_row
+             ON membership_row.guild_id = identity_row.guild_id
+            AND membership_row.identity_id = identity_row.id
+          WHERE identity_row.guild_id = $1
+            AND identity_row.id <> $2
+            AND identity_row.kind = 'human' AND identity_row.status = 'active'
+            AND membership_row.state = 'active'
+            AND ($3 = '' OR lower(identity_row.display_name) LIKE lower($3) || '%')
+          ORDER BY lower(identity_row.display_name), identity_row.id
+          LIMIT 25`,
+        [this.#env.GUILD_ID, this.#accountId, prefix],
+      );
+      return result.rows.map((row) => ({ id: row.id, displayName: row.display_name }));
+    });
   }
 
   async getDirectory(request: UiDirectoryRequest = {}): Promise<UiDirectory> {

@@ -113,7 +113,11 @@ in command arguments, generated configs, logs, or child-process environments.
 4. Confirm the account becomes a Human Identity with active Membership and Root Owner status.
 5. Create a second recovery administrator with the minimum intended Role; do not share the Root
    Owner login.
-6. Expand the Access Allow policy only after Guild invitation and claim have been tested.
+6. Rehearse a Root handover to that Human and back again. The current Root proposes the transfer in
+   **Settings**, the named Human accepts from their own session, and both sides verify the proposal
+   and acceptance in **Chronicle**.
+7. Expand the Access Allow policy only after Guild invitation, claim, and Root transfer have been
+   tested.
 
 Root ownership cannot be assigned to an Agent, disabled, suspended, departed, or deleted through
 the application.
@@ -138,8 +142,10 @@ Use synthetic names and non-sensitive content for the first test:
 9. Stop the Agent and verify its active run, token-bearing Connector access, and future execution are
    denied immediately.
 10. Test desktop and 390 px mobile navigation with English, Japanese, and Simplified Chinese modes.
+11. Propose, cancel, repropose, and accept one Root ownership transfer; verify the outgoing Role,
+    private notifications, expiry behavior, and append-only Chronicle evidence.
 
-Do not admit real users until all ten checks pass and the results are attached to the release record.
+Do not admit real users until all eleven checks pass and the results are attached to the release record.
 For the bundled receiver, the repeat-delivery test is executable as `pnpm smoke:webhook`; see
 [`packages/webhook-receiver/README.md`](../packages/webhook-receiver/README.md).
 

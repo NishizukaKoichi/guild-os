@@ -168,11 +168,13 @@ export class GuildAdministrationRepository {
          (SELECT count(*) FROM role_bindings WHERE guild_id = $1 AND role_id = $2) +
          (SELECT count(*) FROM guild_invitations
            WHERE guild_id = $1 AND role_id = $2 AND state = 'pending'
-             AND expires_at > now()) AS reference_count`,
+             AND expires_at > now()) +
+         (SELECT count(*) FROM root_ownership_transfers
+           WHERE guild_id = $1 AND outgoing_role_id = $2) AS reference_count`,
       [this.#guildId, roleId],
     );
     if (Number(references.rows[0]?.reference_count ?? 0) > 0) {
-      throw new Error("Remove Role bindings and pending invitations before deleting this Role.");
+      throw new Error("Remove Role bindings and pending invitations, and retain Roles referenced by ownership history.");
     }
     await this.#connection.query(
       "DELETE FROM role_permissions WHERE guild_id = $1 AND role_id = $2",

@@ -20,6 +20,7 @@ const communicationsMigrationUrl = new URL("../migrations/0016_communications_an
 const chronicleSearchMigrationUrl = new URL("../migrations/0017_chronicle_search_tokens.sql", import.meta.url);
 const announcementProvenanceMigrationUrl = new URL("../migrations/0018_archived_announcement_provenance.sql", import.meta.url);
 const constitutionGovernanceMigrationUrl = new URL("../migrations/0022_constitution_governance.sql", import.meta.url);
+const rootOwnershipTransferMigrationUrl = new URL("../migrations/0023_root_ownership_transfer.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -145,5 +146,14 @@ describe("Guild PostgreSQL migration", () => {
     expect(constitutionSql).toContain("app.actor_identity_id");
     expect(constitutionSql).toContain("Constitution version must increment exactly once");
     expect(constitutionSql).toContain("A Guild Constitution cannot be deleted");
+    const rootOwnershipSql = await readFile(
+      fileURLToPath(rootOwnershipTransferMigrationUrl),
+      "utf8",
+    );
+    expect(rootOwnershipSql).toContain("Root ownership change requires an accepted two-party transfer");
+    expect(rootOwnershipSql).toContain("Root ownership transfer requires an atomic Chronicle event");
+    expect(rootOwnershipSql).toContain("A Role in a pending Root ownership transfer is immutable");
+    expect(rootOwnershipSql).toContain("identities_active_human_name_search_idx");
+    expect(rootOwnershipSql).toContain("root_owner_change_committed");
   });
 });

@@ -22,6 +22,7 @@ Implemented and tested:
 - Role and hierarchical Space permission engine
 - Root Owner and private-data invariants
 - Root-only, versioned Constitution management with mandatory Chronicle reasons
+- Two-party, expiring Root ownership transfer with outgoing Role preservation and atomic Chronicle
 - Agent/requester/workflow/connector permission intersection
 - Knowledge lifecycle and risk-based approval rules
 - Agent budget, duration, step, retry, and delegation limits
@@ -187,6 +188,11 @@ Owner. Keep the Access policy restricted to that person until initialization is 
 Owner then issues a high-entropy, one-time invitation from **People**. A recipient's stable
 Cloudflare OS account capability is bound to the selected Role, Space, and initial Membership state
 only after that token is claimed. The database stores only the token's SHA-256 hash.
+
+Root ownership is not assigned through Roles. In **Settings**, the current Root proposes a named
+active Human and chooses the Role retained after handover. That Human accepts from their own
+session. PostgreSQL rejects a direct replacement, expired acceptance, mutable proposal terms, and
+any transition without its Chronicle event.
 
 The current v1 completion evidence and remaining gates are tracked in
 [v1 completion](docs/v1-completion.md).

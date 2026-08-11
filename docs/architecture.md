@@ -53,6 +53,13 @@ Owner and validates transport input; `ConstitutionManager.tsx` is presentation o
 also requires a transaction-local Root actor and rejects deletion, delegated update authority,
 invalid limits, or a version that does not advance exactly once.
 
+Root ownership transfer is a separate governance transaction, not a Role operation. The current
+Root creates an immutable, expiring proposal for one active Human and selects the global Role that
+will remain after handover. The named Human accepts from a different account session. PostgreSQL
+changes the Root, grants the outgoing Role, resolves the proposal, sends the private notification,
+and records Chronicle evidence atomically. Deferred constraints reject a transfer mutation without
+its matching event and reject a direct Root update that did not finish an accepted proposal.
+
 Work follows the same boundary. `guild-domain/work.ts` owns lifecycle validation,
 `guild-postgres/work.ts` owns bounded queries and atomic mutations, `guild-gatekeeper/work-service.ts`
 owns request validation plus authorization, and the Work page owns presentation state only. Goal,

@@ -1022,6 +1022,97 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.ownership-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 16px;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.ownership-summary > div {
+  min-width: 0;
+  padding: 13px 14px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ownership-summary > div:nth-child(2n) {
+  border-right: 0;
+}
+
+.ownership-summary > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.ownership-summary > div:only-child {
+  grid-column: 1 / -1;
+  border-right: 0;
+}
+
+.ownership-summary > .ownership-reason {
+  grid-column: 1 / -1;
+  border-right: 0;
+  border-top: 1px solid var(--border);
+}
+
+.ownership-summary dt {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ownership-summary dd {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ownership-summary dd svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.ownership-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ownership-actions .notice {
+  flex: 1 1 360px;
+  margin: 0;
+}
+
+.ownership-search-field {
+  display: grid;
+  gap: 7px;
+}
+
+.ownership-search-field > label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ownership-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.dialog-header small:has(svg) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .manager-heading {
   align-items: center;
 }
@@ -3808,6 +3899,39 @@ textarea:focus-visible {
     flex: 1 0 100%;
     width: 100%;
     margin-left: 0;
+  }
+
+  .ownership-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ownership-summary > div,
+  .ownership-summary > div:nth-child(2n),
+  .ownership-summary > div:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ownership-summary > div:last-child {
+    border-bottom: 0;
+  }
+
+  .ownership-summary > .ownership-reason {
+    grid-column: 1;
+    border-top: 0;
+  }
+
+  .ownership-actions > button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .ownership-search-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ownership-search-row > button {
+    width: 100%;
   }
 
   .manager-row {
