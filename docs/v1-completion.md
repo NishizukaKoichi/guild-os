@@ -13,7 +13,7 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 | 4 | Knowledge files, versions, approval, publish, deprecate | Partial | Immutable PostgreSQL lifecycle; human-only approval; R2 two-phase upload and durable cleanup; responsive lifecycle E2E | Production Hyperdrive/R2 lifecycle smoke |
 | 5 | Ask Guild with authorized citations | Partial | Canonical-only search, bounded context, Workers AI call, version citations, no-evidence behavior, rate limit, and leakage tests | Production Workers AI citation smoke; derived semantic index remains post-MVP quality work |
 | 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Domain lifecycle; database-enforced hierarchy, Space containment, optimistic versions, and Human/Agent assignment; permission-prefiltered services; responsive management UI; PostgreSQL, Gatekeeper, and full hierarchy E2E tests | Production Hyperdrive assignment and Chronicle smoke |
-| 7 | Agent Plan, approval, one external write | Partial | Cloudflare OS action staging; separate Guild Human quorum; fixed signed Webhook; permission intersection at plan and execution; atomic claim; idempotency; no unsafe write retry; Workflows/outbox; responsive approval/result E2E; PostgreSQL integration tests | Production Workflow, approval, receiver-signature, and idempotency smoke |
+| 7 | Agent Plan, approval, one external write | Partial | Cloudflare OS action staging; separate Guild Human quorum; fixed signed Webhook; permission intersection at plan and execution; atomic claim; no unsafe write retry; Workflows/outbox; responsive approval/result E2E; PostgreSQL integration tests; bundled exact-byte HMAC/replay/idempotency receiver | Production Workflow, approval, receiver-signature, and idempotency smoke |
 | 8 | Formal Decision with evidence and approvals | Partial | Permission-prefiltered commands and views; immutable proposal; Constitution quorum; append-only human reviews; same-option approval; evidence; dissent; exact-boundary supersession; PostgreSQL, Gatekeeper, and responsive E2E tests | Production Hyperdrive Decision lifecycle and notification smoke |
 | 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Human-only draft/publish/archive lifecycle; immutable audience; set-based Role/Space fan-out; deduplication; Knowledge-update fan-out; current-authority Inbox reads; responsive UI and E2E | Production Hyperdrive delivery and read-state smoke |
 | 10 | Chronicle all important Human/Agent actions | Partial | Immutable/RLS table; resource-boundary snapshots; SQL-prefiltered search; Human lifecycle coverage; Agent plan, outer approval, Guild vote, claim, success/failure, dispatch exhaustion, Kill, offboarding, and late-delivery-race events | Production Chronicle correlation smoke |
@@ -61,6 +61,9 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   claims the run once, signs the exact request, and records the result. Dispatch exhaustion,
   stopped-Agent recheck, explicit Kill, Identity offboarding, and delivery-after-Kill races have
   PostgreSQL integration coverage.
+- The optional reference receiver verifies exact signed bytes before parsing, rejects stale events,
+  and gives each Guild/idempotency-key pair an independent SQLite-backed Durable Object. Unit tests
+  cover forgery, replay-window, envelope mismatch, oversized input, exact duplicate, and conflict.
 - Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
   states plus the complete Knowledge, Ask, Goal-to-Step Work, Decision, Announcement, Inbox, and
   Chronicle paths have Playwright interaction and overflow checks.

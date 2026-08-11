@@ -18,8 +18,8 @@ export async function deliverSignedWebhook(
   claim: AgentExecutionClaim,
   fetcher: typeof fetch = fetch,
 ): Promise<AgentWebhookDeliveryResult> {
-  if (!signingSecret || signingSecret.length < 32) {
-    throw new Error("Webhook signing secret must contain at least 32 characters.");
+  if (new TextEncoder().encode(signingSecret).byteLength < 32) {
+    throw new Error("Webhook signing secret must contain at least 32 bytes.");
   }
   const startedAt = Date.now();
   const timestamp = new Date().toISOString();

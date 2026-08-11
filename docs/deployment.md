@@ -31,9 +31,10 @@ unreviewed changes.
    production, use a hostname in a purchaser-owned Cloudflare zone.
 5. Create a Cloudflare Access self-hosted application for that exact hostname. Start with only the
    intended Root Owner in the Allow policy. Record the issuer origin and application audience.
-6. Deploy a purchaser-owned HTTPS Webhook receiver that follows
-   [the receiver contract](agent-webhook.md), including HMAC verification, a five-minute replay
-   window, and durable idempotency.
+6. Enable the bundled purchaser-owned reference Webhook receiver, or deploy another HTTPS receiver
+   that follows [the receiver contract](agent-webhook.md), including HMAC verification, a
+   five-minute replay window, and durable idempotency. The bundled receiver uses one SQLite-backed
+   Durable Object per idempotency key and can use a `workersDev` or custom-domain route.
 
 Use the current official Cloudflare instructions for
 [Hyperdrive](https://developers.cloudflare.com/hyperdrive/get-started/),
@@ -50,6 +51,7 @@ production use:
 - Worker names
 - Agent Workflow name
 - Webhook Connector UUID and URL
+- Reference Webhook Worker name and route when enabled
 - Cloudflare Access issuer and audience
 - Hyperdrive ID
 - KV namespace IDs and R2 bucket names after automatic provisioning
@@ -138,6 +140,8 @@ Use synthetic names and non-sensitive content for the first test:
 10. Test desktop and 390 px mobile navigation with English, Japanese, and Simplified Chinese modes.
 
 Do not admit real users until all ten checks pass and the results are attached to the release record.
+For the bundled receiver, the repeat-delivery test is executable as `pnpm smoke:webhook`; see
+[`packages/webhook-receiver/README.md`](../packages/webhook-receiver/README.md).
 
 ## 8. Rollback
 

@@ -16,6 +16,10 @@
     },
     "context": { "name": "<CONTEXT_WORKER_NAME>" },
     "guildGatekeeper": { "name": "<GUILD_GATEKEEPER_WORKER_NAME>" },
+    "webhookReceiver": {
+      "name": "<WEBHOOK_RECEIVER_WORKER_NAME>",
+      "route": { "customDomain": "hooks.example.com" }
+    },
     "errorReporter": { "name": "<ERROR_REPORTER_WORKER_NAME>" }
   },
 
@@ -94,6 +98,13 @@
     "enabled": true,
     "environment": "production",
     "release": null
+  },
+
+  // Optional reference receiver for the v1 Agent write. It uses a SQLite-backed Durable Object
+  // for strongly consistent idempotency. Disable it when guild.webhook.url points to another
+  // purchaser-owned implementation of docs/agent-webhook.md.
+  "referenceWebhook": {
+    "enabled": true
   },
 
   // null values use Wrangler automatic provisioning. Set IDs/names to reuse owned resources.

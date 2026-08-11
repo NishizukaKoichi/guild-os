@@ -79,6 +79,12 @@ outbox; `guild-gatekeeper/agent-service.ts` performs plan-time and execution-tim
 fixed signed transport; and the Agent page owns presentation only. Cloudflare OS action approval and
 Guild quorum are separate gates. Workflow events never substitute for PostgreSQL state.
 
+The optional `packages/webhook-receiver` Worker is intentionally outside the Gatekeeper process so
+the v1 action crosses a real HTTPS boundary. It authenticates exact request bytes and delegates each
+Guild/idempotency-key pair to its own SQLite-backed Durable Object. This removes a single-Guild
+serialization bottleneck while making duplicate claims strongly consistent. Deployments can replace
+that module with another owned receiver without changing Agent policy or Run state.
+
 ## Source-of-truth rules
 
 - PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge

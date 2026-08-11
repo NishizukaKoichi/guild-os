@@ -205,3 +205,7 @@ Before a production release, complete and verify:
 - External Access/session recovery rehearsal in the deployed environment
 - Backup restore rehearsal
 - Receiver-side signature, replay-window, and durable idempotency smoke
+
+The bundled reference receiver provides the last control with exact-byte Web Crypto verification
+and one SQLite-backed Durable Object per Guild/idempotency-key pair. It stores no signing secret in
+its receipt and exposes no public receipt-list endpoint.

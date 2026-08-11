@@ -76,6 +76,8 @@ product requirement must be resolved explicitly rather than silently weakened.
   immutable plans and authority snapshots, execution-time rechecks, HMAC and idempotency, hard
   limits, Cloudflare Workflows, transactional dispatch, Kill/offboarding cancellation, late-race
   audit evidence, management UI, and integration/browser tests.
+- A purchaser-owned reference receiver provides HMAC verification, replay-window enforcement, and
+  strongly consistent per-idempotency-key Durable Object storage for that Webhook.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence

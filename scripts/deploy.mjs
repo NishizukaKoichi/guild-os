@@ -13,6 +13,7 @@ const generatedPaths = {
   workshop: join(root, "cloudflare-os/packages/workshop-backend", generatedName),
   context: join(root, "cloudflare-os/packages/gatekeeper-context", generatedName),
   guildGatekeeper: join(root, "packages/guild-gatekeeper", generatedName),
+  webhookReceiver: join(root, "packages/webhook-receiver", generatedName),
   errorReporter: join(root, "packages/error-reporter", generatedName),
 };
 const defaultContextArtifactsNamespace = "gatekeeper-context-collections";
@@ -27,6 +28,7 @@ const requiredPaths = [
   "access.admins",
   "aiGateway.enabled",
   "errorReporting.enabled",
+  "referenceWebhook.enabled",
   "context.sharingDomain",
   "guild.id",
   "guild.name",
@@ -62,6 +64,10 @@ const errorReportingPaths = [
   "errorReporting.environment",
 ];
 
+const referenceWebhookPaths = [
+  "workers.webhookReceiver.name",
+];
+
 const resourcePaths = [
   "context.kvNamespaceId",
   "resources.blueprintsKvNamespaceId",
@@ -79,6 +85,7 @@ export function validateConfig(config) {
     ...requiredPaths,
     ...(config.aiGateway?.enabled ? aiGatewayPaths : []),
     ...(config.errorReporting?.enabled ? errorReportingPaths : []),
+    ...(config.referenceWebhook?.enabled ? referenceWebhookPaths : []),
   ];
   for (const path of activePaths) {
     const value = valueAt(config, path);
@@ -109,6 +116,13 @@ export function validateConfig(config) {
       errorReporting: { enabled: false },
     };
   }
+  if (!config.referenceWebhook.enabled) {
+    activeConfig = {
+      ...activeConfig,
+      workers: { ...activeConfig.workers, webhookReceiver: undefined },
+      referenceWebhook: { enabled: false },
+    };
+  }
   const placeholder = JSON.stringify(activeConfig).match(/<[^>]+>/)?.[0];
   if (placeholder) throw new Error(`Replace deployment placeholder ${placeholder}.`);
 
@@ -117,6 +131,7 @@ export function validateConfig(config) {
     "aiGateway.enabled",
     "aiGateway.providers",
     "errorReporting.enabled",
+    "referenceWebhook.enabled",
     "observability.enabled",
     "observability.headSamplingRate",
     "observability.logs.invocationLogs",
@@ -185,10 +200,12 @@ export function validateConfig(config) {
     throw new Error("Guild Ask request limit cannot exceed 10,000 requests per minute.");
   }
   const workerNames = Object.entries(config.workers)
-    .filter(([key]) => key !== "errorReporter" || config.errorReporting.enabled)
+    .filter(([key]) =>
+      (key !== "errorReporter" || config.errorReporting.enabled) &&
+      (key !== "webhookReceiver" || config.referenceWebhook.enabled))
     .map(([, worker]) => worker.name);
   if (new Set(workerNames).size !== workerNames.length) {
-    throw new Error("Workshop, Context, Guild Gatekeeper, and Error Reporter names must be unique.");
+    throw new Error("Every enabled Worker name must be unique.");
   }
   if (!workerNames.every((name) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name))) {
     throw new Error("Worker names must use lowercase letters, numbers, and hyphens.");
@@ -207,6 +224,31 @@ export function validateConfig(config) {
   const hostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   if (route.customDomain && !hostnamePattern.test(route.customDomain)) {
     throw new Error("Workshop customDomain must be a lowercase hostname.");
+  }
+
+  if (typeof config.referenceWebhook.enabled !== "boolean") {
+    throw new Error("Reference Webhook enabled must be a boolean.");
+  }
+  if (config.referenceWebhook.enabled) {
+    const receiverRoute = config.workers.webhookReceiver.route;
+    if (!receiverRoute ||
+        Boolean(receiverRoute.workersDev) === Boolean(receiverRoute.customDomain)) {
+      throw new Error("Set exactly one Reference Webhook route: workersDev or customDomain.");
+    }
+    if (receiverRoute.workersDev !== undefined && receiverRoute.workersDev !== true) {
+      throw new Error("Reference Webhook workersDev must be boolean true when selected.");
+    }
+    if (receiverRoute.customDomain !== undefined &&
+        (typeof receiverRoute.customDomain !== "string" ||
+         !hostnamePattern.test(receiverRoute.customDomain))) {
+      throw new Error("Reference Webhook customDomain must be a lowercase hostname.");
+    }
+    if (webhookUrl.pathname !== "/guild-events") {
+      throw new Error("The Reference Webhook URL path must be /guild-events.");
+    }
+    if (receiverRoute.customDomain && webhookUrl.hostname !== receiverRoute.customDomain) {
+      throw new Error("The Reference Webhook URL and customDomain must use the same hostname.");
+    }
   }
 
   const issuer = new URL(config.access.issuer);
@@ -297,6 +339,9 @@ export function deploymentSecretsFromEnvironment(config, env) {
 
   const secrets = {
     guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: webhookSigningSecret },
+    ...(config.referenceWebhook.enabled ? {
+      webhookReceiver: { GUILD_WEBHOOK_SIGNING_SECRET: webhookSigningSecret },
+    } : {}),
   };
   if (config.aiGateway.enabled) {
     const aiGatewayToken = env.CF_AI_GATEWAY_API_TOKEN;
@@ -341,6 +386,9 @@ export function generateConfigs(config, bases) {
   const workshop = structuredClone(bases.workshop);
   const context = structuredClone(bases.context);
   const guildGatekeeper = structuredClone(bases.guildGatekeeper);
+  const webhookReceiver = config.referenceWebhook.enabled
+    ? structuredClone(bases.webhookReceiver)
+    : undefined;
   const errorReporter = config.errorReporting.enabled
     ? structuredClone(bases.errorReporter)
     : undefined;
@@ -469,11 +517,26 @@ export function generateConfigs(config, bases) {
   ])];
   guildGatekeeper.triggers = { crons: ["*/5 * * * *"] };
 
+  if (webhookReceiver) {
+    setCommon(
+      webhookReceiver,
+      config,
+      config.workers.webhookReceiver.name,
+      config.workers.webhookReceiver.route,
+    );
+  }
+
   if (errorReporter) {
     setCommon(errorReporter, config, config.workers.errorReporter.name);
   }
 
-  return { workshop, context, guildGatekeeper, ...(errorReporter && { errorReporter }) };
+  return {
+    workshop,
+    context,
+    guildGatekeeper,
+    ...(webhookReceiver && { webhookReceiver }),
+    ...(errorReporter && { errorReporter }),
+  };
 }
 
 async function readJsonc(path) {
@@ -525,6 +588,9 @@ function requireSubmodule() {
 function build(config) {
   run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
   run(["--dir", "packages/guild-gatekeeper", "run", "build"]);
+  if (config.referenceWebhook.enabled) {
+    run(["--dir", "packages/webhook-receiver", "run", "build"]);
+  }
   if (config.errorReporting.enabled) {
     run(["--dir", "packages/error-reporter", "run", "build"]);
   }
@@ -547,6 +613,7 @@ async function main() {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
     guildGatekeeper: await readJsonc(join(root, "packages/guild-gatekeeper/wrangler.jsonc")),
+    webhookReceiver: await readJsonc(join(root, "packages/webhook-receiver/wrangler.jsonc")),
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
   });
 
@@ -573,6 +640,11 @@ async function main() {
     const secretsArgs = (name) => secretFiles[name]
       ? ["--secrets-file", secretFiles[name]]
       : [];
+    if (config.referenceWebhook.enabled) {
+      run(["exec", "wrangler", "deploy", "--config", generatedName,
+        ...secretsArgs("webhookReceiver"), ...deployArgs],
+      join(root, "packages/webhook-receiver"));
+    }
     if (config.errorReporting.enabled) {
       run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
         join(root, "packages/error-reporter"));

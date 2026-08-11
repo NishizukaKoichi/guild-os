@@ -14,6 +14,10 @@ const validConfig = {
     workshop: { name: "acme-cloudflare-os", route: { customDomain: "os.example.com" } },
     context: { name: "acme-cloudflare-os-context" },
     guildGatekeeper: { name: "acme-guild-os-gatekeeper" },
+    webhookReceiver: {
+      name: "acme-guild-os-webhook",
+      route: { customDomain: "hooks.example.com" },
+    },
     errorReporter: { name: "acme-cloudflare-os-errors" },
   },
   access: {
@@ -53,6 +57,7 @@ const validConfig = {
     },
   },
   errorReporting: { enabled: true, environment: "production", release: "abc123" },
+  referenceWebhook: { enabled: true },
   resources: {
     blueprintsKvNamespaceId: "blueprints-kv-id",
     avatarsKvNamespaceId: "avatars-kv-id",
@@ -72,6 +77,7 @@ async function baseConfigs() {
     workshop: await baseConfig("../cloudflare-os/packages/workshop-backend/wrangler.jsonc"),
     context: await baseConfig("../cloudflare-os/packages/gatekeeper-context/wrangler.jsonc"),
     guildGatekeeper: await baseConfig("../packages/guild-gatekeeper/wrangler.jsonc"),
+    webhookReceiver: await baseConfig("../packages/webhook-receiver/wrangler.jsonc"),
     errorReporter: {
       name: "error-reporter",
       observability: { enabled: true, logs: { invocation_logs: false } },
@@ -201,6 +207,7 @@ test("returns only secrets required by the active deployment", () => {
     UNRELATED_SECRET: "must-not-be-forwarded",
   }), {
     guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
+    webhookReceiver: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
     workshop: { CF_AI_GATEWAY_API_TOKEN: "cloudflare-api-token" },
   });
 
@@ -210,6 +217,7 @@ test("returns only secrets required by the active deployment", () => {
     GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
   }), {
     guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
+    webhookReceiver: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
   });
 });
 
@@ -304,6 +312,16 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     true,
   );
   assert.deepEqual(generated.guildGatekeeper.triggers, { crons: ["*/5 * * * *"] });
+  assert.equal(generated.webhookReceiver.name, "acme-guild-os-webhook");
+  assert.deepEqual(generated.webhookReceiver.routes, [
+    { pattern: "hooks.example.com", custom_domain: true },
+  ]);
+  assert.deepEqual(generated.webhookReceiver.secrets, {
+    required: ["GUILD_WEBHOOK_SIGNING_SECRET"],
+  });
+  assert.deepEqual(generated.webhookReceiver.exports, {
+    WebhookReceipt: { type: "durable-object", storage: "sqlite" },
+  });
   assert.equal(generated.errorReporter.name, "acme-cloudflare-os-errors");
   assert.deepEqual(generated.workshop.observability.logs, {
     invocation_logs: false,
@@ -330,6 +348,24 @@ test("omits disabled backend error reporting", async () => {
   assert.equal(generated.errorReporter, undefined);
   assert.equal(generated.workshop.services.some(
     (service) => service.binding === "ERROR_REPORTER"), false);
+});
+
+test("omits the optional reference Webhook receiver", async () => {
+  const config = structuredClone(validConfig);
+  config.referenceWebhook.enabled = false;
+  config.workers.webhookReceiver = {
+    name: "<WEBHOOK_RECEIVER_WORKER_NAME>",
+    route: { customDomain: "<WEBHOOK_RECEIVER_DOMAIN>" },
+  };
+
+  const generated = generateConfigs(config, await baseConfigs());
+  const secrets = deploymentSecretsFromEnvironment(config, {
+    GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+    CF_AI_GATEWAY_API_TOKEN: "cloudflare-api-token",
+  });
+
+  assert.equal(generated.webhookReceiver, undefined);
+  assert.equal(secrets.webhookReceiver, undefined);
 });
 
 test("omits dormant AI Gateway configuration", async () => {

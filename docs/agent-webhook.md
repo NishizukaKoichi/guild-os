@@ -55,6 +55,18 @@ still mandatory for operator-led replay or a future connector-specific recovery 
 Redirects are rejected. The endpoint must return directly within the smaller of 30 seconds and the
 run's effective duration limit. Response bodies are ignored and cancelled.
 
+## Bundled reference receiver
+
+`packages/webhook-receiver` is an optional deployable implementation of this contract. It verifies
+the HMAC over the exact bytes before JSON parsing, enforces a five-minute replay window, validates
+the event envelope, and atomically stores one receipt in a SQLite-backed Durable Object selected by
+Guild and idempotency key. An exact replay returns the original receipt without another effect; a
+different payload using the same key returns `409`.
+
+The reference effect is durable event receipt. Replace it with an owned email, ticketing, posting,
+or automation adapter when needed, while retaining claim-before-effect semantics. Disable
+`referenceWebhook.enabled` only after the replacement passes the same contract tests.
+
 ## Deployment
 
 1. Deploy the receiver in the purchaser-owned environment.
@@ -73,6 +85,10 @@ run's effective duration limit. Response bodies are ignored and cancelled.
    `deployment.jsonc`.
 5. Run `pnpm check`, deploy, send one nonproduction event, and verify the receiver's idempotency
    record and the Guild Chronicle.
+
+For the bundled receiver, run `pnpm smoke:webhook` with `WEBHOOK_RECEIVER_URL` and the signing secret
+set only in the process environment. It sends one synthetic request twice and requires `201` then
+deduplicated `200` with the same body hash.
 
 Changing the URL requires a new Connector ID. The deploy script transfers the secret with a
 temporary mode-`0600` Wrangler secrets file and removes it after deployment. Never place the secret

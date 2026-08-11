@@ -48,6 +48,8 @@ Implemented and tested:
   snapshots, execution-time permission rechecks, and Cloudflare Workflows
 - Fixed deployment-owned HTTPS Webhook Connector with HMAC signatures, idempotency keys, redirect
   refusal, bounded execution, and no unsafe automatic write retry
+- Optional purchaser-owned reference Webhook receiver with exact-byte HMAC verification, five-minute
+  replay rejection, and strongly consistent SQLite Durable Object idempotency
 - Run-level Kill Switch, Identity-offboarding cancellation, exhausted-dispatch failure handling, and
   post-Kill delivery-race Chronicle evidence
 - Permission-filtered Agent/Space/Connector discovery for Cloudflare OS and a responsive run,
@@ -82,6 +84,7 @@ Cloudflare OS remains a Git submodule. Guild-owned packages live outside it:
 | `packages/guild-domain` | Framework-independent types, validation, permissions, and governance |
 | `packages/guild-postgres` | Schema, migration runner, transaction helper, and repository |
 | `packages/guild-gatekeeper` | Cloudflare OS capability and management-UI boundary |
+| `packages/webhook-receiver` | Optional external-write receiver and durable replay protection |
 | `packages/error-reporter` | Private structured backend error events |
 
 See [architecture](docs/architecture.md), [security](docs/security.md), and the

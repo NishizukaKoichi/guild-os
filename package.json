@@ -4,13 +4,14 @@
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
-    "build": "pnpm --filter @guild-os/domain build && pnpm --filter @guild-os/postgres build && pnpm --filter @guild-os/gatekeeper build && pnpm --filter error-reporter build",
-    "test": "node --test scripts/*.test.mjs && pnpm --filter @guild-os/domain test && pnpm --filter @guild-os/postgres test && pnpm --filter @guild-os/gatekeeper test && pnpm --filter error-reporter test",
-    "types:check": "pnpm --filter @guild-os/domain types:check && pnpm --filter @guild-os/postgres types:check && pnpm --filter @guild-os/gatekeeper types:check && pnpm --filter error-reporter types:check",
+    "build": "pnpm --filter @guild-os/domain build && pnpm --filter @guild-os/postgres build && pnpm --filter @guild-os/gatekeeper build && pnpm --filter @guild-os/webhook-receiver build && pnpm --filter error-reporter build",
+    "test": "node --test scripts/*.test.mjs && pnpm --filter @guild-os/domain test && pnpm --filter @guild-os/postgres test && pnpm --filter @guild-os/gatekeeper test && pnpm --filter @guild-os/webhook-receiver test && pnpm --filter error-reporter test",
+    "types:check": "pnpm --filter @guild-os/domain types:check && pnpm --filter @guild-os/postgres types:check && pnpm --filter @guild-os/gatekeeper types:check && pnpm --filter @guild-os/webhook-receiver types:check && pnpm --filter error-reporter types:check",
     "lint": "pnpm types:check",
     "db:migrate": "pnpm --filter @guild-os/postgres migrate",
     "check": "node scripts/deploy.mjs --check",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "smoke:webhook": "node packages/webhook-receiver/scripts/smoke.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.20.1",
