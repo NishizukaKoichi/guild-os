@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { parse } from "jsonc-parser";
-import { generateConfigs, validateConfig } from "./deploy.mjs";
+import {
+  deploymentSecretsFromEnvironment,
+  generateConfigs,
+  validateConfig,
+} from "./deploy.mjs";
 
 const validConfig = {
   accountId: "0123456789abcdef0123456789abcdef",
@@ -41,6 +45,12 @@ const validConfig = {
     askModel: "@cf/meta/llama-3.1-8b-instruct-fast",
     aiGatewayId: "default",
     askRequestsPerMinute: 20,
+    agentWorkflowName: "acme-guild-agent-execution",
+    webhook: {
+      connectorId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
+      name: "Approved operations webhook",
+      url: "https://hooks.example.com/guild-events",
+    },
   },
   errorReporting: { enabled: true, environment: "production", release: "abc123" },
   resources: {
@@ -132,6 +142,14 @@ test("rejects destructive or malformed deployment values", () => {
   excessiveAskLimit.guild.askRequestsPerMinute = 10_001;
   assert.throws(() => validateConfig(excessiveAskLimit), /cannot exceed/i);
 
+  const unsafeWebhook = structuredClone(validConfig);
+  unsafeWebhook.guild.webhook.url = "http://127.0.0.1/internal";
+  assert.throws(() => validateConfig(unsafeWebhook), /Webhook URL.*HTTPS/i);
+
+  const malformedWorkflow = structuredClone(validConfig);
+  malformedWorkflow.guild.agentWorkflowName = "Bad Workflow";
+  assert.throws(() => validateConfig(malformedWorkflow), /Workflow name/i);
+
   const invalidTraceSampling = structuredClone(validConfig);
   invalidTraceSampling.observability.traces.headSamplingRate = 2;
   assert.throws(() => validateConfig(invalidTraceSampling), /sampling/i);
@@ -155,6 +173,44 @@ test("rejects destructive or malformed deployment values", () => {
   const invalidArtifactsNamespace = structuredClone(validConfig);
   invalidArtifactsNamespace.context.artifacts.namespace = "context/collections";
   assert.throws(() => validateConfig(invalidArtifactsNamespace), /namespace must be omitted/i);
+});
+
+test("requires deployment secrets before any live deploy", () => {
+  assert.throws(
+    () => deploymentSecretsFromEnvironment(validConfig, {}),
+    /GUILD_WEBHOOK_SIGNING_SECRET.*32 bytes/i,
+  );
+  assert.throws(
+    () => deploymentSecretsFromEnvironment(validConfig, {
+      GUILD_WEBHOOK_SIGNING_SECRET: "too-short",
+    }),
+    /GUILD_WEBHOOK_SIGNING_SECRET.*32 bytes/i,
+  );
+  assert.throws(
+    () => deploymentSecretsFromEnvironment(validConfig, {
+      GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+    }),
+    /CF_AI_GATEWAY_API_TOKEN.*enabled/i,
+  );
+});
+
+test("returns only secrets required by the active deployment", () => {
+  assert.deepEqual(deploymentSecretsFromEnvironment(validConfig, {
+    GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+    CF_AI_GATEWAY_API_TOKEN: "cloudflare-api-token",
+    UNRELATED_SECRET: "must-not-be-forwarded",
+  }), {
+    guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
+    workshop: { CF_AI_GATEWAY_API_TOKEN: "cloudflare-api-token" },
+  });
+
+  const withoutAi = structuredClone(validConfig);
+  withoutAi.aiGateway.enabled = false;
+  assert.deepEqual(deploymentSecretsFromEnvironment(withoutAi, {
+    GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+  }), {
+    guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
+  });
 });
 
 test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", async () => {
@@ -217,6 +273,12 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     GUILD_RETENTION_DAYS: "2555",
     GUILD_ASK_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
     GUILD_AI_GATEWAY_ID: "default",
+    GUILD_WEBHOOK_CONNECTOR_ID: validConfig.guild.webhook.connectorId,
+    GUILD_WEBHOOK_CONNECTOR_NAME: "Approved operations webhook",
+    GUILD_WEBHOOK_URL: "https://hooks.example.com/guild-events",
+  });
+  assert.deepEqual(generated.guildGatekeeper.secrets, {
+    required: ["GUILD_WEBHOOK_SIGNING_SECRET"],
   });
   assert.deepEqual(generated.guildGatekeeper.hyperdrive, [{
     binding: "HYPERDRIVE",
@@ -232,6 +294,15 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     namespace_id: "26156863",
     simple: { limit: 20, period: 60 },
   }]);
+  assert.deepEqual(generated.guildGatekeeper.workflows, [{
+    name: "acme-guild-agent-execution",
+    binding: "AGENT_EXECUTION",
+    class_name: "AgentExecutionWorkflow",
+  }]);
+  assert.equal(
+    generated.guildGatekeeper.compatibility_flags.includes("global_fetch_strictly_public"),
+    true,
+  );
   assert.deepEqual(generated.guildGatekeeper.triggers, { crons: ["*/5 * * * *"] });
   assert.equal(generated.errorReporter.name, "acme-cloudflare-os-errors");
   assert.deepEqual(generated.workshop.observability.logs, {

@@ -44,6 +44,14 @@ Implemented and tested:
 - Governed Role/Space Announcements with immutable publication, set-based recipient delivery,
   deduplicated Inbox notifications, and recipient-controlled read state
 - Permission-prefiltered Chronicle search with actor, subject, date, and normalized action filters
+- Governed Risk Level 2 Agent plans with Cloudflare OS approval, Guild quorum, immutable authority
+  snapshots, execution-time permission rechecks, and Cloudflare Workflows
+- Fixed deployment-owned HTTPS Webhook Connector with HMAC signatures, idempotency keys, redirect
+  refusal, bounded execution, and no unsafe automatic write retry
+- Run-level Kill Switch, Identity-offboarding cancellation, exhausted-dispatch failure handling, and
+  post-Kill delivery-race Chronicle evidence
+- Permission-filtered Agent/Space/Connector discovery for Cloudflare OS and a responsive run,
+  approval, result, usage, and Kill management surface
 - English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
 
@@ -51,7 +59,6 @@ Not exposed as finished product features yet:
 
 - Scoped People views for non-global administrators
 - Semantic search index beyond the current PostgreSQL full-text retrieval
-- Agent write actions, approval quorum execution, Workflows, and kill-switch UI
 - Guild federation
 
 These incomplete capabilities are absent from the user-facing action surface rather than presented
@@ -78,7 +85,8 @@ Cloudflare OS remains a Git submodule. Guild-owned packages live outside it:
 | `packages/error-reporter` | Private structured backend error events |
 
 See [architecture](docs/architecture.md), [security](docs/security.md), and the
-[accepted decisions](docs/adr/).
+[accepted decisions](docs/adr/). Operational owners should also keep the
+[deployment](docs/deployment.md) and [backup and recovery](docs/backup-and-recovery.md) runbooks.
 
 ## Prerequisites
 
@@ -89,8 +97,8 @@ See [architecture](docs/architecture.md), [security](docs/security.md), and the
 - Workers, KV, R2, Browser Rendering, and Dynamic Worker Loaders
 - A Cloudflare Access self-hosted application for the Workshop hostname
 
-Workers AI access is required for Ask Guild. Additional Agent models and external providers remain
-optional until Agent execution is enabled.
+Workers AI access is required for Ask Guild. The v1 Agent write path does not call a model itself;
+it receives a plan from Cloudflare OS and executes only the configured signed Webhook after approval.
 
 ## Local setup
 
@@ -149,7 +157,26 @@ Edit `deployment.jsonc`:
 4. Generate a stable Guild UUID with `node -e "console.log(crypto.randomUUID())"`.
 5. Set the Guild name, purpose, first Space, approval quorums, retention period, and Hyperdrive ID.
 6. Select the Workers AI model, AI Gateway ID, and per-Identity Ask Guild rate limit.
-7. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
+7. Set a unique Agent Workflow name and a new Webhook Connector UUID, name, and fixed HTTPS URL.
+8. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
+
+Provide the Webhook signing secret only for the live deploy. It must contain at least 32 random
+bytes and must never be stored in `deployment.jsonc` or a tracked environment file:
+
+```sh
+read -r -s GUILD_WEBHOOK_SIGNING_SECRET
+export GUILD_WEBHOOK_SIGNING_SECRET
+pnpm deploy
+unset GUILD_WEBHOOK_SIGNING_SECRET
+```
+
+`scripts/deploy.mjs` validates every required secret before deploying any Worker, writes only the
+required values to mode-`0600` temporary files for Wrangler's `--secrets-file` option, removes the
+files in a `finally` block, and strips those values from child-process environments. When AI Gateway
+is enabled, provide `CF_AI_GATEWAY_API_TOKEN` the same way. `pnpm check` never requires secrets.
+
+The receiving service must verify the signature and persist the idempotency key before applying an
+effect. See the [Agent Webhook contract](docs/agent-webhook.md).
 
 The first Workshop administrator who opens **Guild** initializes the database and becomes Root
 Owner. Keep the Access policy restricted to that person until initialization is complete. The Root
@@ -182,10 +209,13 @@ explicit operation:
 
 ```sh
 pnpm exec wrangler login
+# Set the required deployment secrets as described above, then:
 pnpm deploy
 ```
 
 No Cloudflare resources are created by the test, build, lint, or typecheck commands.
+Follow the complete [deployment runbook](docs/deployment.md); a successful CLI deploy alone is not
+a production acceptance result.
 
 ## Upgrades
 

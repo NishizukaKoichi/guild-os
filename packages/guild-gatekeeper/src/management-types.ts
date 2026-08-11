@@ -1,5 +1,9 @@
 import type {
   AgentLimits,
+  AgentRun,
+  AgentRunUsage,
+  AgentApprovalRequest,
+  AgentApprovalVote,
   Announcement,
   AppLocale,
   Classification,
@@ -25,6 +29,8 @@ import type {
   StepStatus,
   Visibility,
   ChronicleEvent,
+  ConnectorStatus,
+  JsonObject,
 } from "@guild-os/domain";
 
 export interface UiBootstrapState {
@@ -578,6 +584,76 @@ export interface UiChroniclePageRequest {
   occurredTo?: string | null;
 }
 
+export interface UiAgentConnector {
+  id: string;
+  name: string;
+  kind: "https_webhook";
+  status: ConnectorStatus;
+  version: number;
+}
+
+export interface UiRunnableAgent {
+  identityId: string;
+  displayName: string;
+  model: string;
+  spaceIds: readonly string[];
+  limits: AgentLimits;
+}
+
+export interface UiAgentRunCapabilities {
+  review: boolean;
+  stop: boolean;
+}
+
+export interface UiAgentRun extends Omit<AgentRun, "guildId"> {
+  agentDisplayName: string;
+  requesterDisplayName: string;
+  connectorName: string;
+  approval: AgentApprovalRequest | null;
+  capabilities: UiAgentRunCapabilities;
+}
+
+export interface UiAgentRunDetail extends UiAgentRun {
+  votes: readonly AgentApprovalVote[];
+}
+
+export interface UiAgentRunPage {
+  items: readonly UiAgentRun[];
+  connectors: readonly UiAgentConnector[];
+  runnableAgents: readonly UiRunnableAgent[];
+  runnableSpaceIds: readonly string[];
+  nextCursor: string | null;
+}
+
+export interface UiAgentRunPageRequest {
+  cursor?: string | null;
+}
+
+export interface CreateAgentWebhookRunRequest {
+  requestId: string;
+  agentIdentityId: string;
+  connectorId: string;
+  questId: string | null;
+  spaceId: string;
+  objective: string;
+  expectedOutcome: string;
+  steps: readonly string[];
+  eventType: string;
+  payload: JsonObject;
+  estimatedUsage: AgentRunUsage;
+  visibility: Visibility;
+  classification: Classification;
+  allowedIdentityIds: readonly string[];
+}
+
+export interface ReviewAgentRunRequest {
+  runId: string;
+  approvalRequestId: string;
+  verdict: "approve" | "reject";
+  reason: string;
+  reauthenticatedAt: string | null;
+}
+
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
@@ -641,5 +717,10 @@ export interface GuildUiApi {
   markInboxRead(input: MarkInboxReadRequest): Promise<string | null>;
   markAllInboxRead(): Promise<number>;
   getChroniclePage(request?: UiChroniclePageRequest): Promise<UiChroniclePage>;
+  getAgentRunPage(request?: UiAgentRunPageRequest): Promise<UiAgentRunPage>;
+  getAgentRun(runId: string): Promise<UiAgentRunDetail>;
+  createAgentWebhookRun(input: CreateAgentWebhookRunRequest): Promise<string>;
+  reviewAgentRun(input: ReviewAgentRunRequest): Promise<void>;
+  killAgentRun(runId: string): Promise<void>;
   setPreferredLocale(locale: AppLocale): Promise<void>;
 }

@@ -4,8 +4,10 @@ import {
   describeGuildAccount,
   describeGuildVendor,
 } from "../src/guild.js";
-import type { GuildOverview } from "../src/types.js";
+import type { GuildAgentExecutionContext, GuildOverview } from "../src/types.js";
 import { generateInvitationToken, hashInvitationToken } from "../src/management-api.js";
+import { deliverSignedWebhook } from "../src/agent-webhook.js";
+import type { AgentExecutionClaim } from "../src/agent-service.js";
 
 describe("guild-gatekeeper", () => {
   it("describes a managed singleton with a full-page Guild surface", () => {
@@ -91,6 +93,39 @@ describe("guild-gatekeeper", () => {
     await expect(session.searchKnowledge("restricted")).rejects.toThrow("observation denied");
   });
 
+  it("authorizes filtered Agent execution discovery before returning IDs", async () => {
+    const calls: string[] = [];
+    const context: GuildAgentExecutionContext = {
+      spaces: [{ id: "space-id", name: "Research", parentSpaceId: null }],
+      agents: [{
+        identityId: "agent-id",
+        displayName: "Research Agent",
+        model: "workers-ai/default",
+        spaceIds: ["space-id"],
+        limits: {
+          currency: "USD",
+          maxBudgetMinor: 0,
+          maxDurationSeconds: 30,
+          maxSteps: 3,
+          maxRetries: 0,
+          maxDelegationDepth: 0,
+        },
+      }],
+      connectors: [{ id: "connector-id", name: "Operations", kind: "https_webhook" }],
+    };
+    const session = new GuildSessionImpl({
+      async authorizeObservation() { calls.push("authorize"); },
+    }, async () => {
+      throw new Error("unused");
+    }, async () => [], undefined, async () => {
+      calls.push("filter");
+      return context;
+    });
+
+    await expect(session.getAgentExecutionContext()).resolves.toEqual(context);
+    expect(calls).toEqual(["filter", "authorize"]);
+  });
+
   it("creates high-entropy invitation tokens and stores only deterministic hashes", async () => {
     const first = generateInvitationToken();
     const second = generateInvitationToken();
@@ -100,5 +135,99 @@ describe("guild-gatekeeper", () => {
     await expect(hashInvitationToken(first)).resolves.toMatch(/^[a-f0-9]{64}$/);
     await expect(hashInvitationToken(first)).resolves.toBe(await hashInvitationToken(first));
     await expect(hashInvitationToken("short")).rejects.toThrow("malformed");
+  });
+
+  it("stages a session Agent action through its governed callback", async () => {
+    const input = {
+      requestId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa0",
+      agentIdentityId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa1",
+      connectorId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa2",
+      spaceId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555aa3",
+      objective: "Publish completion",
+      expectedOutcome: "One signed event is accepted.",
+      steps: ["Verify authority", "Send event"],
+      eventType: "guild.quest.completed",
+      payload: { completed: true },
+      estimatedDurationSeconds: 10,
+    };
+    const session = new GuildSessionImpl({
+      async authorizeObservation() {},
+    }, async () => {
+      throw new Error("unused");
+    }, async () => [], async (received) => ({
+      runId: received.requestId,
+      actionId: 7,
+      status: "pending",
+      message: "Awaiting approval.",
+    }));
+
+    await expect(session.planWebhookAction(input)).resolves.toEqual({
+      runId: input.requestId,
+      actionId: 7,
+      status: "pending",
+      message: "Awaiting approval.",
+    });
+  });
+
+  it("signs exactly one bounded Webhook request with an idempotency key", async () => {
+    const claim: AgentExecutionClaim = {
+      runId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab0",
+      guildId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab1",
+      agentIdentityId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab2",
+      requesterIdentityId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ab3",
+      eventType: "guild.quest.completed",
+      payloadJson: JSON.stringify({ questId: "quest-1", completed: true }),
+      idempotencyKey: "guild-agent:test-run",
+      plannedSteps: 2,
+      endpointUrl: "https://hooks.example.com/guild-events",
+      effectiveLimits: {
+        currency: "USD",
+        maxBudgetMinor: 0,
+        maxDurationSeconds: 30,
+        maxSteps: 2,
+        maxRetries: 0,
+        maxDelegationDepth: 0,
+      },
+    };
+    const requests: { url: string; init: RequestInit }[] = [];
+    const result = await deliverSignedWebhook(
+      claim.endpointUrl,
+      "test-signing-secret-with-at-least-32-characters",
+      claim,
+      async (url, init) => {
+        requests.push({ url: String(url), init: init ?? {} });
+        return new Response(null, { status: 202 });
+      },
+    );
+
+    expect(result.statusCode).toBe(202);
+    expect(requests).toHaveLength(1);
+    const request = requests[0]!;
+    const headers = new Headers(request.init.headers);
+    const body = String(request.init.body);
+    const timestamp = headers.get("x-guild-timestamp")!;
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode("test-signing-secret-with-at-least-32-characters"),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const signature = headers.get("x-guild-signature")!.replace(/^v1=/, "");
+    const signatureBytes = Uint8Array.from(signature.match(/../g)!, (pair) => Number.parseInt(pair, 16));
+    await expect(crypto.subtle.verify(
+      "HMAC",
+      key,
+      signatureBytes,
+      new TextEncoder().encode(`${timestamp}.${body}`),
+    )).resolves.toBe(true);
+    expect(request.url).toBe(claim.endpointUrl);
+    expect(request.init.redirect).toBe("error");
+    expect(headers.get("idempotency-key")).toBe(claim.idempotencyKey);
+    expect(JSON.parse(body)).toMatchObject({
+      id: claim.runId,
+      type: claim.eventType,
+      data: { questId: "quest-1", completed: true },
+    });
   });
 });

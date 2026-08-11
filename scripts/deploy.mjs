@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
 import { parse, printParseErrorCode } from "jsonc-parser";
@@ -38,6 +39,10 @@ const requiredPaths = [
   "guild.askModel",
   "guild.aiGatewayId",
   "guild.askRequestsPerMinute",
+  "guild.agentWorkflowName",
+  "guild.webhook.connectorId",
+  "guild.webhook.name",
+  "guild.webhook.url",
   "observability.enabled",
   "observability.headSamplingRate",
   "observability.logs.invocationLogs",
@@ -134,6 +139,22 @@ export function validateConfig(config) {
   }
   if (!/^[a-f\d]{32}$/i.test(config.guild.hyperdriveId)) {
     throw new Error("Guild Hyperdrive ID must be 32 hexadecimal characters.");
+  }
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(config.guild.agentWorkflowName)) {
+    throw new Error("Guild Agent Workflow name must use lowercase letters, numbers, and hyphens.");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(config.guild.webhook.connectorId)) {
+    throw new Error("Guild Webhook Connector ID must be a UUID.");
+  }
+  if (typeof config.guild.webhook.name !== "string" ||
+      !config.guild.webhook.name.trim() || config.guild.webhook.name.length > 200) {
+    throw new Error("Guild Webhook name must contain 1-200 characters.");
+  }
+  const webhookUrl = new URL(config.guild.webhook.url);
+  if (webhookUrl.protocol !== "https:" || webhookUrl.username || webhookUrl.password ||
+      webhookUrl.search || webhookUrl.hash || config.guild.webhook.url.length > 2048) {
+    throw new Error("Guild Webhook URL must be a credential-free HTTPS URL without query or hash.");
   }
   if (!/^@cf\/[a-z0-9._-]+\/[a-z0-9._-]+$/i.test(config.guild.askModel)) {
     throw new Error("Guild Ask model must be a Workers AI @cf/provider/model identifier.");
@@ -265,6 +286,28 @@ export function validateConfig(config) {
   return config;
 }
 
+export function deploymentSecretsFromEnvironment(config, env) {
+  const webhookSigningSecret = env.GUILD_WEBHOOK_SIGNING_SECRET;
+  if (typeof webhookSigningSecret !== "string" ||
+      Buffer.byteLength(webhookSigningSecret, "utf8") < 32) {
+    throw new Error(
+      "GUILD_WEBHOOK_SIGNING_SECRET must be set to at least 32 bytes for deployment.",
+    );
+  }
+
+  const secrets = {
+    guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: webhookSigningSecret },
+  };
+  if (config.aiGateway.enabled) {
+    const aiGatewayToken = env.CF_AI_GATEWAY_API_TOKEN;
+    if (typeof aiGatewayToken !== "string" || !aiGatewayToken.trim()) {
+      throw new Error("CF_AI_GATEWAY_API_TOKEN must be set when AI Gateway is enabled.");
+    }
+    secrets.workshop = { CF_AI_GATEWAY_API_TOKEN: aiGatewayToken };
+  }
+  return secrets;
+}
+
 function routeConfig(route) {
   return route.workersDev
     ? { workers_dev: true, routes: undefined }
@@ -392,6 +435,12 @@ export function generateConfigs(config, bases) {
     GUILD_RETENTION_DAYS: String(config.guild.dataRetentionDays),
     GUILD_ASK_MODEL: config.guild.askModel,
     GUILD_AI_GATEWAY_ID: config.guild.aiGatewayId,
+    GUILD_WEBHOOK_CONNECTOR_ID: config.guild.webhook.connectorId,
+    GUILD_WEBHOOK_CONNECTOR_NAME: config.guild.webhook.name,
+    GUILD_WEBHOOK_URL: config.guild.webhook.url,
+  };
+  guildGatekeeper.secrets = {
+    required: ["GUILD_WEBHOOK_SIGNING_SECRET"],
   };
   guildGatekeeper.hyperdrive = [{
     binding: "HYPERDRIVE",
@@ -409,6 +458,15 @@ export function generateConfigs(config, bases) {
     namespace_id: String(Number.parseInt(config.guild.id.replaceAll("-", "").slice(0, 8), 16) + 1),
     simple: { limit: config.guild.askRequestsPerMinute, period: 60 },
   }];
+  guildGatekeeper.workflows = [{
+    name: config.guild.agentWorkflowName,
+    binding: "AGENT_EXECUTION",
+    class_name: "AgentExecutionWorkflow",
+  }];
+  guildGatekeeper.compatibility_flags = [...new Set([
+    ...(guildGatekeeper.compatibility_flags ?? []),
+    "global_fetch_strictly_public",
+  ])];
   guildGatekeeper.triggers = { crons: ["*/5 * * * *"] };
 
   if (errorReporter) {
@@ -438,8 +496,19 @@ async function readDeployment(path) {
   }
 }
 
+function sanitizedChildEnv(env) {
+  const childEnv = { ...env };
+  delete childEnv.GUILD_WEBHOOK_SIGNING_SECRET;
+  delete childEnv.CF_AI_GATEWAY_API_TOKEN;
+  return childEnv;
+}
+
 function run(args, cwd = root, env = process.env) {
-  const result = spawnSync("pnpm", args, { cwd, env, stdio: "inherit" });
+  const result = spawnSync("pnpm", args, {
+    cwd,
+    env: sanitizedChildEnv(env),
+    stdio: "inherit",
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     const where = relative(root, cwd) || ".";
@@ -469,6 +538,11 @@ function build(config) {
 async function main() {
   requireSubmodule();
   const config = await readDeployment(join(root, "deployment.jsonc"));
+  const check = process.argv.includes("--check");
+  // Validate every secret before any Worker is deployed. Dry runs intentionally remain secret-free.
+  const deploymentSecrets = check
+    ? undefined
+    : deploymentSecretsFromEnvironment(config, process.env);
   const generated = generateConfigs(config, {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
@@ -476,26 +550,46 @@ async function main() {
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
   });
 
+  let secretsDirectory;
+  const secretFiles = {};
   try {
     for (const [name, generatedConfig] of Object.entries(generated)) {
       await writeFile(generatedPaths[name], JSON.stringify(generatedConfig, null, 2) + "\n");
     }
-    const check = process.argv.includes("--check");
     if (check) run(["test"]);
     build(config);
+
+    if (deploymentSecrets) {
+      secretsDirectory = await mkdtemp(join(tmpdir(), "guild-os-secrets-"));
+      await chmod(secretsDirectory, 0o700);
+      for (const [name, secrets] of Object.entries(deploymentSecrets)) {
+        const path = join(secretsDirectory, `${name}.json`);
+        await writeFile(path, JSON.stringify(secrets), { mode: 0o600 });
+        secretFiles[name] = path;
+      }
+    }
+
     const deployArgs = check ? ["--dry-run"] : [];
+    const secretsArgs = (name) => secretFiles[name]
+      ? ["--secrets-file", secretFiles[name]]
+      : [];
     if (config.errorReporting.enabled) {
       run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
         join(root, "packages/error-reporter"));
     }
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "cloudflare-os/packages/gatekeeper-context"));
-    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
+    run(["exec", "wrangler", "deploy", "--config", generatedName,
+      ...secretsArgs("guildGatekeeper"), ...deployArgs],
       join(root, "packages/guild-gatekeeper"));
-    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
+    run(["exec", "wrangler", "deploy", "--config", generatedName,
+      ...secretsArgs("workshop"), ...deployArgs],
       join(root, "cloudflare-os/packages/workshop-backend"));
   } finally {
-    await Promise.all(Object.values(generatedPaths).map((path) => rm(path, { force: true })));
+    await Promise.all([
+      ...Object.values(generatedPaths).map((path) => rm(path, { force: true })),
+      ...(secretsDirectory ? [rm(secretsDirectory, { recursive: true, force: true })] : []),
+    ]);
   }
 }
 

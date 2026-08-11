@@ -71,6 +71,14 @@ freezes the audience, inserts recipient notifications with one deduplicated SQL 
 records Chronicle evidence in the same transaction. Inbox and Chronicle rows retain the source
 security boundary but always require the reader's current Membership, Role, Space, and clearance.
 
+Agent execution follows the same boundary. `guild-domain/agent.ts` validates plans, transitions,
+JSON bounds, usage, and limit intersection; `guild-postgres/agent-run.ts` owns immutable plans,
+append-only votes, authority snapshots, run state, Chronicle, and the transactional Workflow
+outbox; `guild-gatekeeper/agent-service.ts` performs plan-time and execution-time authorization;
+`agent-workflow.ts` coordinates durable waits and one external attempt; `agent-webhook.ts` owns the
+fixed signed transport; and the Agent page owns presentation only. Cloudflare OS action approval and
+Guild quorum are separate gates. Workflow events never substitute for PostgreSQL state.
+
 ## Source-of-truth rules
 
 - PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge

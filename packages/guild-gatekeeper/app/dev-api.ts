@@ -5,6 +5,7 @@ import type {
   IssuedInvitation,
   UiBootstrapState,
   UiAnnouncement,
+  UiAgentRunDetail,
   UiChronicleEvent,
   UiDirectory,
   UiDecisionDetail,
@@ -54,6 +55,9 @@ const alternativeOptionId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ac2";
 const announcementId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad0";
 const inboxApprovalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad1";
 const inboxKnowledgeId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad2";
+const connectorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad3";
+const agentRunId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad4";
+const agentApprovalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad5";
 
 function token(): string {
   return "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -146,7 +150,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       identityId: agentId,
       instructions: "Synthesize research only from Knowledge visible in the assigned Space.",
       model: "workers-ai/default",
-      toolIds: ["knowledge-search"],
+      toolIds: ["knowledge-search", "https_webhook"],
       limits: bootstrap.agentDefaults,
       status: "active",
     }],
@@ -489,6 +493,83 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     correlationId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555af1",
     occurredAt: "2026-08-12T01:00:00.000Z",
     details: { from: "ready", to: "in_progress", source: "agent-run" },
+  }];
+  const agentCapabilities = (status: UiAgentRunDetail["status"]) => ({
+    review: mode === "root" && status === "awaiting_approval",
+    stop: mode === "root" && ["planning", "awaiting_approval", "running"].includes(status),
+  });
+  let agentRuns: UiAgentRunDetail[] = [{
+    id: agentRunId,
+    spaceId: researchSpaceId,
+    ownerIdentityId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedIdentityIds: [],
+    agentIdentityId: agentId,
+    requesterIdentityId: rootId,
+    connectorId,
+    questId,
+    riskLevel: 2,
+    status: "awaiting_approval",
+    source: "guild-ui",
+    plan: {
+      objective: "Publish the verified research completion event",
+      expectedOutcome: "The fictional downstream system receives one signed completion event.",
+      steps: ["Recheck current authority", "Send one signed webhook"],
+      connectorId,
+      questId,
+      action: {
+        kind: "https_webhook",
+        eventType: "guild.quest.completed",
+        payload: { questId, result: "verified" },
+      },
+      estimatedUsage: {
+        budgetMinor: 0,
+        durationSeconds: 15,
+        steps: 2,
+        retries: 0,
+        delegationDepth: 0,
+      },
+    },
+    result: null,
+    errorMessage: null,
+    limits: bootstrap.agentDefaults,
+    usage: {
+      budgetMinor: 0,
+      durationSeconds: 0,
+      steps: 0,
+      retries: 0,
+      delegationDepth: 0,
+    },
+    workflowInstanceId: `agent-run-${agentRunId}`,
+    idempotencyKey: `demo-agent-action:${agentRunId}`,
+    requestHash: "a".repeat(64),
+    estimatedBudgetMinor: 0,
+    killRequestedAt: null,
+    startedAt: null,
+    finishedAt: null,
+    version: 1,
+    createdAt: "2026-08-12T02:35:00.000Z",
+    updatedAt: "2026-08-12T02:35:00.000Z",
+    agentDisplayName: "Research Synthesizer",
+    requesterDisplayName: "Avery Morgan",
+    connectorName: "Approved operations webhook",
+    approval: {
+      id: agentApprovalId,
+      guildId,
+      agentRunId,
+      riskLevel: 2,
+      actionKind: "https_webhook.post",
+      requiredApprovals: 1,
+      approvalCount: 0,
+      reauthenticationRequired: false,
+      status: "pending",
+      expiresAt: "2026-08-19T02:35:00.000Z",
+      createdAt: "2026-08-12T02:35:00.000Z",
+      updatedAt: "2026-08-12T02:35:00.000Z",
+    },
+    capabilities: agentCapabilities("awaiting_approval"),
+    votes: [],
   }];
 
   function appendDemoChronicle(
@@ -1516,6 +1597,185 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           (to === null || Date.parse(event.occurredAt) <= to)),
         nextCursor: null,
       };
+    },
+    async getAgentRunPage() {
+      return {
+        items: agentRuns.map(({ votes: _votes, ...run }) => ({
+          ...run,
+          capabilities: agentCapabilities(run.status),
+        })),
+        connectors: mode === "root" ? [{
+          id: connectorId,
+          name: "Approved operations webhook",
+          kind: "https_webhook" as const,
+          status: "active" as const,
+          version: 1,
+        }] : [],
+        runnableAgents: mode === "root" ? [{
+          identityId: agentId,
+          displayName: "Research Synthesizer",
+          model: "workers-ai/default",
+          spaceIds: [researchSpaceId],
+          limits: bootstrap.agentDefaults,
+        }] : [],
+        runnableSpaceIds: mode === "root" ? [researchSpaceId] : [],
+        nextCursor: null,
+      };
+    },
+    async getAgentRun(requestedRunId) {
+      const run = agentRuns.find((candidate) => candidate.id === requestedRunId);
+      if (!run) throw new Error("Agent run was not found.");
+      return { ...run, capabilities: agentCapabilities(run.status) };
+    },
+    async createAgentWebhookRun(input) {
+      if (mode !== "root") throw new Error("This identity cannot run Agents.");
+      const timestamp = now();
+      const approvalId = crypto.randomUUID();
+      agentRuns = [{
+        id: input.requestId,
+        spaceId: input.spaceId,
+        ownerIdentityId: bootstrap.accountId,
+        visibility: input.visibility,
+        classification: input.classification,
+        allowedIdentityIds: input.allowedIdentityIds,
+        agentIdentityId: input.agentIdentityId,
+        requesterIdentityId: bootstrap.accountId,
+        connectorId: input.connectorId,
+        questId: input.questId,
+        riskLevel: 2,
+        status: "awaiting_approval",
+        source: "guild-ui",
+        plan: {
+          objective: input.objective,
+          expectedOutcome: input.expectedOutcome,
+          steps: input.steps,
+          connectorId: input.connectorId,
+          questId: input.questId,
+          action: { kind: "https_webhook", eventType: input.eventType, payload: input.payload },
+          estimatedUsage: input.estimatedUsage,
+        },
+        result: null,
+        errorMessage: null,
+        limits: bootstrap.agentDefaults,
+        usage: {
+          budgetMinor: 0, durationSeconds: 0, steps: 0, retries: 0, delegationDepth: 0,
+        },
+        workflowInstanceId: `agent-run-${input.requestId}`,
+        idempotencyKey: `demo-agent-action:${input.requestId}`,
+        requestHash: "b".repeat(64),
+        estimatedBudgetMinor: input.estimatedUsage.budgetMinor,
+        killRequestedAt: null,
+        startedAt: null,
+        finishedAt: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        agentDisplayName: directory.identities.find(
+          (identity) => identity.id === input.agentIdentityId,
+        )?.displayName ?? "Agent",
+        requesterDisplayName: "Avery Morgan",
+        connectorName: "Approved operations webhook",
+        approval: {
+          id: approvalId,
+          guildId,
+          agentRunId: input.requestId,
+          riskLevel: 2,
+          actionKind: "https_webhook.post",
+          requiredApprovals: 1,
+          approvalCount: 0,
+          reauthenticationRequired: false,
+          status: "pending",
+          expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+        capabilities: agentCapabilities("awaiting_approval"),
+        votes: [],
+      }, ...agentRuns];
+      appendDemoChronicle(
+        "agent.run.planned",
+        "agent_run",
+        input.requestId,
+        agentRuns[0]!,
+        { eventType: input.eventType, riskLevel: 2, source: "guild-ui" },
+      );
+      return input.requestId;
+    },
+    async reviewAgentRun(input) {
+      if (mode !== "root") throw new Error("Only an authorized Human can review Agent runs.");
+      const current = agentRuns.find((candidate) => candidate.id === input.runId);
+      if (!current || current.approval?.id !== input.approvalRequestId ||
+          current.approval.status !== "pending") {
+        throw new Error("Pending Agent approval was not found.");
+      }
+      const timestamp = now();
+      const approved = input.verdict === "approve";
+      agentRuns = agentRuns.map((candidate) => candidate.id === input.runId ? {
+        ...candidate,
+        status: approved ? "succeeded" : "failed",
+        result: approved
+          ? { kind: "https_webhook", statusCode: 202, deliveredAt: timestamp }
+          : null,
+        errorMessage: approved ? null : "Human approval was rejected.",
+        usage: approved
+          ? { budgetMinor: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 }
+          : candidate.usage,
+        startedAt: approved ? timestamp : null,
+        finishedAt: timestamp,
+        version: candidate.version + 2,
+        updatedAt: timestamp,
+        approval: {
+          ...candidate.approval!,
+          approvalCount: approved ? 1 : 0,
+          status: approved ? "applied" : "rejected",
+          updatedAt: timestamp,
+        },
+        votes: [...candidate.votes, {
+          guildId,
+          approvalRequestId: input.approvalRequestId,
+          approverIdentityId: bootstrap.accountId,
+          verdict: input.verdict,
+          reason: input.reason,
+          reauthenticatedAt: input.reauthenticatedAt,
+          createdAt: timestamp,
+        }],
+        capabilities: agentCapabilities(approved ? "succeeded" : "failed"),
+      } : candidate);
+      appendDemoChronicle(
+        approved ? "agent.run.succeeded" : "agent.run.rejected",
+        "agent_run",
+        input.runId,
+        current,
+        { source: "demo-workflow" },
+      );
+    },
+    async killAgentRun(requestedRunId) {
+      if (mode !== "root") throw new Error("This identity cannot stop Agents.");
+      const current = agentRuns.find((candidate) => candidate.id === requestedRunId);
+      if (!current || !["planning", "awaiting_approval", "running"].includes(current.status)) {
+        throw new Error("Active Agent run was not found.");
+      }
+      const timestamp = now();
+      agentRuns = agentRuns.map((candidate) => candidate.id === requestedRunId ? {
+        ...candidate,
+        status: "killed",
+        errorMessage: "Killed by an authorized Human.",
+        killRequestedAt: timestamp,
+        finishedAt: timestamp,
+        version: candidate.version + 1,
+        updatedAt: timestamp,
+        approval: candidate.approval?.status === "pending"
+          ? { ...candidate.approval, status: "expired", updatedAt: timestamp }
+          : candidate.approval,
+        capabilities: agentCapabilities("killed"),
+      } : candidate);
+      appendDemoChronicle(
+        "agent.run.killed",
+        "agent_run",
+        requestedRunId,
+        current,
+        { source: "guild-ui" },
+      );
     },
     async setPreferredLocale(locale) {
       bootstrap = { ...bootstrap, preferredLocale: locale };

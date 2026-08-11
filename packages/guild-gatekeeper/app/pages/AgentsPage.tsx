@@ -3,17 +3,20 @@ import { useMemo, useState } from "react";
 import type {
   AssignRoleRequest,
   CreateAgentRequest,
+  GuildUiApi,
   UiBootstrapState,
   UiDirectory,
   UiDirectoryIdentity,
 } from "../../src/management-types";
 import { AgentDialog } from "../components/AgentDialog";
+import { AgentRunsPanel } from "../components/AgentRunsPanel";
 import { IdentityRoleDialog } from "../components/IdentityRoleDialog";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { classificationTranslationKey, membershipTranslationKey, useI18n } from "../i18n";
 
 export function AgentsPage({
+  api,
   bootstrap,
   directory,
   onCreate,
@@ -21,6 +24,7 @@ export function AgentsPage({
   onAssignRole,
   onRemoveRole,
 }: {
+  api: GuildUiApi;
   bootstrap: UiBootstrapState;
   directory: UiDirectory;
   onCreate(input: CreateAgentRequest): Promise<void>;
@@ -134,6 +138,7 @@ export function AgentsPage({
           })}
         </section>
       )}
+      <AgentRunsPanel api={api} directory={directory} />
       {createOpen ? (
         <AgentDialog directory={directory} defaults={bootstrap.agentDefaults} onCreate={onCreate} onClose={() => setCreateOpen(false)} />
       ) : null}

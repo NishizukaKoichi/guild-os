@@ -30,6 +30,8 @@ import { GuildKnowledgeService } from "./knowledge-service.js";
 import { GuildWorkService } from "./work-service.js";
 import { GuildDecisionService } from "./decision-service.js";
 import { GuildCommunicationService } from "./communication-service.js";
+import { GuildAgentService } from "./agent-service.js";
+import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
 import type {
   AnnouncementTransitionRequest,
   AskGuildRequest,
@@ -37,6 +39,7 @@ import type {
   AssignRoleRequest,
   ClaimInvitationInput,
   CreateAgentRequest,
+  CreateAgentWebhookRunRequest,
   CreateAnnouncementRequest,
   CreateDecisionRequest,
   CreateGoalRequest,
@@ -55,6 +58,7 @@ import type {
   MarkInboxReadRequest,
   PublishAnnouncementResponse,
   ReviewKnowledgeRequest,
+  ReviewAgentRunRequest,
   ReviewDecisionRequest,
   ReviewDecisionResponse,
   SaveKnowledgeDraftRequest,
@@ -62,6 +66,9 @@ import type {
   SaveDecisionDraftRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
+  UiAgentRunDetail,
+  UiAgentRunPage,
+  UiAgentRunPageRequest,
   UiAnnouncement,
   UiAnnouncementPage,
   UiAnnouncementPageRequest,
@@ -409,6 +416,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         ),
       });
     });
+    if (["suspended", "departed"].includes(nextState)) {
+      await drainAgentWorkflowOutbox(this.#env);
+    }
   }
 
   async createRole(input: CreateRoleRequest): Promise<string> {
@@ -672,6 +682,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         });
       },
     );
+    if (["suspended", "departed"].includes(nextState)) {
+      await drainAgentWorkflowOutbox(this.#env);
+    }
   }
 
   getKnowledgePage(request: UiKnowledgePageRequest = {}): Promise<UiKnowledgePage> {
@@ -832,6 +845,30 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   getChroniclePage(request: UiChroniclePageRequest = {}): Promise<UiChroniclePage> {
     return new GuildCommunicationService(this.#env, this.#accountId).getChroniclePage(request);
+  }
+
+  getAgentRunPage(request: UiAgentRunPageRequest = {}): Promise<UiAgentRunPage> {
+    return new GuildAgentService(this.#env, this.#accountId).getPage(request);
+  }
+
+  getAgentRun(runId: string): Promise<UiAgentRunDetail> {
+    return new GuildAgentService(this.#env, this.#accountId).getRun(runId);
+  }
+
+  async createAgentWebhookRun(input: CreateAgentWebhookRunRequest): Promise<string> {
+    const runId = await new GuildAgentService(this.#env, this.#accountId).createRun(input);
+    await drainAgentWorkflowOutbox(this.#env);
+    return runId;
+  }
+
+  async reviewAgentRun(input: ReviewAgentRunRequest): Promise<void> {
+    await new GuildAgentService(this.#env, this.#accountId).review(input);
+    await drainAgentWorkflowOutbox(this.#env);
+  }
+
+  async killAgentRun(runId: string): Promise<void> {
+    await new GuildAgentService(this.#env, this.#accountId).kill(runId);
+    await drainAgentWorkflowOutbox(this.#env);
   }
 
   async setPreferredLocale(locale: AppLocale): Promise<void> {

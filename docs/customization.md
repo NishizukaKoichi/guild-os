@@ -143,11 +143,17 @@ To fund Workers AI directly:
 
 To route it through AI Gateway, change `mode` to `gateway` and add the gateway name. Cloudflare can [create the `default` gateway on first use](https://developers.cloudflare.com/changelog/post/2026-03-02-default-gateway/). Add external providers only after selecting [Unified Billing or BYOK](https://developers.cloudflare.com/ai-gateway/get-started/#provider-authentication).
 
-Create a narrowly scoped [API token](https://dash.cloudflare.com/profile/api-tokens) following the current [AI Gateway authentication guidance](https://developers.cloudflare.com/ai-gateway/configuration/authentication/), then install it without putting the value on the command line. When AI is enabled, the generated Wrangler config [declares this secret as required](https://developers.cloudflare.com/workers/configuration/secrets/#validate-secrets-before-deploy), so deployment fails clearly if it is missing.
+Create a narrowly scoped [API token](https://dash.cloudflare.com/profile/api-tokens) following the current [AI Gateway authentication guidance](https://developers.cloudflare.com/ai-gateway/configuration/authentication/), then provide it only to the live deployment process. When AI is enabled, the generated Wrangler config [declares this secret as required](https://developers.cloudflare.com/workers/configuration/secrets/#validate-secrets-before-deploy), so deployment fails clearly if it is missing.
 
 ```sh
-pnpm exec wrangler secret put CF_AI_GATEWAY_API_TOKEN --name your-workshop-worker
+read -r -s CF_AI_GATEWAY_API_TOKEN
+export CF_AI_GATEWAY_API_TOKEN
+# Also export GUILD_WEBHOOK_SIGNING_SECRET, then run pnpm deploy.
 ```
+
+The deploy script sends secrets through temporary mode-`0600` JSON files accepted by Wrangler's
+`--secrets-file` option, removes them even after failure, and does not forward them to build or test
+processes. This also supports the first deployment, before either Worker exists.
 
 For Workers AI through the default gateway, current Cloudflare guidance calls for Account permissions `AI Gateway - Read`, `AI Gateway - Edit`, and `Workers AI - Read`. Recheck the linked guidance when enabling other providers.
 
@@ -189,7 +195,23 @@ The implemented governed-memory path is:
    the transactional outbox and a five-minute Cron Trigger so a transient R2 failure is retried.
 9. The Workshop service binding makes the vendor available to Cloudflare OS.
 
-Read the [package guide](../packages/guild-gatekeeper/README.md), [security model](security.md), and upstream [`write-gatekeeper` skill](https://github.com/cloudflare/cloudflare-os/blob/main/.agents/skills/write-gatekeeper/SKILL.md) before adding verified identity claims, URL-scoped resources, writes, simulations, hooks, or configurator UI. Write-capable Agent execution remains deliberately unavailable until durable approvals and explicit Agent identities are connected.
+### Governed Agent Webhook
+
+`guild.agentWorkflowName` names the Cloudflare Workflow. `guild.webhook` provisions the one fixed,
+deployment-owned v1 Connector. Generate a new Connector UUID for every destination; changing an
+existing Connector's URL in place is rejected.
+
+Export `GUILD_WEBHOOK_SIGNING_SECRET` only while running `pnpm deploy`. The deployment check declares
+it as required but remains secret-free; the live deploy validates and transfers it through a
+restricted temporary file. Cloudflare OS Agent sessions discover eligible Agent, Space, and
+Connector IDs through
+`getAgentExecutionContext()`, then submit `planWebhookAction()`. Cloudflare OS approval opens the
+Guild approval request; it does not bypass the Constitution quorum.
+
+See [Agent Webhook contract](agent-webhook.md) for receiver signature, idempotency, timeout, and Kill
+race requirements.
+
+Read the [package guide](../packages/guild-gatekeeper/README.md), [security model](security.md), and upstream [`write-gatekeeper` skill](https://github.com/cloudflare/cloudflare-os/blob/main/.agents/skills/write-gatekeeper/SKILL.md) before adding verified identity claims, URL-scoped resources, writes, simulations, hooks, or configurator UI. New write actions must preserve the v1 plan, approval, final authority recheck, idempotency, Kill, and Chronicle invariants; do not route around the governed Agent service.
 
 ## Code extensions
 

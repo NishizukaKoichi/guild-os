@@ -218,6 +218,7 @@ export function App({ api }: { api: GuildUiApi }) {
       ) : null}
       {visiblePage === "agents" && directory ? (
         <AgentsPage
+          api={api}
           bootstrap={bootstrap}
           directory={directory}
           onCreate={async (input: CreateAgentRequest) => {

@@ -164,6 +164,18 @@ type AgentProfileRow = QueryResultRow & {
   status: "active" | "stopped";
 };
 
+type LifecycleAgentRunRow = QueryResultRow & {
+  id: string;
+  space_id: string | null;
+  owner_identity_id: string;
+  visibility: "guild" | "space" | "restricted" | "private";
+  classification: Classification;
+  allowed_identity_ids: string[];
+  workflow_instance_id: string;
+  approval_request_id: string | null;
+  external_attempted_at: string | null;
+};
+
 type SpaceRow = QueryResultRow & {
   id: string;
   parent_space_id: string | null;
@@ -499,6 +511,26 @@ export class GuildDirectoryRepository {
       : "active";
     assertIdentityStatusTransition(snapshot, input.identityId, nextStatus);
 
+    const interruptedRuns = nextStatus === "disabled" ? (await this.#connection.query<LifecycleAgentRunRow>(
+      `SELECT run.id::text, run.space_id::text, run.owner_identity_id::text,
+              run.visibility, run.classification, run.allowed_identity_ids::text[],
+              run.workflow_instance_id, approval.id::text AS approval_request_id,
+              run.external_attempted_at::text
+         FROM agent_runs run
+         LEFT JOIN approval_requests approval
+           ON approval.guild_id = run.guild_id AND approval.agent_run_id = run.id
+        WHERE run.guild_id = $1
+          AND run.status IN ('planning', 'awaiting_approval', 'running')
+          AND (run.agent_identity_id = $2 OR run.requester_identity_id = $2 OR EXISTS (
+            SELECT 1 FROM connectors connector
+             WHERE connector.guild_id = run.guild_id AND connector.id = run.connector_id
+               AND connector.owner_identity_id = $2
+          ))
+        ORDER BY run.id
+        FOR UPDATE OF run`,
+      [this.#guildId, input.identityId],
+    )).rows : [];
+
     await this.#connection.query(
       `UPDATE memberships
           SET state = $3,
@@ -523,14 +555,66 @@ export class GuildDirectoryRepository {
           WHERE guild_id = $1 AND identity_id = $2`,
         [this.#guildId, input.identityId],
       );
-      await this.#connection.query(
-        `UPDATE agent_runs
-            SET status = 'killed', kill_requested_at = now(), finished_at = now(),
-                version = version + 1
-          WHERE guild_id = $1 AND (agent_identity_id = $2 OR requester_identity_id = $2)
-            AND status IN ('planning', 'awaiting_approval', 'running')`,
-        [this.#guildId, input.identityId],
-      );
+      if (interruptedRuns.length > 0) {
+        const runIds = interruptedRuns.map((run) => run.id);
+        await this.#connection.query(
+          `UPDATE agent_runs
+              SET status = 'killed', kill_requested_at = now(), finished_at = now(),
+                  error_message = 'Killed because a related Identity lost Guild access.',
+                  version = version + 1
+            WHERE guild_id = $1 AND id = ANY($2::uuid[])
+              AND status IN ('planning', 'awaiting_approval', 'running')`,
+          [this.#guildId, runIds],
+        );
+        await this.#connection.query(
+          `UPDATE approval_requests SET status = 'expired'
+            WHERE guild_id = $1 AND agent_run_id = ANY($2::uuid[]) AND status = 'pending'`,
+          [this.#guildId, runIds],
+        );
+        await this.#connection.query(
+          `UPDATE outbox SET status = 'cancelled', completed_at = now(), locked_at = NULL
+            WHERE guild_id = $1 AND status IN ('pending', 'processing')
+              AND topic IN ('agent.workflow.start', 'agent.workflow.signal')
+              AND payload ->> 'runId' = ANY($2::text[])`,
+          [this.#guildId, runIds],
+        );
+        for (const run of interruptedRuns) {
+          await this.#connection.query(
+            `INSERT INTO outbox
+               (id, guild_id, approval_request_id, topic, payload, idempotency_key, status)
+             VALUES ($1, $2, $3, 'agent.workflow.terminate', $4::jsonb, $5, 'pending')
+             ON CONFLICT (guild_id, idempotency_key) DO NOTHING`,
+            [
+              randomUuid(),
+              this.#guildId,
+              run.approval_request_id,
+              JSON.stringify({ runId: run.id, workflowInstanceId: run.workflow_instance_id }),
+              `agent-workflow-terminate:${run.id}`,
+            ],
+          );
+          await this.#chronicle.appendChronicle({
+            id: randomUuid(),
+            guildId: this.#guildId,
+            spaceId: run.space_id,
+            ownerIdentityId: run.owner_identity_id,
+            visibility: run.visibility,
+            classification: run.classification,
+            allowedIdentityIds: run.allowed_identity_ids,
+            actorIdentityId: input.actorIdentityId,
+            action: "agent.run.killed",
+            subjectType: "agent_run",
+            subjectId: run.id,
+            correlationId: input.chronicleEvent.correlationId,
+            occurredAt: new Date().toISOString(),
+            details: {
+              source: "identity-lifecycle",
+              identityId: input.identityId,
+              membershipState: input.nextState,
+              externalAttempted: run.external_attempted_at !== null,
+            },
+          });
+        }
+      }
     } else {
       await this.#connection.query(
         `UPDATE agent_profiles SET status = 'active'

@@ -32,13 +32,22 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
   Chronicle evidence is returned.
 - Failed or interrupted R2 cleanup remains in the PostgreSQL outbox and is retried by a five-minute
   Cron Trigger.
+- Authorized Humans or Cloudflare OS sessions can create a Risk Level 2 Agent Webhook plan. The
+  fixed Connector, Human approval quorum, current authority, immutable limits, signed delivery,
+  idempotency key, result, and Chronicle evidence are enforced outside the browser.
+- Active runs can be killed individually. Suspending or departing the Agent, requester, or owning
+  Service kills related runs, cancels pending Workflow messages, and queues Workflow termination in
+  the same PostgreSQL transaction.
 - `GuildSession.getOverview()` checks Guild authorization, removes unauthorized Spaces, requests an
   observation authorization, and only then returns data to the agent or Gadget.
+- `GuildSession.getAgentExecutionContext()` and the Agent Catalog expose only runnable Agent,
+  Space, and Connector metadata after permission filtering; the IDs grant no authority by
+  themselves.
 - A Guild observation cannot be shared with another Workshop account by default.
 
 The Gatekeeper management UI exposes identity, Membership, Role, Space, Knowledge, Ask Guild, Work,
-Decisions, Inbox, Announcements, and Chronicle. Its Agent action catalog remains empty, so unfinished
-Agent execution and external-write operations cannot appear or be invoked.
+Decisions, Inbox, Announcements, Chronicle, and governed Agent runs. Agent plans, Human review,
+execution status, hard-limit usage, results, and Kill are visible on desktop and mobile.
 
 ## Package layout
 
@@ -52,6 +61,10 @@ Agent execution and external-write operations cannot appear or be invoked.
 | `src/work-service.ts` | Work input validation, authorization, assignment, and UI projections |
 | `src/decision-service.ts` | Decision validation, authorization, proposal, review, and supersession |
 | `src/communication-service.ts` | Announcement lifecycle, Inbox state, and authorized Chronicle queries |
+| `src/agent-service.ts` | Agent plan validation, authority intersection, approval, limits, and run state |
+| `src/agent-workflow.ts` | Durable approval waits, final recheck, one external delivery, and result recording |
+| `src/agent-dispatch.ts` | Transactional outbox dispatch to Cloudflare Workflows |
+| `src/agent-webhook.ts` | HMAC-signed, bounded, nonredirecting Webhook delivery |
 | `src/session.ts` | Observation-authorized `GuildSession` RPC |
 | `src/guild.ts` | Cloudflare Gatekeeper, account, verifier, and vendor adapters |
 | `app/` | Sandboxed management iframe source |

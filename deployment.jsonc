@@ -75,7 +75,16 @@
     // Ask Guild uses the Worker AI binding. The default gateway is created on first use.
     "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
     "aiGatewayId": "default",
-    "askRequestsPerMinute": 20
+    "askRequestsPerMinute": 20,
+
+    // The only v1 external write target. Runtime callers cannot replace this URL.
+    // Supply GUILD_WEBHOOK_SIGNING_SECRET to `pnpm deploy`; never store it in this file.
+    "agentWorkflowName": "<AGENT_WORKFLOW_NAME>",
+    "webhook": {
+      "connectorId": "<WEBHOOK_CONNECTOR_UUID>",
+      "name": "Approved operations webhook",
+      "url": "https://hooks.example.com/guild-events"
+    }
   },
 
   // Explicit backend issue reports go to a private Worker that emits structured console errors.

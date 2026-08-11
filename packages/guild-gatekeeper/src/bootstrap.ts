@@ -1,5 +1,6 @@
 import type { Constitution } from "@guild-os/domain";
 import {
+  GuildAgentRunRepository,
   GuildPostgresRepository,
   withGuildTransaction,
   type GuildSetupState,
@@ -78,6 +79,25 @@ export async function ensureGuildAccount(
       });
       state = await repository.getSetupState(accountId);
     }
+    const root = (await connection.query<{ root_owner_identity_id: string }>(
+      "SELECT root_owner_identity_id::text FROM guilds WHERE id = $1",
+      [env.GUILD_ID],
+    )).rows[0];
+    if (!root) throw new Error("Guild Root Owner is unavailable after initialization.");
+    await new GuildAgentRunRepository(connection, env.GUILD_ID).ensureDeploymentWebhook({
+      id: env.GUILD_WEBHOOK_CONNECTOR_ID,
+      name: env.GUILD_WEBHOOK_CONNECTOR_NAME,
+      endpointUrl: env.GUILD_WEBHOOK_URL,
+      rootOwnerIdentityId: root.root_owner_identity_id,
+      chronicleEvent: makeChronicleEvent(
+        env.GUILD_ID,
+        root.root_owner_identity_id,
+        "connector.provisioned",
+        "connector",
+        env.GUILD_WEBHOOK_CONNECTOR_ID,
+        { source: "deployment-config" },
+      ),
+    });
     return state;
   });
 }

@@ -7,7 +7,11 @@
     "watch_dir": "src"
   },
   "compatibility_date": "2026-08-04",
-  "compatibility_flags": ["allow_irrevocable_stub_storage", "nodejs_compat"],
+  "compatibility_flags": [
+    "allow_irrevocable_stub_storage",
+    "global_fetch_strictly_public",
+    "nodejs_compat"
+  ],
   "migrations": [
     {
       "tag": "v0",
@@ -23,8 +27,12 @@
     "GUILD_LEVEL3_QUORUM": "1",
     "GUILD_RETENTION_DAYS": "2555",
     "GUILD_ASK_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
-    "GUILD_AI_GATEWAY_ID": "default"
+    "GUILD_AI_GATEWAY_ID": "default",
+    "GUILD_WEBHOOK_CONNECTOR_ID": "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
+    "GUILD_WEBHOOK_CONNECTOR_NAME": "Approved operations webhook",
+    "GUILD_WEBHOOK_URL": "https://hooks.example.com/guild-events"
   },
+  "secrets": { "required": ["GUILD_WEBHOOK_SIGNING_SECRET"] },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
@@ -43,6 +51,13 @@
       "name": "ASK_RATE_LIMITER",
       "namespace_id": "1001",
       "simple": { "limit": 20, "period": 60 }
+    }
+  ],
+  "workflows": [
+    {
+      "name": "guild-agent-execution",
+      "binding": "AGENT_EXECUTION",
+      "class_name": "AgentExecutionWorkflow"
     }
   ],
   "triggers": { "crons": ["*/5 * * * *"] },

@@ -71,13 +71,16 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Governed Announcements, Inbox read state, Knowledge-update notifications, and Chronicle queries
   are implemented with SQL-before-service authorization, current-authority revocation, set-based
   fan-out, immutable payloads, keyset pagination, and responsive browser flows.
-- Agent write workflows are not yet implemented.
+- Governed Agent execution is implemented for one deployment-owned Risk Level 2 HTTPS Webhook.
+  It includes Cloudflare OS action approval, Guild Human quorum, permission-filtered discovery,
+  immutable plans and authority snapshots, execution-time rechecks, HMAC and idempotency, hard
+  limits, Cloudflare Workflows, transactional dispatch, Kill/offboarding cancellation, late-race
+  audit evidence, management UI, and integration/browser tests.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Add one Level 2 Agent write workflow with durable approval,
-   idempotency, limits, and a kill switch.
-2. Complete threat modeling, backup/restore rehearsal, and full local verification.
-3. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
+1. Complete backup/restore tooling and full local verification.
+2. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
    smoke test.
+3. Record the production evidence in the v1 completion matrix and release manifest.

@@ -55,9 +55,36 @@ Agent stopping/approval, and Break Glass remain human-only even if an Agent is a
 a Role containing those permissions.
 
 Suspending or departing an Identity disables it in the same transaction, revokes owned Connector
-secrets, stops its Agent profile, kills unfinished runs for which it is Agent or requester, and
-appends a Chronicle event. Existing Cloudflare OS capability objects may remain cached, but every
-Guild data request reloads active Identity and Membership state and therefore denies them.
+secrets, stops its Agent profile, and kills unfinished runs for which it is Agent, requester, or
+owner of the Connector. The same transaction expires pending approvals, cancels pending Workflow
+start/signals, queues Workflow termination, and appends Identity and per-run Chronicle events.
+Existing Cloudflare OS capability objects may remain cached, but every Guild data request and final
+Agent execution reloads active Identity and Membership state and therefore denies them.
+
+## Agent execution
+
+The v1 write target is one deployment-owned HTTPS Webhook Connector. Its URL is validated at deploy
+time, stored as immutable PostgreSQL configuration, and checked against Worker bindings at plan and
+execution time. Agents and browsers cannot provide or redirect the destination. Workers also enable
+the strict-public global `fetch` compatibility flag, reject HTTP redirects, and enforce a bounded
+timeout.
+
+Cloudflare OS action approval opens a Guild approval; it does not execute the operation. The
+Constitution quorum is counted from append-only Human votes. PostgreSQL independently rejects
+inactive, machine, wrong-Space, insufficient-clearance, or unauthorized reviewers. The run can
+enter `running` only from a current `approved` request, and the execution claim is atomic. A second
+claim is rejected rather than delivering twice.
+
+Every run stores immutable Agent, requester, Workflow, and Connector permission snapshots plus hard
+limits. Immediately before delivery, Guild OS reloads both Identities, Memberships, Roles, Space,
+Agent profile, current Constitution limits, and Connector status. The effective authority and
+limits are the stricter intersection of the snapshot and current state.
+
+Webhook delivery uses HMAC-SHA256 over the timestamp and exact body, an immutable idempotency key,
+and no automatic outbound retry. The receiver is responsible for durable idempotency. Kill changes
+PostgreSQL state before Workflow termination. An HTTP request already accepted remotely cannot be
+recalled; a completion observed after Kill is recorded once as `agent.run.delivery_after_kill`
+without changing the run from `killed`.
 
 ## Model context
 
@@ -149,15 +176,32 @@ does not make deleted files visible or lose the cleanup obligation.
 - Model-provider credentials live in AI Gateway or Wrangler secrets.
 - OAuth credentials live in their owning Gatekeeper Worker secrets.
 - Secrets are never valid `deployment.jsonc` values.
+- Live deployment validates all required secrets before the first Worker update, transfers only the
+  required values through mode-`0600` temporary files, deletes them after use, and removes them from
+  child-process environments.
 - Logs must not contain prompts, tokens, connection strings, private content, or unrestricted event
   payloads.
+
+## Write-path threat model
+
+| Threat | Control | Residual risk / response |
+| --- | --- | --- |
+| Forged Human or Agent ID | IDs come from account capability or permission-filtered discovery; PostgreSQL reloads active Identity and Membership | Rehearse Access and account-capability recovery in production |
+| Requester-to-Agent privilege escalation | Agent, requester, Workflow, and Connector permission intersection at plan and execution | Incorrect Role design can still grant intended but excessive authority; audit Roles |
+| Unauthorized context leakage | SQL filters Role, Space, clearance, visibility, and sharing before model context | External model/provider policy remains purchaser-owned |
+| Agent-selected URL / SSRF | Fixed immutable HTTPS URL, strict-public fetch, credential/query/hash rejection, redirects disabled | DNS ownership and receiver security remain purchaser responsibilities |
+| Duplicate external effect | Atomic run claim, one outbound attempt, immutable idempotency key, receiver-side durable deduplication | Lost responses are ambiguous; use receiver audit and an explicit compensating run |
+| Stale approval | Approval expiry plus execution-time state and authority recheck | A remote effect already accepted cannot be revoked |
+| Workflow or API outage | Transactional outbox, bounded backoff, exhausted-attempt terminal failure and Chronicle event | Operators must restore Cloudflare service and create a new approved run |
+| Kill/offboarding race | Database-first Kill, outbox cancellation, Workflow termination, late-delivery Chronicle event | In-flight network bytes may win; execute the receiver's compensating operation |
+| Secret disclosure | Wrangler secret, no config/log/prompt storage, HMAC verification | Rotate receiver and Worker secret, provision a new Connector ID, kill old runs |
+| Prompt injection in Knowledge | Canonical-only, permission-filtered context; model output cannot bypass policy or approval | Humans must inspect Level 2 action payloads before approval |
 
 ## Known security gates
 
 Before a production release, complete and verify:
 
-- Multi-approver Level 3 execution with reauthentication
-- Agent identity binding and run-specific permission intersection at the Gatekeeper
+- Keep Level 3 actions disabled until a reauthentication-capable, multi-approver connector is added
 - External Access/session recovery rehearsal in the deployed environment
 - Backup restore rehearsal
-- Threat model for every write-capable Gatekeeper
+- Receiver-side signature, replay-window, and durable idempotency smoke

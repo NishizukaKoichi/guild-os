@@ -6,6 +6,7 @@ import {
   assertUsageWithinLimits,
   type AgentApprovalRequest,
   type AgentApprovalVote,
+  type AgentLimits,
   type AgentRun,
   type AgentRunResult,
   type AgentRunUsage,
@@ -42,6 +43,8 @@ export interface StoredAgentRun extends AgentRun {
   requesterDisplayName: string;
   connectorName: string;
   approval: AgentApprovalRequest | null;
+  workflowPermissions: readonly Permission[];
+  connectorPermissionsSnapshot: readonly Permission[];
 }
 
 export interface StoredAgentRunDetail extends StoredAgentRun {
@@ -51,6 +54,14 @@ export interface StoredAgentRunDetail extends StoredAgentRun {
 export interface AgentRunListPage {
   items: readonly StoredAgentRun[];
   nextCursor: AgentRunListCursor | null;
+}
+
+export interface RunnableAgent {
+  identityId: string;
+  displayName: string;
+  model: string;
+  spaceIds: readonly string[];
+  limits: AgentLimits;
 }
 
 export interface EnsureDeploymentWebhookInput {
@@ -156,6 +167,8 @@ type AgentRunRow = QueryResultRow & {
   approval_expires_at: string | null;
   approval_created_at: string | null;
   approval_updated_at: string | null;
+  workflow_permissions: string[];
+  connector_permissions_snapshot: string[];
 };
 
 type ApprovalVoteRow = QueryResultRow & {
@@ -174,6 +187,14 @@ type OutboxRow = QueryResultRow & {
   payload: unknown;
   idempotency_key: string;
   attempt_count: number;
+};
+
+type RunnableAgentRow = QueryResultRow & {
+  identity_id: string;
+  display_name: string;
+  model: string;
+  space_ids: string[];
+  limits: unknown;
 };
 
 const knownPermissions = new Set<string>(PERMISSIONS);
@@ -298,6 +319,8 @@ function runFromRow(row: AgentRunRow): StoredAgentRun {
     requesterDisplayName: row.requester_display_name,
     connectorName: row.connector_name,
     approval,
+    workflowPermissions: parsePermissions(row.workflow_permissions),
+    connectorPermissionsSnapshot: parsePermissions(row.connector_permissions_snapshot),
   };
 }
 
@@ -397,6 +420,17 @@ export class GuildAgentRunRepository {
     return rows.map(connectorFromRow);
   }
 
+  async listActiveDeploymentConnectors(): Promise<Connector[]> {
+    const rows = (await this.#connection.query<ConnectorRow>(
+      `${this.#connectorSelect()}
+        WHERE connector.guild_id = $1 AND connector.status = 'active'
+          AND connector.deployment_managed = true
+        ORDER BY connector.name, connector.id`,
+      [this.#guildId],
+    )).rows;
+    return rows.map(connectorFromRow);
+  }
+
   async getConnector(id: string, forUpdate = false): Promise<Connector> {
     const row = (await this.#connection.query<ConnectorRow>(
       `${this.#connectorSelect()}
@@ -461,6 +495,78 @@ export class GuildAgentRunRepository {
         ? { updatedAt: isoTimestamp(last.updated_at), id: last.id }
         : null,
     };
+  }
+
+  async listRunnableAgents(spaceIds: readonly string[]): Promise<RunnableAgent[]> {
+    if (spaceIds.length === 0) return [];
+    if (spaceIds.length > 100 || new Set(spaceIds).size !== spaceIds.length) {
+      throw new Error("Runnable Agent discovery accepts at most 100 unique Spaces.");
+    }
+    const rows = (await this.#connection.query<RunnableAgentRow>(
+      `WITH RECURSIVE selected_spaces AS (
+         SELECT id, parent_space_id FROM spaces
+          WHERE guild_id = $1 AND status = 'active' AND id = ANY($2::uuid[])
+       ), ancestors AS (
+         SELECT id AS target_space_id, id AS ancestor_id, parent_space_id
+           FROM selected_spaces
+         UNION ALL
+         SELECT ancestor.target_space_id, parent.id, parent.parent_space_id
+           FROM ancestors ancestor
+           JOIN spaces parent
+             ON parent.guild_id = $1 AND parent.id = ancestor.parent_space_id
+       ), eligible AS (
+         SELECT identity_row.id AS identity_id, selected.id AS space_id
+           FROM identities identity_row
+           JOIN memberships membership_row
+             ON membership_row.guild_id = identity_row.guild_id
+            AND membership_row.identity_id = identity_row.id
+           JOIN agent_profiles profile
+             ON profile.guild_id = identity_row.guild_id
+            AND profile.identity_id = identity_row.id
+           CROSS JOIN selected_spaces selected
+          WHERE identity_row.guild_id = $1 AND identity_row.kind = 'agent'
+            AND identity_row.status = 'active' AND membership_row.state = 'active'
+            AND membership_row.clearance IN ('internal', 'confidential', 'restricted')
+            AND profile.status = 'active' AND profile.tool_ids @> ARRAY['https_webhook']::text[]
+            AND EXISTS (
+              SELECT 1 FROM role_bindings binding_row
+              JOIN role_permissions permission_row
+                ON permission_row.guild_id = binding_row.guild_id
+               AND permission_row.role_id = binding_row.role_id
+             WHERE binding_row.guild_id = $1
+               AND binding_row.identity_id = identity_row.id
+               AND permission_row.permission = 'integration.execute'
+               AND (binding_row.space_id IS NULL OR EXISTS (
+                 SELECT 1 FROM ancestors ancestor
+                  WHERE ancestor.target_space_id = selected.id
+                    AND ancestor.ancestor_id = binding_row.space_id
+               ))
+            )
+       )
+       SELECT identity_row.id::text AS identity_id, identity_row.display_name,
+              profile.model, array_agg(eligible.space_id::text ORDER BY eligible.space_id) AS space_ids,
+              profile.limits
+         FROM eligible
+         JOIN identities identity_row
+           ON identity_row.guild_id = $1 AND identity_row.id = eligible.identity_id
+         JOIN agent_profiles profile
+           ON profile.guild_id = identity_row.guild_id AND profile.identity_id = identity_row.id
+        GROUP BY identity_row.id, identity_row.display_name, profile.model, profile.limits
+        ORDER BY identity_row.display_name, identity_row.id
+        LIMIT 100`,
+      [this.#guildId, spaceIds],
+    )).rows;
+    return rows.map((row) => {
+      const limits = row.limits as AgentLimits;
+      assertAgentLimits(limits);
+      return {
+        identityId: row.identity_id,
+        displayName: row.display_name,
+        model: row.model,
+        spaceIds: row.space_ids,
+        limits,
+      };
+    });
   }
 
   async getRun(id: string, forUpdate = false): Promise<StoredAgentRun> {
@@ -758,7 +864,9 @@ export class GuildAgentRunRepository {
     if (run.workflowInstanceId !== workflowInstanceId) {
       throw new Error("Workflow instance does not own this Agent run.");
     }
-    if (run.status === "running") return this.getRunDetail(runId);
+    if (run.status === "running") {
+      throw new Error("Agent run execution was already claimed; duplicate delivery is refused.");
+    }
     if (run.status !== "awaiting_approval" || run.approval?.status !== "approved") {
       throw new Error("Agent run is not durably approved for execution.");
     }
@@ -779,11 +887,36 @@ export class GuildAgentRunRepository {
     result: AgentRunResult,
     usage: AgentRunUsage,
     chronicleEvent: ChronicleEvent,
-  ): Promise<void> {
+  ): Promise<"succeeded" | "killed"> {
     this.#assertEvent(chronicleEvent, chronicleEvent.actorIdentityId, "agent_run", runId);
     const run = await this.getRun(runId, true);
     if (run.workflowInstanceId !== workflowInstanceId) throw new Error("Workflow ownership changed.");
-    if (run.status === "succeeded") return;
+    if (run.status === "succeeded") return "succeeded";
+    if (run.status === "killed") {
+      const alreadyRecorded = (await this.#connection.query(
+        `SELECT 1 FROM chronicle_events
+          WHERE guild_id = $1 AND subject_type = 'agent_run' AND subject_id = $2
+            AND action = 'agent.run.delivery_after_kill' LIMIT 1`,
+        [this.#guildId, runId],
+      )).rowCount;
+      if (!alreadyRecorded) {
+        await this.#chronicle.appendChronicle({
+          ...chronicleEvent,
+          action: "agent.run.delivery_after_kill",
+          details: {
+            ...chronicleEvent.details,
+            deliveredAt: result.deliveredAt,
+            killRequestedAt: run.killRequestedAt,
+            usageBudgetMinor: usage.budgetMinor,
+            usageDurationSeconds: usage.durationSeconds,
+            usageSteps: usage.steps,
+            usageRetries: usage.retries,
+            usageDelegationDepth: usage.delegationDepth,
+          },
+        });
+      }
+      return "killed";
+    }
     if (run.status !== "running" || !run.approval) throw new Error("Agent run is not running.");
     assertUsageWithinLimits(run.limits, usage);
     await this.#connection.query(
@@ -799,6 +932,7 @@ export class GuildAgentRunRepository {
       [this.#guildId, run.approval.id],
     );
     await this.#chronicle.appendChronicle(chronicleEvent);
+    return "succeeded";
   }
 
   async failExecution(
@@ -812,6 +946,14 @@ export class GuildAgentRunRepository {
     const run = await this.getRun(runId, true);
     if (run.workflowInstanceId !== workflowInstanceId) throw new Error("Workflow ownership changed.");
     if (["succeeded", "failed", "killed"].includes(run.status)) return;
+    assertUsageWithinLimits(run.limits, usage);
+    if (run.approval?.status === "pending") {
+      await this.#connection.query(
+        `UPDATE approval_requests SET status = 'expired'
+          WHERE guild_id = $1 AND id = $2 AND status = 'pending'`,
+        [this.#guildId, run.approval.id],
+      );
+    }
     await this.#connection.query(
       `UPDATE agent_runs
           SET status = 'failed', error_message = $3, usage = $4::jsonb,
@@ -892,15 +1034,17 @@ export class GuildAgentRunRepository {
     outboxId: string,
     errorMessage: string,
     maximumAttempts = 10,
-  ): Promise<void> {
-    await this.#connection.query(
+  ): Promise<boolean> {
+    const result = await this.#connection.query<{ status: string }>(
       `UPDATE outbox
           SET status = CASE WHEN attempt_count >= $3 THEN 'failed' ELSE 'pending' END,
               available_at = now() + make_interval(secs => LEAST(300, power(2, attempt_count)::integer)),
               locked_at = NULL, last_error = $4
-        WHERE guild_id = $1 AND id = $2 AND status = 'processing'`,
+        WHERE guild_id = $1 AND id = $2 AND status = 'processing'
+      RETURNING status`,
       [this.#guildId, outboxId, maximumAttempts, errorMessage],
     );
+    return result.rows[0]?.status === "failed";
   }
 
   async #insertApproval(approval: AgentApprovalRequest, run: AgentRun): Promise<void> {
@@ -1080,7 +1224,9 @@ export class GuildAgentRunRepository {
                    approval.status AS approval_status,
                    approval.expires_at::text AS approval_expires_at,
                    approval.created_at::text AS approval_created_at,
-                   approval.updated_at::text AS approval_updated_at
+                   approval.updated_at::text AS approval_updated_at,
+                   run.workflow_permissions,
+                   run.connector_permissions_snapshot
               FROM agent_runs run
               JOIN identities agent
                 ON agent.guild_id = run.guild_id AND agent.id = run.agent_identity_id

@@ -14,9 +14,14 @@ export type GuildEnv = Cloudflare.Env & {
   GUILD_RETENTION_DAYS: string;
   GUILD_ASK_MODEL: string;
   GUILD_AI_GATEWAY_ID: string;
+  GUILD_WEBHOOK_CONNECTOR_ID: string;
+  GUILD_WEBHOOK_CONNECTOR_NAME: string;
+  GUILD_WEBHOOK_URL: string;
+  GUILD_WEBHOOK_SIGNING_SECRET: string;
   HYPERDRIVE: { connectionString: string };
   KNOWLEDGE_FILES: R2Bucket;
   ASK_RATE_LIMITER: RateLimit;
+  AGENT_EXECUTION: Workflow<{ guildId: string; runId: string }>;
   AI: {
     run(
       model: string,
