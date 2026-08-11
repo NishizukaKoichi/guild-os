@@ -106,6 +106,9 @@ export class GuildPostgresRepository {
        VALUES ($1, $2, 'active', 'restricted', now())`,
       [input.guildId, input.rootIdentityId],
     );
+    await this.#connection.query("SELECT set_config('app.actor_identity_id', $1, true)", [
+      input.rootIdentityId,
+    ]);
     await this.#connection.query(
       `INSERT INTO constitutions
          (guild_id, version, level2_approval_quorum, level3_approval_quorum,

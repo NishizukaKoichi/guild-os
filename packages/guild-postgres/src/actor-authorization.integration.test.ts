@@ -90,6 +90,7 @@ integration("bounded PostgreSQL authorization", () => {
                 ($1, $4, 'active', 'internal', now())`,
         [guildId, rootId, memberId, unrelatedId],
       );
+      await connection.query("SELECT set_config('app.actor_identity_id', $1, true)", [rootId]);
       await connection.query(
         `INSERT INTO constitutions
            (guild_id, version, level2_approval_quorum, level3_approval_quorum,

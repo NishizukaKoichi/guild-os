@@ -1,6 +1,6 @@
 import { Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import type { Permission } from "@guild-os/domain";
+import { ROOT_ONLY_PERMISSIONS, type Permission } from "@guild-os/domain";
 import type {
   CreateRoleRequest,
   UiDirectory,
@@ -29,7 +29,7 @@ function RoleDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const permissions = directory.grantablePermissions.filter((permission) =>
-    permission !== "break-glass.use");
+    !ROOT_ONLY_PERMISSIONS.has(permission));
 
   function toggle(permission: Permission) {
     setSelected((current) => {

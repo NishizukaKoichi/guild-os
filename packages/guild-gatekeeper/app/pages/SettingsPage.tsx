@@ -4,9 +4,12 @@ import { useState } from "react";
 import type {
   CreateRoleRequest,
   CreateSpaceRequest,
+  UiBootstrapState,
   UiDirectory,
+  UpdateConstitutionRequest,
   UpdateRoleRequest,
 } from "../../src/management-types";
+import { ConstitutionManager } from "../components/ConstitutionManager";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { RoleManager } from "../components/RoleManager";
@@ -14,8 +17,10 @@ import { SpaceManager } from "../components/SpaceManager";
 import { useI18n } from "../i18n";
 
 export function SettingsPage({
+  bootstrap,
   directory,
   onLocaleChange,
+  onUpdateConstitution,
   onCreateRole,
   onUpdateRole,
   onDeleteRole,
@@ -23,8 +28,10 @@ export function SettingsPage({
   onRenameSpace,
   onArchiveSpace,
 }: {
+  bootstrap: UiBootstrapState;
   directory: UiDirectory | null;
   onLocaleChange(locale: AppLocale): Promise<void>;
+  onUpdateConstitution(input: UpdateConstitutionRequest): Promise<void>;
   onCreateRole(input: CreateRoleRequest): Promise<void>;
   onUpdateRole(input: UpdateRoleRequest): Promise<void>;
   onDeleteRole(roleId: string): Promise<void>;
@@ -67,6 +74,12 @@ export function SettingsPage({
         {saved ? <Notice kind="success">{t("toast.saved")}</Notice> : null}
         {error ? <Notice kind="error">{error}</Notice> : null}
       </section>
+
+      <ConstitutionManager
+        constitution={bootstrap.constitution}
+        rootOwner={bootstrap.rootOwner}
+        onUpdate={onUpdateConstitution}
+      />
 
       {directory ? (
         <>

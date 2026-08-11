@@ -29,6 +29,7 @@ import type {
   StepStatus,
   Visibility,
   ChronicleEvent,
+  Constitution,
   ConnectorStatus,
   JsonObject,
 } from "@guild-os/domain";
@@ -43,8 +44,11 @@ export interface UiBootstrapState {
   rootOwner: boolean;
   rootOwnerIdentityId: string;
   preferredLocale: AppLocale;
+  constitution: UiConstitution;
   agentDefaults: AgentLimits;
 }
+
+export type UiConstitution = Omit<Constitution, "guildId">;
 
 export interface UiDirectoryIdentity {
   id: string;
@@ -157,6 +161,15 @@ export interface CreateRoleRequest {
 
 export interface UpdateRoleRequest extends CreateRoleRequest {
   roleId: string;
+}
+
+export interface UpdateConstitutionRequest {
+  expectedVersion: number;
+  level2ApprovalQuorum: number;
+  level3ApprovalQuorum: number;
+  dataRetentionDays: number;
+  agentDefaults: AgentLimits;
+  reason: string;
 }
 
 export interface CreateSpaceRequest {
@@ -657,6 +670,7 @@ export interface ReviewAgentRunRequest {
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
+  updateConstitution(input: UpdateConstitutionRequest): Promise<UiConstitution>;
   getDirectory(request?: UiDirectoryRequest): Promise<UiDirectory>;
   issueInvitation(input: IssueInvitationInput): Promise<IssuedInvitation>;
   revokeInvitation(invitationId: string): Promise<void>;

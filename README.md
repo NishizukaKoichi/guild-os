@@ -21,6 +21,7 @@ Implemented and tested:
 - Human, Agent, and Service domain types
 - Role and hierarchical Space permission engine
 - Root Owner and private-data invariants
+- Root-only, versioned Constitution management with mandatory Chronicle reasons
 - Agent/requester/workflow/connector permission intersection
 - Knowledge lifecycle and risk-based approval rules
 - Agent budget, duration, step, retry, and delegation limits

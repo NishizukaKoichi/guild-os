@@ -11,6 +11,7 @@ import type {
   IssueInvitationInput,
   UiBootstrapState,
   UiDirectory,
+  UpdateConstitutionRequest,
   UpdateRoleRequest,
 } from "../src/management-types";
 import { AppShell, type AppPage } from "./components/AppShell";
@@ -242,8 +243,17 @@ export function App({ api }: { api: GuildUiApi }) {
       {visiblePage === "chronicle" ? <ChroniclePage api={api} directory={directory} /> : null}
       {visiblePage === "settings" ? (
         <SettingsPage
+          bootstrap={bootstrap}
           directory={directory}
           onLocaleChange={async (locale: AppLocale) => api.setPreferredLocale(locale)}
+          onUpdateConstitution={async (input: UpdateConstitutionRequest) => {
+            const constitution = await api.updateConstitution(input);
+            setBootstrap((current) => current ? {
+              ...current,
+              constitution,
+              agentDefaults: constitution.agentDefaults,
+            } : current);
+          }}
           onCreateRole={async (input: CreateRoleRequest) => {
             await api.createRole(input);
             await refreshDirectory();

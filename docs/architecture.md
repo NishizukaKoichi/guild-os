@@ -46,6 +46,13 @@ Membership transactions; the Gatekeeper validates transport input and authorizes
 React pages and dialogs only call typed management methods. Adding a later module does not require
 placing its conditions in a central page or a shared untyped data client.
 
+Constitution governance follows the same boundary. `guild-domain/governance.ts` defines valid
+policy and Root-only Role invariants; `guild-postgres/governance.ts` owns optimistic versioning and
+the atomic Chronicle write; `guild-gatekeeper/management-api.ts` authenticates the current Root
+Owner and validates transport input; `ConstitutionManager.tsx` is presentation only. PostgreSQL
+also requires a transaction-local Root actor and rejects deletion, delegated update authority,
+invalid limits, or a version that does not advance exactly once.
+
 Work follows the same boundary. `guild-domain/work.ts` owns lifecycle validation,
 `guild-postgres/work.ts` owns bounded queries and atomic mutations, `guild-gatekeeper/work-service.ts`
 owns request validation plus authorization, and the Work page owns presentation state only. Goal,

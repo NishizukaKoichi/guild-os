@@ -114,6 +114,11 @@ export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "break-glass.use",
 ]);
 
+export const ROOT_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
+  "constitution.update",
+  "break-glass.use",
+]);
+
 export const MEMBERSHIP_TRANSITIONS = {
   invited: ["preboarding", "active", "departed"],
   preboarding: ["active", "suspended", "departed"],

@@ -8,8 +8,16 @@ import type { GuildAgentExecutionContext, GuildOverview } from "../src/types.js"
 import { generateInvitationToken, hashInvitationToken } from "../src/management-api.js";
 import { deliverSignedWebhook } from "../src/agent-webhook.js";
 import type { AgentExecutionClaim } from "../src/agent-service.js";
+import { BUILTIN_ROLES } from "../src/config.js";
 
 describe("guild-gatekeeper", () => {
+  it("never delegates Root-only authority through built-in Roles", () => {
+    for (const role of BUILTIN_ROLES) {
+      expect(role.permissions).not.toContain("constitution.update");
+      expect(role.permissions).not.toContain("break-glass.use");
+    }
+  });
+
   it("describes a managed singleton with a full-page Guild surface", () => {
     expect(describeGuildVendor()).toMatchObject({
       displayName: "Guild OS",

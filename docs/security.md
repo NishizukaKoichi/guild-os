@@ -31,9 +31,17 @@ All operations call the framework-independent policy engine. Role bindings can b
 to a Space; a Space binding applies to descendants, never siblings. Suspended, departed, and disabled
 identities are rejected before role evaluation.
 
-Root ownership does not bypass Private visibility. Break Glass is a separate human-only permission
-and must produce Chronicle records when implemented. It cannot be placed in an ordinary Role;
-database constraints reject it even if an application path is bypassed.
+Root ownership does not bypass Private visibility. Constitution update and Break Glass are
+Root-only authorities, not delegable Role permissions; database constraints reject either grant
+even if an application path is bypassed. Break Glass is reserved until its recovery ceremony and
+mandatory Chronicle disclosure are implemented.
+
+The Settings surface lets every authorized member read the current Constitution, but only the
+current active human Root Owner can edit it. Every edit supplies the expected version and a reason.
+The Gatekeeper and repository repeat the Root check, then PostgreSQL verifies the transaction-local
+actor, active Root state, exact one-version increment, quorum ordering, retention bounds, and Agent
+limit shape. The mutation and `constitution.updated` Chronicle event commit atomically. The
+Constitution cannot be deleted.
 
 An administrator may invite an Identity or assign a Role only when the administrator holds every
 permission in that Role globally. Creating or editing a custom Role applies the same rule. This
@@ -146,6 +154,10 @@ Every application transaction executes:
 ```sql
 SELECT set_config('app.guild_id', $1, true);
 ```
+
+Security-critical Root mutations additionally set `app.actor_identity_id` transaction-locally.
+Their database triggers compare that actor with the current active human Root Owner instead of
+trusting a caller-supplied `updated_by_identity_id` column.
 
 All Guild tables use forced row-level security based on this transaction-local value. The repository
 accepts only the opaque connection type produced by the transaction helper. PostgreSQL remains

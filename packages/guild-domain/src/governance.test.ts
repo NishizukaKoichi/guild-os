@@ -11,6 +11,7 @@ import {
   assertRunWithinLimits,
   assertRoleAssignableToIdentity,
   validateRolePermissions,
+  validateConstitution,
 } from "./governance.js";
 import { makeSnapshot } from "./test-fixtures.js";
 
@@ -84,6 +85,8 @@ describe("Guild governance", () => {
       .toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
     expect(() => validateRolePermissions(["break-glass.use"]))
       .toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
+    expect(() => validateRolePermissions(["constitution.update"]))
+      .toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
     expect(() => assertRoleAssignableToIdentity(snapshot.roles[2]!, snapshot.identities[5]!))
       .not.toThrow();
     expect(() => assertRoleAssignableToIdentity({
@@ -92,6 +95,20 @@ describe("Guild governance", () => {
     }, snapshot.identities[5]!)).toThrowError(
       expect.objectContaining({ code: "PERMISSION_DENIED" }),
     );
+  });
+
+  it("validates bounded Constitution changes", () => {
+    const constitution = makeSnapshot().constitution;
+    expect(() => validateConstitution(constitution)).not.toThrow();
+    expect(() => validateConstitution({
+      ...constitution,
+      level2ApprovalQuorum: 3,
+      level3ApprovalQuorum: 2,
+    })).toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
+    expect(() => validateConstitution({
+      ...constitution,
+      dataRetentionDays: 36_501,
+    })).toThrowError(expect.objectContaining({ code: "INVALID_INPUT" }));
   });
 
   it("enforces every agent run hard limit", () => {

@@ -19,6 +19,7 @@ const decisionTerminalIntegrityMigrationUrl = new URL("../migrations/0015_decisi
 const communicationsMigrationUrl = new URL("../migrations/0016_communications_and_chronicle.sql", import.meta.url);
 const chronicleSearchMigrationUrl = new URL("../migrations/0017_chronicle_search_tokens.sql", import.meta.url);
 const announcementProvenanceMigrationUrl = new URL("../migrations/0018_archived_announcement_provenance.sql", import.meta.url);
+const constitutionGovernanceMigrationUrl = new URL("../migrations/0022_constitution_governance.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
@@ -136,5 +137,13 @@ describe("Guild PostgreSQL migration", () => {
     );
     expect(announcementProvenanceSql).toContain("OR status = 'archived'");
     expect(announcementProvenanceSql).toContain("published_at IS NULL AND expires_at > created_at");
+    const constitutionSql = await readFile(
+      fileURLToPath(constitutionGovernanceMigrationUrl),
+      "utf8",
+    );
+    expect(constitutionSql).toContain("role_permissions_no_root_authority");
+    expect(constitutionSql).toContain("app.actor_identity_id");
+    expect(constitutionSql).toContain("Constitution version must increment exactly once");
+    expect(constitutionSql).toContain("A Guild Constitution cannot be deleted");
   });
 });

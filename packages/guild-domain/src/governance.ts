@@ -1,5 +1,9 @@
 import { GuildDomainError } from "./errors.js";
-import { HUMAN_ONLY_PERMISSIONS, MEMBERSHIP_TRANSITIONS } from "./constants.js";
+import {
+  HUMAN_ONLY_PERMISSIONS,
+  MEMBERSHIP_TRANSITIONS,
+  ROOT_ONLY_PERMISSIONS,
+} from "./constants.js";
 import type {
   AgentProfile,
   AgentRunUsage,
@@ -123,10 +127,10 @@ export function validateRolePermissions(permissions: readonly Permission[]): voi
       "A Role requires at least one unique permission.",
     );
   }
-  if (permissions.includes("break-glass.use")) {
+  if (permissions.some((permission) => ROOT_ONLY_PERMISSIONS.has(permission))) {
     throw new GuildDomainError(
       "PERMISSION_DENIED",
-      "Break Glass authority belongs only to the current human Root Owner.",
+      "Constitution and Break Glass authority belong only to the current human Root Owner.",
     );
   }
 }
@@ -153,6 +157,18 @@ export function validateConstitution(constitution: Constitution): void {
   assertPositiveInteger(constitution.level2ApprovalQuorum, "Level 2 approval quorum");
   assertPositiveInteger(constitution.level3ApprovalQuorum, "Level 3 approval quorum");
   assertPositiveInteger(constitution.dataRetentionDays, "Data retention period");
+  if (constitution.level3ApprovalQuorum < constitution.level2ApprovalQuorum) {
+    throw new GuildDomainError(
+      "INVALID_INPUT",
+      "Level 3 approval quorum cannot be lower than Level 2 approval quorum.",
+    );
+  }
+  if (constitution.level2ApprovalQuorum > 100 || constitution.level3ApprovalQuorum > 100) {
+    throw new GuildDomainError("INVALID_INPUT", "Approval quorum cannot exceed 100 Humans.");
+  }
+  if (constitution.dataRetentionDays > 36_500) {
+    throw new GuildDomainError("INVALID_INPUT", "Data retention cannot exceed 36,500 days.");
+  }
   assertAgentLimits(constitution.agentDefaults);
 }
 

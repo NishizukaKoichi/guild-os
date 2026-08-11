@@ -8,5 +8,6 @@ export * from "./announcement.js";
 export * from "./inbox.js";
 export * from "./chronicle-query.js";
 export * from "./agent-run.js";
+export * from "./governance.js";
 export * from "./repository.js";
 export * from "./transaction.js";

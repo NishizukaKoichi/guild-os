@@ -31,6 +31,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0019_agent_execution.sql",
     "0020_agent_execution_compatibility.sql",
     "0021_agent_approval_trigger_fix.sql",
+    "0022_constitution_governance.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -53,4 +54,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[18].sql, /Agent approval requires an authorized active Human/);
   assert.match(migrations[19].sql, /secret_was_cleared_on_revoke/);
   assert.match(migrations[20].sql, /IF TG_TABLE_NAME = 'approval_votes'/);
+  assert.match(migrations[21].sql, /role_permissions_no_root_authority/);
+  assert.match(migrations[21].sql, /app\.actor_identity_id/);
+  assert.match(migrations[21].sql, /Constitution version must increment exactly once/);
 });

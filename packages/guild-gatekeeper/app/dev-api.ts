@@ -3,6 +3,7 @@ import type {
   GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
+  UpdateConstitutionRequest,
   UiBootstrapState,
   UiAnnouncement,
   UiAgentRunDetail,
@@ -19,6 +20,7 @@ import type {
 } from "../src/management-types";
 import {
   PERMISSIONS,
+  ROOT_ONLY_PERMISSIONS,
   assertGoalStatus,
   assertGoalTransition,
   assertProjectStatus,
@@ -33,6 +35,7 @@ import {
   assertDecisionTransition,
   assertAnnouncementContent,
   assertAnnouncementTransition,
+  validateConstitution,
 } from "@guild-os/domain";
 
 const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
@@ -74,6 +77,22 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     rootOwner: true,
     rootOwnerIdentityId: rootId,
     preferredLocale: "en",
+    constitution: {
+      version: 1,
+      level2ApprovalQuorum: 1,
+      level3ApprovalQuorum: 2,
+      dataRetentionDays: 365,
+      agentDefaults: {
+        currency: "USD",
+        maxBudgetMinor: 1000,
+        maxDurationSeconds: 900,
+        maxSteps: 20,
+        maxRetries: 2,
+        maxDelegationDepth: 1,
+      },
+      updatedByIdentityId: rootId,
+      updatedAt: "2026-08-12T02:00:00.000Z",
+    },
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1000,
@@ -180,7 +199,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       stopAgents: mode === "root",
     },
     grantablePermissions: mode === "root"
-      ? PERMISSIONS.filter((permission) => permission !== "break-glass.use")
+      ? PERMISSIONS.filter((permission) => !ROOT_ONLY_PERMISSIONS.has(permission))
       : [],
     nextIdentityCursor: null,
     nextInvitationCursor: null,
@@ -1779,6 +1798,54 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     },
     async setPreferredLocale(locale) {
       bootstrap = { ...bootstrap, preferredLocale: locale };
+    },
+    async updateConstitution(input: UpdateConstitutionRequest) {
+      if (mode !== "root") {
+        throw new Error("Only the current human Root Owner can update the Constitution.");
+      }
+      const timestamp = now();
+      validateConstitution({
+        guildId,
+        version: input.expectedVersion + 1,
+        level2ApprovalQuorum: input.level2ApprovalQuorum,
+        level3ApprovalQuorum: input.level3ApprovalQuorum,
+        dataRetentionDays: input.dataRetentionDays,
+        agentDefaults: input.agentDefaults,
+        updatedByIdentityId: rootId,
+        updatedAt: timestamp,
+      });
+      if (input.expectedVersion !== bootstrap.constitution.version || input.reason.trim() === "") {
+        throw new Error("Constitution changed since it was loaded or the reason is missing.");
+      }
+      const constitution = {
+        version: input.expectedVersion + 1,
+        level2ApprovalQuorum: input.level2ApprovalQuorum,
+        level3ApprovalQuorum: input.level3ApprovalQuorum,
+        dataRetentionDays: input.dataRetentionDays,
+        agentDefaults: input.agentDefaults,
+        updatedByIdentityId: rootId,
+        updatedAt: timestamp,
+      };
+      bootstrap = { ...bootstrap, constitution, agentDefaults: input.agentDefaults };
+      appendDemoChronicle(
+        "constitution.updated",
+        "constitution",
+        guildId,
+        {
+          spaceId: null,
+          ownerIdentityId: rootId,
+          visibility: "guild",
+          classification: "restricted",
+          allowedIdentityIds: [],
+        },
+        {
+          previousVersion: input.expectedVersion,
+          nextVersion: constitution.version,
+          reason: input.reason.trim(),
+          source: "guild-ui",
+        },
+      );
+      return constitution;
     },
   };
 }

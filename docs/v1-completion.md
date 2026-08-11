@@ -25,11 +25,15 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 - PostgreSQL 17 migrations are checksum-pinned and idempotent.
 - Forced Guild row-level security blocks cross-Guild reads and writes.
 - Root Owner cannot be disabled, suspended, departed, or replaced by an Agent.
+- Constitution changes are Root-only, expected-version guarded, reasoned, and atomically recorded
+  in Chronicle. PostgreSQL rejects delegated update authority, actor forgery, invalid policy, and
+  deletion; desktop and mobile browser tests cover editable and read-only states.
 - Space grants inherit to descendants, not siblings, without loading the whole Guild per request.
 - One-time invitations reject replay; acceptance and lifecycle changes produce Chronicle events.
 - Suspended and departed Humans immediately return no authorized Spaces.
-- Custom Roles cannot contain Break Glass, become empty, or grant authority that the administrator
-  does not hold globally. Machine identities cannot receive human-only permissions.
+- Custom Roles cannot contain Constitution update or Break Glass authority, become empty, or grant
+  authority that the administrator does not hold globally. Machine identities cannot receive
+  human-only permissions.
 - Space ancestry, one-root topology, identity kind, Agent profile ownership, and active profile /
   Membership pairing are enforced in PostgreSQL as well as application code.
 - Human, Agent, and Service management plus custom Role and Space administration have PostgreSQL

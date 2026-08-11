@@ -4,12 +4,15 @@ import {
   CLASSIFICATIONS,
   CLASSIFICATION_RANK,
   PERMISSIONS,
+  ROOT_ONLY_PERMISSIONS,
   SUPPORTED_LOCALES,
   authorize,
   assertAgentLimits,
   assertCanDelegatePermissions,
   assertNonBlank,
+  assertPositiveInteger,
   isAuthorized,
+  validateConstitution,
   validateRolePermissions,
   type AppLocale,
   type AuthorizationSnapshot,
@@ -19,6 +22,7 @@ import {
 import {
   GuildAdministrationRepository,
   GuildDirectoryRepository,
+  GuildGovernanceRepository,
   GuildPostgresRepository,
   loadActorAuthorizationSnapshot,
   type GuildTransactionConnection,
@@ -66,6 +70,7 @@ import type {
   SaveDecisionDraftRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
+  UiConstitution,
   UiAgentRunDetail,
   UiAgentRunPage,
   UiAgentRunPageRequest,
@@ -89,6 +94,7 @@ import type {
   UiWorkPage,
   UiWorkPageRequest,
   UpdateRoleRequest,
+  UpdateConstitutionRequest,
   UploadKnowledgeFileRequest,
   WorkAssignmentRequest,
   WorkStatusRequest,
@@ -218,12 +224,24 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         const result = await connection.query<{
           root_owner_identity_id: string;
           preferred_locale: AppLocale | null;
+          constitution_version: number;
+          level2_approval_quorum: number;
+          level3_approval_quorum: number;
+          data_retention_days: number;
           agent_defaults: UiBootstrapState["agentDefaults"];
+          updated_by_identity_id: string;
+          constitution_updated_at: string;
         }>(
           `SELECT g.root_owner_identity_id::text,
                   (SELECT preferred_locale FROM identities
                     WHERE guild_id = g.id AND id = $2) AS preferred_locale,
-                  c.agent_defaults
+                  c.version AS constitution_version,
+                  c.level2_approval_quorum,
+                  c.level3_approval_quorum,
+                  c.data_retention_days,
+                  c.agent_defaults,
+                  c.updated_by_identity_id::text,
+                  c.updated_at::text AS constitution_updated_at
              FROM guilds g
              JOIN constitutions c ON c.guild_id = g.id
             WHERE g.id = $1`,
@@ -241,6 +259,15 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           rootOwner: row.root_owner_identity_id === this.#accountId,
           rootOwnerIdentityId: row.root_owner_identity_id,
           preferredLocale: row.preferred_locale ?? "en",
+          constitution: {
+            version: row.constitution_version,
+            level2ApprovalQuorum: row.level2_approval_quorum,
+            level3ApprovalQuorum: row.level3_approval_quorum,
+            dataRetentionDays: row.data_retention_days,
+            agentDefaults: row.agent_defaults,
+            updatedByIdentityId: row.updated_by_identity_id,
+            updatedAt: row.constitution_updated_at,
+          },
           agentDefaults: row.agent_defaults,
         };
       },
@@ -273,6 +300,56 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
       },
     );
     return this.getBootstrap();
+  }
+
+  async updateConstitution(input: UpdateConstitutionRequest): Promise<UiConstitution> {
+    assertPositiveInteger(input.expectedVersion, "Expected Constitution version");
+    assertNonBlank(input.reason, "Constitution change reason", 2_000);
+    validateConstitution({
+      guildId: this.#env.GUILD_ID,
+      version: input.expectedVersion + 1,
+      level2ApprovalQuorum: input.level2ApprovalQuorum,
+      level3ApprovalQuorum: input.level3ApprovalQuorum,
+      dataRetentionDays: input.dataRetentionDays,
+      agentDefaults: input.agentDefaults,
+      updatedByIdentityId: this.#accountId,
+      updatedAt: new Date().toISOString(),
+    });
+    const updated = await this.#authorizedWrite(
+      "constitution.update",
+      async (connection, snapshot) => {
+        if (snapshot.guild.rootOwnerIdentityId !== this.#accountId) {
+          throw new Error("Only the current human Root Owner can update the Constitution.");
+        }
+        return new GuildGovernanceRepository(
+          connection,
+          this.#env.GUILD_ID,
+        ).updateConstitution({
+          expectedVersion: input.expectedVersion,
+          level2ApprovalQuorum: input.level2ApprovalQuorum,
+          level3ApprovalQuorum: input.level3ApprovalQuorum,
+          dataRetentionDays: input.dataRetentionDays,
+          agentDefaults: input.agentDefaults,
+          reason: input.reason,
+          actorIdentityId: this.#accountId,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            "constitution.updated",
+            "constitution",
+            this.#env.GUILD_ID,
+            {
+              previousVersion: input.expectedVersion,
+              nextVersion: input.expectedVersion + 1,
+              reason: input.reason,
+              source: "guild-ui",
+            },
+          ),
+        });
+      },
+    );
+    const { guildId: _guildId, ...constitution } = updated;
+    return constitution;
   }
 
   async getDirectory(request: UiDirectoryRequest = {}): Promise<UiDirectory> {
@@ -325,7 +402,8 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           nextIdentityCursor: encodeCursor(directory.nextIdentityCursor),
           nextInvitationCursor: encodeCursor(directory.nextInvitationCursor),
           capabilities,
-          grantablePermissions: PERMISSIONS.filter((permission) => this.#can(snapshot, permission)),
+          grantablePermissions: PERMISSIONS.filter((permission) =>
+            !ROOT_ONLY_PERMISSIONS.has(permission) && this.#can(snapshot, permission)),
         };
       },
     );

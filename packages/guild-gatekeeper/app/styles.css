@@ -985,6 +985,43 @@ textarea:focus-visible {
   max-width: 860px;
 }
 
+.constitution-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 16px;
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.constitution-summary > div {
+  min-width: 0;
+  padding: 13px 14px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.constitution-summary > div:nth-child(3n) {
+  border-right: 0;
+}
+
+.constitution-summary > div:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.constitution-summary dt {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.constitution-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .manager-heading {
   align-items: center;
 }
@@ -3606,6 +3643,24 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .constitution-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .constitution-summary > div,
+  .constitution-summary > div:nth-child(3n) {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .constitution-summary > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .constitution-summary > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
   .inbox-tabs {
     grid-template-columns: 1fr 1fr;
   }
@@ -3742,9 +3797,15 @@ textarea:focus-visible {
 
   .manager-heading {
     align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .manager-heading > div {
+    flex: 1 1 calc(100% - 30px);
   }
 
   .manager-heading > button {
+    flex: 1 0 100%;
     width: 100%;
     margin-left: 0;
   }
@@ -3775,6 +3836,22 @@ textarea:focus-visible {
   .field-inline {
     grid-template-columns: 1fr;
     gap: 7px;
+  }
+
+  .constitution-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .constitution-summary > div,
+  .constitution-summary > div:nth-child(2n),
+  .constitution-summary > div:nth-child(3n),
+  .constitution-summary > div:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .constitution-summary > div:last-child {
+    border-bottom: 0;
   }
 
   .dialog-backdrop {

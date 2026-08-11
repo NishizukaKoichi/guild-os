@@ -1,4 +1,4 @@
-import { PERMISSIONS, type Permission } from "@guild-os/domain";
+import { PERMISSIONS, ROOT_ONLY_PERMISSIONS, type Permission } from "@guild-os/domain";
 import type {
   AccountDescription,
   VendorDescription,
@@ -50,7 +50,7 @@ export const BUILTIN_ROLES: readonly {
 }[] = [
   {
     name: "Admin",
-    permissions: PERMISSIONS.filter((permission) => permission !== "break-glass.use"),
+    permissions: PERMISSIONS.filter((permission) => !ROOT_ONLY_PERMISSIONS.has(permission)),
   },
   {
     name: "Manager",

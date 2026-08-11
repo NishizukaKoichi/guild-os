@@ -43,6 +43,7 @@ async function bootstrapGuild(label) {
       "INSERT INTO memberships (guild_id, identity_id, state, clearance, joined_at) VALUES ($1, $2, 'active', 'restricted', now())",
       [guildId, rootIdentityId],
     );
+    await client.query("SELECT set_config('app.actor_identity_id', $1, true)", [rootIdentityId]);
     await client.query(
       `INSERT INTO constitutions
          (guild_id, version, level2_approval_quorum, level3_approval_quorum,

@@ -78,6 +78,9 @@ product requirement must be resolved explicitly rather than silently weakened.
   audit evidence, management UI, and integration/browser tests.
 - A purchaser-owned reference receiver provides HMAC verification, replay-window enforcement, and
   strongly consistent per-idempotency-key Durable Object storage for that Webhook.
+- Constitution management is implemented as a Root-only, versioned, reason-required transaction.
+  Role delegation, stale writes, forged SQL actors, invalid policy, and deletion are rejected at
+  the database boundary; the responsive Settings UI exposes read-only policy to non-Root members.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
