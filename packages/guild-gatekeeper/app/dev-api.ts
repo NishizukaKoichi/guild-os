@@ -4,7 +4,10 @@ import type {
   IssueInvitationInput,
   IssuedInvitation,
   UpdateConstitutionRequest,
+  UiAccessBootstrapState,
   UiBootstrapState,
+  UiInitializationBootstrapState,
+  UiMemberBootstrapState,
   UiAnnouncement,
   UiAgentRunDetail,
   UiChronicleEvent,
@@ -83,11 +86,14 @@ function token(): string {
 }
 
 export function createDevelopmentApi(mode: string): GuildUiApi {
-  let bootstrap: UiBootstrapState = {
+  let bootstrap: UiMemberBootstrapState = {
     guildId,
     guildName: "Commonweal Research Guild",
     guildPurpose: "Preserve shared knowledge and coordinate governed work between people and agents.",
     accountId: rootId,
+    screen: "member",
+    initialized: true,
+    canInitialize: false,
     identityExists: true,
     membershipState: "active",
     rootOwner: true,
@@ -133,10 +139,11 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       remainingCodeCount: 10,
     },
   };
+  let restrictedBootstrap: UiAccessBootstrapState | UiInitializationBootstrapState | null = null;
   if (mode === "uninvited") {
-    bootstrap = { ...bootstrap, accountId: unknownId, identityExists: false, membershipState: null, rootOwner: false };
+    bootstrap = { ...bootstrap, accountId: unknownId, rootOwner: false };
   } else if (mode === "suspended") {
-    bootstrap = { ...bootstrap, accountId: memberId, membershipState: "suspended", rootOwner: false };
+    bootstrap = { ...bootstrap, accountId: memberId, rootOwner: false };
   } else if (mode === "member") {
     bootstrap = { ...bootstrap, accountId: memberId, membershipState: "preboarding", rootOwner: false };
   } else if (mode === "recovery-human") {
@@ -175,7 +182,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       ...bootstrap,
       breakGlass: {
         ...bootstrap.breakGlass,
-        canRecover: !bootstrap.identityExists || bootstrap.membershipState === "active",
+        canRecover: mode === "uninvited" || mode === "recovery-human",
         currentCodeSetId: null,
         generation: null,
         outgoingRoleId: null,
@@ -185,6 +192,34 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         createdAt: null,
         remainingCodeCount: null,
       },
+    };
+  }
+  if (mode === "uninvited" || mode === "suspended") {
+    restrictedBootstrap = {
+      screen: "access",
+      initialized: true,
+      canInitialize: false,
+      guildId: bootstrap.guildId,
+      guildName: bootstrap.guildName,
+      guildPurpose: bootstrap.guildPurpose,
+      accountId: bootstrap.accountId,
+      identityExists: mode === "suspended",
+      membershipState: mode === "suspended" ? "suspended" : null,
+      preferredLocale: bootstrap.preferredLocale,
+      breakGlass: bootstrap.breakGlass,
+    };
+  } else if (mode === "uninitialized-admin" || mode === "uninitialized-member") {
+    restrictedBootstrap = {
+      screen: "initialize",
+      initialized: false,
+      canInitialize: mode === "uninitialized-admin",
+      guildId: bootstrap.guildId,
+      guildName: bootstrap.guildName,
+      guildPurpose: bootstrap.guildPurpose,
+      accountId: mode === "uninitialized-admin" ? rootId : unknownId,
+      identityExists: false,
+      membershipState: null,
+      preferredLocale: "en",
     };
   }
 
@@ -908,16 +943,42 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
 
   return {
     async getBootstrap() {
+      return restrictedBootstrap ?? bootstrap;
+    },
+    async initializeGuild(input) {
+      if (restrictedBootstrap?.screen !== "initialize" ||
+          !restrictedBootstrap.canInitialize || input.confirmation !== bootstrap.guildName ||
+          !input.displayName.trim()) {
+        throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
+      }
+      bootstrap = {
+        ...bootstrap,
+        accountId: restrictedBootstrap.accountId,
+        rootOwner: true,
+        rootOwnerIdentityId: restrictedBootstrap.accountId,
+        rootOwnerDisplayName: input.displayName.trim(),
+        preferredLocale: input.preferredLocale,
+      };
+      directory = {
+        ...directory,
+        identities: directory.identities.map((identity) => identity.id === rootId ? {
+          ...identity,
+          id: restrictedBootstrap?.accountId ?? rootId,
+          displayName: input.displayName.trim(),
+          preferredLocale: input.preferredLocale,
+        } : identity),
+      };
+      restrictedBootstrap = null;
       return bootstrap;
     },
     async claimInvitation(input: ClaimInvitationInput) {
       bootstrap = {
         ...bootstrap,
-        identityExists: true,
         membershipState: "preboarding",
         preferredLocale: input.preferredLocale,
         breakGlass: { ...bootstrap.breakGlass, canRecover: false },
       };
+      restrictedBootstrap = null;
       return bootstrap;
     },
     async rotateBreakGlassCodes(input) {
@@ -1008,7 +1069,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         throw new Error("Recovery code is invalid or unavailable.");
       }
       const previousRoot = bootstrap.rootOwnerIdentityId;
-      if (!bootstrap.identityExists) {
+      const recoveringUnknown = restrictedBootstrap?.screen === "access" &&
+        !restrictedBootstrap.identityExists;
+      if (recoveringUnknown) {
         directory = {
           ...directory,
           identities: [...directory.identities, {
@@ -1045,7 +1108,6 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       );
       bootstrap = {
         ...bootstrap,
-        identityExists: true,
         membershipState: "active",
         preferredLocale: input.preferredLocale,
         rootOwner: true,
@@ -1067,6 +1129,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           remainingCodeCount: 0,
         },
       };
+      restrictedBootstrap = null;
       return bootstrap;
     },
     async getDirectory() {

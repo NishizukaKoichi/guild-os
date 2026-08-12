@@ -5,9 +5,12 @@ This package is the capability boundary between Cloudflare OS agents/Gadgets and
 ## Current behavior
 
 - Cloudflare OS auto-provisions one opaque Guild account capability per Workshop user.
-- Opening the Guild management page initializes an empty Guild only when the Workshop says the
-  current user is an administrator.
-- The first initializing administrator becomes the human Root Owner.
+- Opening the Guild management page is read-only. An uninitialized deployment shows a dedicated
+  initialization screen only when the Workshop says the current user is an administrator.
+- Explicit initialization requires a display name, locale, and exact Guild-name confirmation. A
+  PostgreSQL advisory lock makes the first successful administrator the sole human Root Owner.
+- Accounts without a usable Membership receive no Root, Constitution, ownership-transfer, or
+  Agent-default metadata in their bootstrap response.
 - Unknown users remain unregistered until they claim a one-time administrator invitation.
 - Invitation claims bind the stable Cloudflare OS account UUID to a selected Role, Space, and
   `preboarding` or `active` Membership. Only the invitation hash is stored.

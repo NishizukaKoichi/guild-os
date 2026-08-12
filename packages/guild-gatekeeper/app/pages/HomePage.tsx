@@ -1,10 +1,10 @@
 import { BookOpenCheck, Database, Fingerprint, History, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
-import type { UiBootstrapState, UiDirectory } from "../../src/management-types";
+import type { UiDirectory, UiMemberBootstrapState } from "../../src/management-types";
 import { PageHeader } from "../components/PageHeader";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
 export function HomePage({ bootstrap, directory }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory | null;
 }) {
   const { t } = useI18n();

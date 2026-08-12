@@ -109,18 +109,22 @@ in command arguments, generated configs, logs, or child-process environments.
 ## 6. Initialize ownership
 
 1. Confirm Access allows only the intended Root Owner.
-2. Open the Workshop URL, then open **Guild**.
-3. Verify the displayed Guild name and purpose before accepting initialization.
-4. Confirm the account becomes a Human Identity with active Membership and Root Owner status.
-5. Create a second recovery administrator with the minimum intended Role; do not share the Root
+2. Confirm the same person is the only configured Workshop administrator.
+3. Open the Workshop URL, then open **Guild**. Merely opening this page must not create Guild rows.
+4. Verify the displayed Guild name and purpose. Enter the intended human display name, select the
+   preferred locale, type the Guild name exactly, and submit **Initialize** once.
+5. Confirm the account becomes a Human Identity with active Membership and Root Owner status. From
+   a second authenticated but uninvited account, verify that Root identity, Constitution, transfer,
+   and Agent configuration are not visible.
+6. Create a second recovery administrator with the minimum intended Role; do not share the Root
    Owner login.
-6. Rehearse a Root handover to that Human and back again. The current Root proposes the transfer in
+7. Rehearse a Root handover to that Human and back again. The current Root proposes the transfer in
    **Settings**, the named Human accepts from their own session, and both sides verify the proposal
    and acceptance in **Chronicle**. Acceptance invalidates the prior Root's recovery-code generation.
-7. In **Settings > Emergency recovery**, select the Role retained by the prior Root and generate a
+8. In **Settings > Emergency recovery**, select the Role retained by the prior Root and generate a
    code set. Verify ten codes are shown exactly once, store them under separate offline custody,
    rotate once to prove the first set is invalidated, and retain only the latest set.
-8. Expand the Access Allow policy only after Guild invitation, claim, Root transfer, and recovery
+9. Expand the Access Allow policy only after Guild invitation, claim, Root transfer, and recovery
    custody have been tested.
 
 Root ownership cannot be assigned to an Agent, disabled, suspended, departed, or deleted through

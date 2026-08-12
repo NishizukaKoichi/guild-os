@@ -25,6 +25,19 @@ claims it from that account capability. PostgreSQL stores only the SHA-256 hash,
 row during acceptance, and rejects expiry or replay. Authorization must never use a self-declared
 email.
 
+Guild creation is an explicit command, not a page-load side effect. Before initialization, the UI
+shows the configured Guild name and purpose, but only a Workshop-authenticated administrator can
+submit the command. The caller must provide a human display name, locale, and exact Guild-name
+confirmation. A PostgreSQL advisory transaction lock makes the first completed initialization the
+only winner under concurrency.
+
+Bootstrap data is partitioned by access state. A usable `preboarding` or `active` member receives
+the member bootstrap. Every other initialized account receives only public deployment labels, its
+own opaque account and Membership state, locale, and a masked Break Glass status. Root identity,
+Constitution, ownership transfers, and Agent defaults are never serialized for that account. The
+frontend branch is usability only; the account-bound RPC and every repository operation remain the
+authorization boundary.
+
 ## Authorization
 
 All operations call the framework-independent policy engine. Role bindings can be global or scoped
@@ -238,6 +251,8 @@ does not make deleted files visible or lose the cleanup obligation.
 | Threat | Control | Residual risk / response |
 | --- | --- | --- |
 | Forged Human or Agent ID | IDs come from account capability or permission-filtered discovery; PostgreSQL reloads active Identity and Membership | Rehearse Access and account-capability recovery in production |
+| Accidental or racing first-owner claim | Initialization requires trusted Workshop admin context, exact Guild-name confirmation, and a Guild-scoped PostgreSQL advisory transaction lock | A wrongly configured Workshop admin list can still authorize the wrong human; keep Access and admin policy single-person until acceptance |
+| Governance metadata enumeration by a nonmember | Discriminated bootstrap responses omit Root, Constitution, transfer, and Agent data before usable Membership | Configured Guild name and purpose remain visible to authenticated Workshop accounts by design |
 | Requester-to-Agent privilege escalation | Agent, requester, Workflow, and Connector permission intersection at plan and execution | Incorrect Role design can still grant intended but excessive authority; audit Roles |
 | Unauthorized context leakage | SQL filters Role, Space, clearance, visibility, and sharing before model context | External model/provider policy remains purchaser-owned |
 | Agent-selected URL / SSRF | Fixed immutable HTTPS URL, strict-public fetch, credential/query/hash rejection, redirects disabled | DNS ownership and receiver security remain purchaser responsibilities |

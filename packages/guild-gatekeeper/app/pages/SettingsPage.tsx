@@ -10,7 +10,7 @@ import type {
   ResolveRootOwnershipTransferRequest,
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
-  UiBootstrapState,
+  UiMemberBootstrapState,
   UiDirectory,
   UiRootOwnershipCandidate,
   UpdateConstitutionRequest,
@@ -44,7 +44,7 @@ export function SettingsPage({
   onRenameSpace,
   onArchiveSpace,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory | null;
   onLocaleChange(locale: AppLocale): Promise<void>;
   onUpdateConstitution(input: UpdateConstitutionRequest): Promise<void>;

@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import type {
   ProposeRootOwnershipTransferRequest,
   ResolveRootOwnershipTransferRequest,
-  UiBootstrapState,
+  UiMemberBootstrapState,
   UiDirectory,
   UiRootOwnershipCandidate,
   UiRootOwnershipTransfer,
@@ -18,7 +18,7 @@ function ProposeTransferDialog({
   onSearchCandidates,
   onClose,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory;
   onPropose(input: ProposeRootOwnershipTransferRequest): Promise<void>;
   onSearchCandidates(search: string): Promise<readonly UiRootOwnershipCandidate[]>;
@@ -228,7 +228,7 @@ export function OwnershipManager({
   onAccept,
   onSearchCandidates,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory | null;
   onPropose(input: ProposeRootOwnershipTransferRequest): Promise<void>;
   onCancel(input: ResolveRootOwnershipTransferRequest): Promise<void>;

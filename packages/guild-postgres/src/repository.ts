@@ -21,6 +21,7 @@ export interface BootstrapGuildInput {
   purpose: string;
   rootIdentityId: string;
   rootDisplayName: string;
+  rootPreferredLocale?: "en" | "ja" | "zh-CN";
   rootSpaceId: string;
   rootSpaceName: string;
   constitution: Constitution;
@@ -95,10 +96,15 @@ export class GuildPostgresRepository {
     );
     await this.#connection.query(
       `INSERT INTO identities
-         (id, guild_id, kind, display_name, status, access_subject)
+         (id, guild_id, kind, display_name, status, access_subject, preferred_locale)
        VALUES ($1::uuid, $2, 'human', $3, 'active',
-               'cloudflare-os-account:' || $1::uuid::text)`,
-      [input.rootIdentityId, input.guildId, input.rootDisplayName],
+               'cloudflare-os-account:' || $1::uuid::text, $4)`,
+      [
+        input.rootIdentityId,
+        input.guildId,
+        input.rootDisplayName,
+        input.rootPreferredLocale ?? "en",
+      ],
     );
     await this.#connection.query(
       `INSERT INTO memberships

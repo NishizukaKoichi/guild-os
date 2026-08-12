@@ -24,7 +24,7 @@ import type {
 } from "@gadgets/workshop-shared/gatekeeper";
 import { boundAgentCatalog } from "@gadgets/workshop-shared/gatekeeper";
 import { loadGuildOverview } from "./authorization.js";
-import { ensureGuildAccount, renderGuildPage } from "./bootstrap.js";
+import { prepareGuildAccount, renderGuildPage } from "./bootstrap.js";
 import {
   describeGuildAccount,
   describeGuildVendor,
@@ -303,10 +303,14 @@ export class GuildAccount
   }
 
   async startAppUi(context: AppUiContext): Promise<GatekeeperUiFrame> {
-    const state = await ensureGuildAccount(this.env, this.ctx.props.accountId, context.isAdmin);
+    const state = await prepareGuildAccount(this.env, this.ctx.props.accountId);
     return {
       iframeHtml: renderGuildPage(this.env, state),
-      ui: new RpcStub(new GuildManagementApiImpl(this.env, this.ctx.props.accountId)),
+      ui: new RpcStub(new GuildManagementApiImpl(
+        this.env,
+        this.ctx.props.accountId,
+        context.isAdmin,
+      )),
     };
   }
 

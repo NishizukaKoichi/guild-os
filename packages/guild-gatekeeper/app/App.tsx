@@ -8,6 +8,7 @@ import type {
   CreateServiceRequest,
   CreateSpaceRequest,
   GuildUiApi,
+  InitializeGuildRequest,
   IssueInvitationInput,
   ProposeRootOwnershipTransferRequest,
   RecoverRootOwnershipRequest,
@@ -27,6 +28,7 @@ import { ChroniclePage } from "./pages/ChroniclePage";
 import { DecisionsPage } from "./pages/DecisionsPage";
 import { HomePage } from "./pages/HomePage";
 import { InboxPage } from "./pages/InboxPage";
+import { InitializationPage } from "./pages/InitializationPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -47,7 +49,7 @@ export function App({ api }: { api: GuildUiApi }) {
   const [error, setError] = useState<string | null>(null);
 
   const loadDirectory = useCallback(async (state: UiBootstrapState) => {
-    if (!state.identityExists || !["preboarding", "active"].includes(state.membershipState ?? "")) {
+    if (state.screen !== "member") {
       setDirectory(null);
       return;
     }
@@ -95,7 +97,20 @@ export function App({ api }: { api: GuildUiApi }) {
     );
   }
 
-  if (!bootstrap.identityExists || bootstrap.membershipState === "suspended" || bootstrap.membershipState === "departed") {
+  if (bootstrap.screen === "initialize") {
+    return (
+      <InitializationPage
+        bootstrap={bootstrap}
+        onInitialize={async (input: InitializeGuildRequest) => {
+          const state = await api.initializeGuild(input);
+          setBootstrap(state);
+          await loadDirectory(state);
+        }}
+      />
+    );
+  }
+
+  if (bootstrap.screen === "access") {
     return (
       <AccessPage
         bootstrap={bootstrap}
@@ -258,7 +273,7 @@ export function App({ api }: { api: GuildUiApi }) {
           onLocaleChange={async (locale: AppLocale) => api.setPreferredLocale(locale)}
           onUpdateConstitution={async (input: UpdateConstitutionRequest) => {
             const constitution = await api.updateConstitution(input);
-            setBootstrap((current) => current ? {
+            setBootstrap((current) => current?.screen === "member" ? {
               ...current,
               constitution,
               agentDefaults: constitution.agentDefaults,
@@ -280,12 +295,16 @@ export function App({ api }: { api: GuildUiApi }) {
           onSearchRootOwnershipCandidates={(search) => api.searchRootOwnershipCandidates(search)}
           onRotateBreakGlassCodes={async (input: RotateBreakGlassCodesRequest) => {
             const result = await api.rotateBreakGlassCodes(input);
-            setBootstrap((current) => current ? { ...current, breakGlass: result.status } : current);
+            setBootstrap((current) => current?.screen === "member"
+              ? { ...current, breakGlass: result.status }
+              : current);
             return result;
           }}
           onRevokeBreakGlassCodes={async (input: RevokeBreakGlassCodesRequest) => {
             const status = await api.revokeBreakGlassCodes(input);
-            setBootstrap((current) => current ? { ...current, breakGlass: status } : current);
+            setBootstrap((current) => current?.screen === "member"
+              ? { ...current, breakGlass: status }
+              : current);
           }}
           onRecoverRootOwnership={async (input: RecoverRootOwnershipRequest) => {
             const state = await api.recoverRootOwnership(input);

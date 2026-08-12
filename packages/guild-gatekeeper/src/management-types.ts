@@ -39,21 +39,55 @@ import type {
   RootOwnershipTransfer,
 } from "@guild-os/domain";
 
-export interface UiBootstrapState {
+interface UiBootstrapBase {
   guildId: string;
   guildName: string;
   guildPurpose: string;
   accountId: string;
+  preferredLocale: AppLocale;
+}
+
+export interface UiInitializationBootstrapState extends UiBootstrapBase {
+  screen: "initialize";
+  initialized: false;
+  canInitialize: boolean;
+  identityExists: false;
+  membershipState: null;
+}
+
+export interface UiAccessBootstrapState extends UiBootstrapBase {
+  screen: "access";
+  initialized: true;
+  canInitialize: false;
   identityExists: boolean;
-  membershipState: MembershipState | null;
+  membershipState: null | "invited" | "suspended" | "departed";
+  breakGlass: UiBreakGlassStatus;
+}
+
+export interface UiMemberBootstrapState extends UiBootstrapBase {
+  screen: "member";
+  initialized: true;
+  canInitialize: false;
+  identityExists: true;
+  membershipState: "preboarding" | "active";
   rootOwner: boolean;
   rootOwnerIdentityId: string;
   rootOwnerDisplayName: string;
-  preferredLocale: AppLocale;
   constitution: UiConstitution;
   agentDefaults: AgentLimits;
   rootOwnershipTransfer: UiRootOwnershipTransfer | null;
   breakGlass: UiBreakGlassStatus;
+}
+
+export type UiBootstrapState =
+  | UiInitializationBootstrapState
+  | UiAccessBootstrapState
+  | UiMemberBootstrapState;
+
+export interface InitializeGuildRequest {
+  displayName: string;
+  preferredLocale: AppLocale;
+  confirmation: string;
 }
 
 export type UiConstitution = Omit<Constitution, "guildId">;
@@ -827,6 +861,7 @@ export interface ReviewAgentRunRequest {
 
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
+  initializeGuild(input: InitializeGuildRequest): Promise<UiBootstrapState>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
   rotateBreakGlassCodes(
     input: RotateBreakGlassCodesRequest,

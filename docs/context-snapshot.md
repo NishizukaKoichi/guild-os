@@ -53,8 +53,9 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Upstream Cloudflare OS is pinned at `bf7f762d7fa73553284d731ab6a978d3ea17be24`.
 - Starter baseline tests pass locally on Node.js 22; Node.js 24 remains the supported release target.
 - Guild domain policy, PostgreSQL persistence, migration tooling, and Guild Gatekeeper are
-  implemented. The Gatekeeper includes safe first-admin bootstrap, one-time Human invitations,
-  Membership lifecycle writes, and a sandboxed responsive management UI.
+  implemented. The Gatekeeper requires explicit Workshop-admin initialization, serializes the
+  first-Root claim in PostgreSQL, minimizes bootstrap data for nonmembers, supports one-time Human
+  invitations and Membership lifecycle writes, and provides a sandboxed responsive management UI.
 - PostgreSQL 17 integration verification applies migrations twice using a non-superuser owner, then
   proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
 - Role/Space editors and governed Knowledge/Ask Guild are implemented. Knowledge includes immutable

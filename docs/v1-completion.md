@@ -7,7 +7,7 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 
 | # | v1.0 acceptance condition | Status | Current evidence | Remaining gate |
 | --- | --- | --- | --- | --- |
-| 1 | Create Guild and invite Humans | Partial | First Admin bootstrap; hashed one-time invitation; People UI; PostgreSQL replay test | Production Access/bootstrap/invitation smoke |
+| 1 | Create Guild and invite Humans | Partial | Explicit Workshop-admin bootstrap with exact confirmation, serialized first-Root claim, privacy-minimized nonmember response, hashed one-time invitation, People UI, and PostgreSQL/browser tests | Production Access/bootstrap/invitation smoke |
 | 2 | Register Human, Agent, Service identities | Partial | Human invitation claim plus Agent and Service creation, Role assignment, stop/suspend/depart controls, PostgreSQL integration tests, responsive UI smoke | Production identity lifecycle smoke |
 | 3 | Enforce Role, Space, Permission before model context | Partial | SQL prefilter plus domain recheck; wrong-Space, explicit-share, and clearance leakage integration tests; observation ordering test | Production Access/Workers AI smoke |
 | 4 | Knowledge files, versions, approval, publish, deprecate | Partial | Immutable PostgreSQL lifecycle; human-only approval; R2 two-phase upload and durable cleanup; responsive lifecycle E2E | Production Hyperdrive/R2 lifecycle smoke |
@@ -23,6 +23,9 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 ## Current verified slice
 
 - PostgreSQL 17 migrations are checksum-pinned and idempotent.
+- Page load cannot create a Guild. Explicit initialization requires trusted Workshop-admin context
+  and exact Guild-name confirmation, while a Guild-scoped advisory lock permits one Root winner.
+  Nonmembers receive no Root, Constitution, ownership-transfer, or Agent-default bootstrap fields.
 - Forced Guild row-level security blocks cross-Guild reads and writes.
 - Root Owner cannot be disabled, suspended, departed, or replaced by an Agent.
 - Constitution changes are Root-only, expected-version guarded, reasoned, and atomically recorded

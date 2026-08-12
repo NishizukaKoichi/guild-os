@@ -15,9 +15,9 @@ import type {
   RevokeBreakGlassCodesRequest,
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
-  UiBootstrapState,
   UiBreakGlassStatus,
   UiDirectory,
+  UiMemberBootstrapState,
 } from "../../src/management-types";
 import { useI18n } from "../i18n";
 import { Notice } from "./Notice";
@@ -27,11 +27,11 @@ function errorMessage(cause: unknown, fallback: string): string {
 }
 
 export function RecoveryDialog({
-  bootstrap,
+  guildName,
   onRecover,
   onClose,
 }: {
-  bootstrap: UiBootstrapState;
+  guildName: string;
   onRecover(input: RecoverRootOwnershipRequest): Promise<void>;
   onClose(): void;
 }) {
@@ -118,7 +118,7 @@ export function RecoveryDialog({
               required
               maxLength={200}
               autoComplete="off"
-              placeholder={bootstrap.guildName}
+              placeholder={guildName}
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
             />
@@ -209,7 +209,7 @@ function RotateDialog({
   onRotate,
   onClose,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory;
   onRotate(input: RotateBreakGlassCodesRequest): Promise<RotatedBreakGlassCodes>;
   onClose(): void;
@@ -294,7 +294,7 @@ function RevokeDialog({
   onRevoke,
   onClose,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   onRevoke(input: RevokeBreakGlassCodesRequest): Promise<void>;
   onClose(): void;
 }) {
@@ -366,7 +366,7 @@ export function RecoveryManager({
   onRevoke,
   onRecover,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory | null;
   onRotate(input: RotateBreakGlassCodesRequest): Promise<RotatedBreakGlassCodes>;
   onRevoke(input: RevokeBreakGlassCodesRequest): Promise<void>;
@@ -435,7 +435,7 @@ export function RecoveryManager({
         />
       ) : null}
       {dialog === "revoke" ? <RevokeDialog bootstrap={bootstrap} onRevoke={onRevoke} onClose={() => setDialog(null)} /> : null}
-      {dialog === "recover" ? <RecoveryDialog bootstrap={bootstrap} onRecover={onRecover} onClose={() => setDialog(null)} /> : null}
+      {dialog === "recover" ? <RecoveryDialog guildName={bootstrap.guildName} onRecover={onRecover} onClose={() => setDialog(null)} /> : null}
       {generated ? <CodeReveal guildName={bootstrap.guildName} result={generated} onStored={() => setGenerated(null)} /> : null}
     </>
   );

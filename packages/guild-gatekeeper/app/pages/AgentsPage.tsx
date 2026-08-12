@@ -4,7 +4,7 @@ import type {
   AssignRoleRequest,
   CreateAgentRequest,
   GuildUiApi,
-  UiBootstrapState,
+  UiMemberBootstrapState,
   UiDirectory,
   UiDirectoryIdentity,
 } from "../../src/management-types";
@@ -25,7 +25,7 @@ export function AgentsPage({
   onRemoveRole,
 }: {
   api: GuildUiApi;
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory;
   onCreate(input: CreateAgentRequest): Promise<void>;
   onMembershipChange(identityId: string, nextState: "active" | "suspended" | "departed"): Promise<void>;

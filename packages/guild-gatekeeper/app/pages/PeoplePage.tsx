@@ -17,7 +17,7 @@ import type {
   CreateServiceRequest,
   IssueInvitationInput,
   IssuedInvitation,
-  UiBootstrapState,
+  UiMemberBootstrapState,
   UiDirectory,
   UiDirectoryIdentity,
 } from "../../src/management-types";
@@ -34,7 +34,7 @@ import {
 } from "../i18n";
 
 interface PeoplePageProps {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   directory: UiDirectory;
   onIssue(input: IssueInvitationInput): Promise<IssuedInvitation>;
   onRevoke(invitationId: string): Promise<void>;

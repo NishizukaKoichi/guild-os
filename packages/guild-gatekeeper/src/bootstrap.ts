@@ -1,9 +1,10 @@
-import type { Constitution } from "@guild-os/domain";
+import type { AppLocale, Constitution } from "@guild-os/domain";
 import {
   GuildAgentRunRepository,
   GuildPostgresRepository,
   withGuildTransaction,
   type GuildSetupState,
+  type GuildTransactionConnection,
 } from "@guild-os/postgres";
 import APP_HTML from "./generated/app.txt";
 import { makeChronicleEvent } from "./chronicle.js";
@@ -46,24 +47,61 @@ function defaultConstitution(env: GuildEnv, rootIdentityId: string): Constitutio
   };
 }
 
-export async function ensureGuildAccount(
+async function ensureDeploymentWebhook(
+  env: GuildEnv,
+  connection: GuildTransactionConnection,
+): Promise<void> {
+  const root = (await connection.query<{ root_owner_identity_id: string }>(
+    "SELECT root_owner_identity_id::text FROM guilds WHERE id = $1",
+    [env.GUILD_ID],
+  )).rows[0];
+  if (!root) throw new Error("Guild Root Owner is unavailable after initialization.");
+  await new GuildAgentRunRepository(connection, env.GUILD_ID).ensureDeploymentWebhook({
+    id: env.GUILD_WEBHOOK_CONNECTOR_ID,
+    name: env.GUILD_WEBHOOK_CONNECTOR_NAME,
+    endpointUrl: env.GUILD_WEBHOOK_URL,
+    rootOwnerIdentityId: root.root_owner_identity_id,
+    chronicleEvent: makeChronicleEvent(
+      env.GUILD_ID,
+      root.root_owner_identity_id,
+      "connector.provisioned",
+      "connector",
+      env.GUILD_WEBHOOK_CONNECTOR_ID,
+      { source: "deployment-config" },
+    ),
+  });
+}
+
+export async function prepareGuildAccount(
+  env: GuildEnv,
+  accountId: string,
+): Promise<GuildSetupState> {
+  return withGuildTransaction(env.HYPERDRIVE.connectionString, env.GUILD_ID, async (connection) => {
+    return new GuildPostgresRepository(connection, env.GUILD_ID).getSetupState(accountId);
+  });
+}
+
+export async function initializeGuildAccount(
   env: GuildEnv,
   accountId: string,
   isAdmin: boolean,
+  displayName: string,
+  preferredLocale: AppLocale,
 ): Promise<GuildSetupState> {
+  if (!isAdmin) {
+    throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
+  }
   return withGuildTransaction(env.HYPERDRIVE.connectionString, env.GUILD_ID, async (connection) => {
     const repository = new GuildPostgresRepository(connection, env.GUILD_ID);
     let state = await repository.getSetupState(accountId);
     if (!state.initialized) {
-      if (!isAdmin) {
-        throw new Error("A Cloudflare OS administrator must initialize this Guild first.");
-      }
       await repository.bootstrapGuild({
         guildId: env.GUILD_ID,
         name: env.GUILD_NAME,
         purpose: env.GUILD_PURPOSE,
         rootIdentityId: accountId,
-        rootDisplayName: "Root Owner",
+        rootDisplayName: displayName,
+        rootPreferredLocale: preferredLocale,
         rootSpaceId: crypto.randomUUID(),
         rootSpaceName: env.GUILD_ROOT_SPACE_NAME,
         constitution: defaultConstitution(env, accountId),
@@ -79,25 +117,10 @@ export async function ensureGuildAccount(
       });
       state = await repository.getSetupState(accountId);
     }
-    const root = (await connection.query<{ root_owner_identity_id: string }>(
-      "SELECT root_owner_identity_id::text FROM guilds WHERE id = $1",
-      [env.GUILD_ID],
-    )).rows[0];
-    if (!root) throw new Error("Guild Root Owner is unavailable after initialization.");
-    await new GuildAgentRunRepository(connection, env.GUILD_ID).ensureDeploymentWebhook({
-      id: env.GUILD_WEBHOOK_CONNECTOR_ID,
-      name: env.GUILD_WEBHOOK_CONNECTOR_NAME,
-      endpointUrl: env.GUILD_WEBHOOK_URL,
-      rootOwnerIdentityId: root.root_owner_identity_id,
-      chronicleEvent: makeChronicleEvent(
-        env.GUILD_ID,
-        root.root_owner_identity_id,
-        "connector.provisioned",
-        "connector",
-        env.GUILD_WEBHOOK_CONNECTOR_ID,
-        { source: "deployment-config" },
-      ),
-    });
+    if (!state.identityExists || state.membershipState !== "active") {
+      throw new Error("This Guild was already initialized by another administrator.");
+    }
+    await ensureDeploymentWebhook(env, connection);
     return state;
   });
 }

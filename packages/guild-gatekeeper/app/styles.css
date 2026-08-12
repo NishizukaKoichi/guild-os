@@ -1454,6 +1454,10 @@ textarea:focus-visible {
   padding: 24px 0 0;
 }
 
+.initialization-panel > .notice {
+  margin-top: 20px;
+}
+
 .access-symbol {
   display: grid;
   width: 48px;

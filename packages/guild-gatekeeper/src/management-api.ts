@@ -18,6 +18,7 @@ import {
   type AppLocale,
   type AuthorizationSnapshot,
   type Classification,
+  type MembershipState,
   type Permission,
 } from "@guild-os/domain";
 import {
@@ -32,6 +33,7 @@ import {
   withGuildTransaction,
 } from "@guild-os/postgres";
 import { makeChronicleEvent } from "./chronicle.js";
+import { initializeGuildAccount } from "./bootstrap.js";
 import type { GuildEnv } from "./config.js";
 import { GuildKnowledgeService } from "./knowledge-service.js";
 import { GuildWorkService } from "./work-service.js";
@@ -60,6 +62,7 @@ import type {
   CreateStepRequest,
   DecisionTransitionRequest,
   GuildUiApi,
+  InitializeGuildRequest,
   IssueInvitationInput,
   IssuedInvitation,
   KnowledgeTransitionRequest,
@@ -85,6 +88,7 @@ import type {
   SaveDecisionDraftRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
+  UiMemberBootstrapState,
   UiBreakGlassStatus,
   UiConstitution,
   UiConversation,
@@ -203,7 +207,7 @@ function toUiBreakGlassStatus(
   status: BreakGlassStatus,
   rootOwner: boolean,
   identityExists: boolean,
-  membershipState: UiBootstrapState["membershipState"],
+  membershipState: MembershipState | null,
 ): UiBreakGlassStatus {
   const canRecover = status.available && !rootOwner &&
     (!identityExists || membershipState === "active");
@@ -271,11 +275,13 @@ function assertAgentInput(input: CreateAgentRequest): void {
 export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   readonly #env: GuildEnv;
   readonly #accountId: string;
+  readonly #isWorkshopAdmin: boolean;
 
-  constructor(env: GuildEnv, accountId: string) {
+  constructor(env: GuildEnv, accountId: string, isWorkshopAdmin = false) {
     super();
     this.#env = env;
     this.#accountId = accountId;
+    this.#isWorkshopAdmin = isWorkshopAdmin;
   }
 
   async getBootstrap(): Promise<UiBootstrapState> {
@@ -285,6 +291,57 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
       async (connection) => {
         const repository = new GuildPostgresRepository(connection, this.#env.GUILD_ID);
         const state = await repository.getSetupState(this.#accountId);
+        const common = {
+          guildId: this.#env.GUILD_ID,
+          guildName: this.#env.GUILD_NAME,
+          guildPurpose: this.#env.GUILD_PURPOSE,
+          accountId: this.#accountId,
+        } as const;
+        if (!state.initialized) {
+          return {
+            ...common,
+            screen: "initialize",
+            initialized: false,
+            canInitialize: this.#isWorkshopAdmin,
+            identityExists: false,
+            membershipState: null,
+            preferredLocale: "en",
+          };
+        }
+
+        const breakGlassStatus = await new GuildRecoveryRepository(
+          connection,
+          this.#env.GUILD_ID,
+        ).getBreakGlassStatus();
+        if (!state.identityExists ||
+            (state.membershipState !== "preboarding" && state.membershipState !== "active")) {
+          const accessMembershipState = state.membershipState === "invited" ||
+            state.membershipState === "suspended" || state.membershipState === "departed"
+            ? state.membershipState
+            : null;
+          const locale = state.identityExists ? (await connection.query<{
+            preferred_locale: AppLocale;
+          }>(
+            "SELECT preferred_locale FROM identities WHERE guild_id = $1 AND id = $2",
+            [this.#env.GUILD_ID, this.#accountId],
+          )).rows[0]?.preferred_locale ?? "en" : "en";
+          return {
+            ...common,
+            screen: "access",
+            initialized: true,
+            canInitialize: false,
+            identityExists: state.identityExists,
+            membershipState: accessMembershipState,
+            preferredLocale: locale,
+            breakGlass: toUiBreakGlassStatus(
+              breakGlassStatus,
+              false,
+              state.identityExists,
+              state.membershipState,
+            ),
+          };
+        }
+
         const result = await connection.query<{
           root_owner_identity_id: string;
           root_owner_display_name: string;
@@ -293,7 +350,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           level2_approval_quorum: number;
           level3_approval_quorum: number;
           data_retention_days: number;
-          agent_defaults: UiBootstrapState["agentDefaults"];
+          agent_defaults: UiMemberBootstrapState["agentDefaults"];
           updated_by_identity_id: string;
           constitution_updated_at: string;
         }>(
@@ -317,7 +374,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         );
         const row = result.rows[0];
         if (!row) throw new Error("Guild is not initialized.");
-        const transfer = state.identityExists ? (await connection.query<{
+        const transfer = (await connection.query<{
           id: string;
           from_identity_id: string;
           to_identity_id: string;
@@ -354,7 +411,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
               AND $2::uuid IN (transfer.from_identity_id, transfer.to_identity_id)
             ORDER BY transfer.created_at DESC LIMIT 1`,
           [this.#env.GUILD_ID, this.#accountId],
-        )).rows[0] : undefined;
+        )).rows[0];
         const rootOwnershipTransfer: UiRootOwnershipTransfer | null = transfer ? {
           id: transfer.id,
           fromIdentityId: transfer.from_identity_id,
@@ -373,20 +430,17 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         } : null;
         const rootOwner = row.root_owner_identity_id === this.#accountId;
         const breakGlass = toUiBreakGlassStatus(
-          await new GuildRecoveryRepository(
-            connection,
-            this.#env.GUILD_ID,
-          ).getBreakGlassStatus(),
+          breakGlassStatus,
           rootOwner,
           state.identityExists,
           state.membershipState,
         );
         return {
-          guildId: this.#env.GUILD_ID,
-          guildName: this.#env.GUILD_NAME,
-          guildPurpose: this.#env.GUILD_PURPOSE,
-          accountId: this.#accountId,
-          identityExists: state.identityExists,
+          ...common,
+          screen: "member",
+          initialized: true,
+          canInitialize: false,
+          identityExists: true,
           membershipState: state.membershipState,
           rootOwner,
           rootOwnerIdentityId: row.root_owner_identity_id,
@@ -407,6 +461,22 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         };
       },
     );
+  }
+
+  async initializeGuild(input: InitializeGuildRequest): Promise<UiBootstrapState> {
+    assertNonBlank(input.displayName, "Root Owner display name");
+    assertLocale(input.preferredLocale);
+    if (input.confirmation !== this.#env.GUILD_NAME) {
+      throw new Error("Type the Guild name exactly to initialize it.");
+    }
+    await initializeGuildAccount(
+      this.#env,
+      this.#accountId,
+      this.#isWorkshopAdmin,
+      input.displayName.trim(),
+      input.preferredLocale,
+    );
+    return this.getBootstrap();
   }
 
   async claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState> {

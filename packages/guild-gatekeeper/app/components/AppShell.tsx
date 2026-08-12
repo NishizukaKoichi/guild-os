@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import type { UiBootstrapState } from "../../src/management-types";
+import type { UiMemberBootstrapState } from "../../src/management-types";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
 export type AppPage =
@@ -31,7 +31,7 @@ export type AppPage =
   | "settings";
 
 interface AppShellProps {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiMemberBootstrapState;
   page: AppPage;
   peopleAvailable: boolean;
   agentsAvailable: boolean;

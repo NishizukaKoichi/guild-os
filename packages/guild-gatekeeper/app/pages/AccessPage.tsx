@@ -4,7 +4,7 @@ import type { AppLocale } from "@guild-os/domain";
 import type {
   ClaimInvitationInput,
   RecoverRootOwnershipRequest,
-  UiBootstrapState,
+  UiAccessBootstrapState,
 } from "../../src/management-types";
 import { Notice } from "../components/Notice";
 import { RecoveryDialog } from "../components/RecoveryManager";
@@ -15,7 +15,7 @@ export function AccessPage({
   onClaim,
   onRecover,
 }: {
-  bootstrap: UiBootstrapState;
+  bootstrap: UiAccessBootstrapState;
   onClaim(input: ClaimInvitationInput): Promise<void>;
   onRecover(input: RecoverRootOwnershipRequest): Promise<void>;
 }) {
@@ -123,7 +123,7 @@ export function AccessPage({
     </main>
     {recoveryOpen ? (
       <RecoveryDialog
-        bootstrap={bootstrap}
+        guildName={bootstrap.guildName}
         onRecover={onRecover}
         onClose={() => setRecoveryOpen(false)}
       />

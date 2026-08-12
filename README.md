@@ -32,8 +32,8 @@ Implemented and tested:
 - PostgreSQL row-level Guild isolation
 - Append-only Chronicle and idempotent external-action outbox
 - Hyperdrive transaction boundary
-- Guild Gatekeeper with administrator bootstrap, one-time invitation binding, observation approval,
-  and permission-filtered Space discovery
+- Guild Gatekeeper with explicit administrator-confirmed bootstrap, privacy-minimized nonmember
+  responses, one-time invitation binding, observation approval, and permission-filtered discovery
 - Sandboxed, mobile-responsive Home, People, Agents, invitation, offboarding, and Settings UI
 - Human, Agent, and Service registration with scoped Role assignment and lifecycle controls
 - Custom Role and hierarchical Space administration with database-enforced invariants
@@ -188,11 +188,17 @@ is enabled, provide `CF_AI_GATEWAY_API_TOKEN` the same way. `pnpm check` never r
 The receiving service must verify the signature and persist the idempotency key before applying an
 effect. See the [Agent Webhook contract](docs/agent-webhook.md).
 
-The first Workshop administrator who opens **Guild** initializes the database and becomes Root
-Owner. Keep the Access policy restricted to that person until initialization is complete. The Root
-Owner then issues a high-entropy, one-time invitation from **People**. A recipient's stable
+Opening **Guild** never initializes the database as a page-load side effect. On an uninitialized
+deployment, a Workshop administrator must enter their Root display name, choose a locale, type the
+configured Guild name exactly, and submit the initialization form. PostgreSQL serializes competing
+attempts, so only one human account can become Root Owner. Keep the Access policy and Workshop
+administrator list restricted to that intended person until initialization is complete.
+
+The Root Owner then issues a high-entropy, one-time invitation from **People**. A recipient's stable
 Cloudflare OS account capability is bound to the selected Role, Space, and initial Membership state
-only after that token is claimed. The database stores only the token's SHA-256 hash.
+only after that token is claimed. The database stores only the token's SHA-256 hash. Accounts that
+are not usable Guild members receive no Root identity, Constitution, ownership-transfer, or Agent
+configuration in the bootstrap response.
 
 Root ownership is not assigned through Roles. In **Settings**, the current Root proposes a named
 active Human and chooses the Role retained after handover. That Human accepts from their own

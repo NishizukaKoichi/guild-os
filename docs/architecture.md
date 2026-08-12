@@ -27,6 +27,13 @@ One deployment is one Guild. This makes the Cloudflare account and database a ha
 not merely an application filter. A Guild may contain hierarchical Spaces. Cross-Guild exchange is
 later implemented as an explicit, revocable federation connector.
 
+Opening the application is read-only. Before the Guild exists, the account-bound management API
+returns a minimal `initialize` state. Only a trusted Workshop administrator can submit the explicit
+initialization command, and PostgreSQL serializes contenders with a Guild-scoped advisory lock.
+After initialization, bootstrap responses are split into `access` and `member` shapes. Unknown,
+invited-but-unclaimed, suspended, and departed accounts do not receive Root Owner, Constitution,
+ownership-transfer, or Agent policy metadata.
+
 ## Packages
 
 | Package | Responsibility |
