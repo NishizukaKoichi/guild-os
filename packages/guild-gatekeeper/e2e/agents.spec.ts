@@ -41,6 +41,20 @@ test("approves one external Agent action and kills another run", async ({ page }
   await expect(page.getByText("Killed", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("The Agent run was killed and pending execution was cancelled.")).toBeVisible();
 
+  const agentRow = page.locator(".agent-row").filter({ hasText: "Research Synthesizer" });
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await agentRow.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(agentRow.getByText("Suspended", { exact: true })).toBeVisible();
+  await expect(page.getByText(
+    "No runnable Agent, Space, and active connector are available in your scope.",
+    { exact: true },
+  )).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plan action", exact: true })).toHaveCount(0);
+
+  await agentRow.getByRole("button", { name: "Restart", exact: true }).click();
+  await expect(agentRow.getByText("Active", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plan action", exact: true })).toBeVisible();
+
   await page.getByLabel("Language").selectOption("ja");
   await expect(page.getByRole("heading", { name: "実行Run", exact: true })).toBeVisible();
   expect(errors).toEqual([]);

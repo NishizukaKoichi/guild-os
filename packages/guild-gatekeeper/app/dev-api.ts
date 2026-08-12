@@ -2275,6 +2275,12 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       };
     },
     async getAgentRunPage() {
+      const runnableAgent = directory.identities.find((identity) => identity.id === agentId &&
+        identity.kind === "agent" && identity.status === "active" &&
+        identity.membershipState === "active");
+      const runnableProfile = directory.agentProfiles.find((profile) =>
+        profile.identityId === agentId && profile.status === "active");
+      const canRunAgent = mode === "root" && Boolean(runnableAgent && runnableProfile);
       return {
         items: agentRuns.map(({ votes: _votes, ...run }) => ({
           ...run,
@@ -2287,14 +2293,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           status: "active" as const,
           version: 1,
         }] : [],
-        runnableAgents: mode === "root" ? [{
+        runnableAgents: canRunAgent ? [{
           identityId: agentId,
           displayName: "Research Synthesizer",
           model: "workers-ai/default",
           spaceIds: [researchSpaceId],
           limits: bootstrap.agentDefaults,
         }] : [],
-        runnableSpaceIds: mode === "root" ? [researchSpaceId] : [],
+        runnableSpaceIds: canRunAgent ? [researchSpaceId] : [],
         nextCursor: null,
       };
     },

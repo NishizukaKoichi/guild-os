@@ -257,7 +257,7 @@ does not make deleted files visible or lose the cleanup obligation.
 | Governance metadata enumeration by a nonmember | Discriminated bootstrap responses omit Root, Constitution, transfer, and Agent data before usable Membership | Configured Guild name and purpose remain visible to authenticated Workshop accounts by design |
 | Requester-to-Agent privilege escalation | Agent, requester, Workflow, and Connector permission intersection at plan and execution | Incorrect Role design can still grant intended but excessive authority; audit Roles |
 | Unauthorized context leakage | SQL filters Role, Space, clearance, visibility, and sharing before model context | External model/provider policy remains purchaser-owned |
-| Agent-selected URL / SSRF | Fixed immutable HTTPS URL, strict-public fetch, credential/query/hash rejection, redirects disabled | DNS ownership and receiver security remain purchaser responsibilities |
+| Agent-selected URL / SSRF | Fixed immutable HTTPS URL, strict-public fetch, credential/query/hash rejection, and manual redirect handling that rejects every 3xx response | DNS ownership and receiver security remain purchaser responsibilities |
 | Duplicate external effect | Atomic run claim, one outbound attempt, immutable idempotency key, receiver-side durable deduplication | Lost responses are ambiguous; use receiver audit and an explicit compensating run |
 | Stale approval | Approval expiry plus execution-time state and authority recheck | A remote effect already accepted cannot be revoked |
 | Workflow or API outage | Transactional outbox, bounded backoff, exhausted-attempt terminal failure and Chronicle event | Operators must restore Cloudflare service and create a new approved run |

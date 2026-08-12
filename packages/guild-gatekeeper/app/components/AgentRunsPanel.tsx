@@ -56,8 +56,17 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
   const spaceNames = useMemo(() => new Map(
     directory.spaces.map((space) => [space.id, space.name]),
   ), [directory.spaces]);
-  const canCreate = Boolean(page?.connectors.some((connector) => connector.status === "active") &&
-    page.runnableSpaceIds.length > 0 && page.runnableAgents.length > 0);
+  const knownInactiveAgentIds = useMemo(() => new Set(directory.identities
+    .filter((identity) => identity.kind === "agent" &&
+      (identity.status !== "active" || identity.membershipState !== "active"))
+    .map((identity) => identity.id)), [directory.identities]);
+  const availablePage = useMemo(() => page ? {
+    ...page,
+    runnableAgents: page.runnableAgents.filter((agent) =>
+      !knownInactiveAgentIds.has(agent.identityId)),
+  } : null, [knownInactiveAgentIds, page]);
+  const canCreate = Boolean(availablePage?.connectors.some((connector) => connector.status === "active") &&
+    availablePage.runnableSpaceIds.length > 0 && availablePage.runnableAgents.length > 0);
 
   const load = useCallback(async (preferredId?: string | null, silent = false) => {
     if (!silent) setLoading(true);
@@ -78,8 +87,9 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
   }, [api, t]);
 
   useEffect(() => {
+    setCreating(false);
     void load();
-  }, [load]);
+  }, [directory, load]);
 
   useEffect(() => {
     if (!page?.items.some((run) => ACTIVE_STATUSES.has(run.status))) return;
@@ -157,6 +167,7 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
       </div>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {success ? <Notice kind="success">{success}</Notice> : null}
+      {!loading && availablePage && !canCreate ? <Notice>{t("agentRun.unavailable")}</Notice> : null}
       {loading ? (
         <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("agentRun.loading")}</div>
       ) : !page?.items.length ? (
@@ -264,8 +275,8 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
           </article>
         </div>
       )}
-      {creating && page ? (
-        <AgentRunDialog api={api} page={page} directory={directory} onCreated={async (runId) => {
+      {creating && availablePage ? (
+        <AgentRunDialog api={api} page={availablePage} directory={directory} onCreated={async (runId) => {
           await load(runId);
           setSuccess(t("agentRun.toastCreated"));
         }} onClose={() => setCreating(false)} />
