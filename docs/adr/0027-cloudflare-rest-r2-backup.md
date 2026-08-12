@@ -35,7 +35,10 @@ required non-bypass restore path.
   audience must match deployment configuration and secret-like keys are rejected recursively.
 - PostgreSQL is exported as plain SQL with column-name `INSERT`s, `row_security=on`, and the Guild
   UUID in `app.guild_id`. Connection fields are passed as bounded libpq environment variables so a
-  complete credential URL is not exposed in process arguments. Restore uses `psql` in one
+  complete credential URL is not exposed in process arguments. The backup child uses
+  [`sslrootcert=system`](https://www.postgresql.org/docs/current/libpq-connect.html) unless the
+  purchaser explicitly configures another CA; together with the required `sslmode=verify-full`,
+  this verifies both the certificate chain and database hostname. Restore uses `psql` in one
   transaction with the same Guild UUID.
 
 ## Consequences

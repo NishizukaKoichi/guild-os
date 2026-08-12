@@ -367,10 +367,14 @@ export function pgDumpEnvironment(connectionString, guildId) {
   }
   assertVerifiedTlsConfiguration(connectionString);
   const path = process.env.PATH;
+  const connectionEnvironment = postgresConnectionEnvironment(connectionString);
   return {
     ...(path ? { PATH: path } : {}),
     LANG: "C",
-    ...postgresConnectionEnvironment(connectionString),
+    ...connectionEnvironment,
+    // libpq does not use the platform CA roots unless requested explicitly. PostgreSQL 17+
+    // supports this value and the project requires that major version or newer.
+    PGSSLROOTCERT: connectionEnvironment.PGSSLROOTCERT ?? "system",
     PGOPTIONS: `-c app.guild_id=${guildId}`,
   };
 }

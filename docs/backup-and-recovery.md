@@ -72,7 +72,8 @@ When Context Artifacts is enabled, also pass its clean local mirror:
 ```
 
 Creation uses restricted file modes, sets the configured Guild UUID for every `pg_dump` query,
-enables row security explicitly, and emits column-name `INSERT`s rather than `COPY` so the dump can
+uses libpq's system CA roots by default (or the explicit `sslrootcert` from `DATABASE_URL`), enables
+row security explicitly, and emits column-name `INSERT`s rather than `COPY` so the dump can
 be restored while row security remains active. It compares Chronicle and per-table row counts plus
 the remote R2 tree, indexes every object, hashes every exported control file, and runs the same full
 verification used by `backup:verify`. Copy the finished directory off-site only after the command
