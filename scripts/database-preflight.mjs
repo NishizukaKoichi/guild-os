@@ -15,6 +15,11 @@ function isLocalDatabase(connectionString) {
   return ["localhost", "127.0.0.1", "::1"].includes(hostname);
 }
 
+export function hasVerifiedClientTls(client) {
+  const stream = client?.connection?.stream;
+  return stream?.encrypted === true && stream?.authorized === true;
+}
+
 export function assertDatabasePreflight(snapshot, expectedMigrations, options = {}) {
   if (!Number.isSafeInteger(snapshot.serverVersionNum) || snapshot.serverVersionNum < 170_000) {
     throw new Error("Production requires PostgreSQL 17 or newer.");
@@ -88,7 +93,9 @@ export async function verifyProductionDatabase(connectionString, options = {}) {
     if (!identity) throw new Error("The database role could not be inspected.");
     const snapshot = {
       serverVersionNum: identity.server_version_num,
-      ssl: identity.ssl,
+      // Proxies such as Neon terminate TLS before the PostgreSQL backend, so pg_stat_ssl can
+      // report false even when node-postgres has a verified TLS socket to the proxy.
+      ssl: identity.ssl || hasVerifiedClientTls(client),
       superuser: identity.superuser,
       bypassRls: identity.bypass_rls,
       migrations: migrationResult.rows,

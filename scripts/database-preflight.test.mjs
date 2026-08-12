@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertDatabasePreflight } from "./database-preflight.mjs";
+import {
+  assertDatabasePreflight,
+  hasVerifiedClientTls,
+} from "./database-preflight.mjs";
 
 const migrations = [
   { name: "0001_initial.sql", checksum: "a".repeat(64) },
@@ -51,4 +54,17 @@ test("database preflight rejects privileged, old, or plaintext production connec
     ...snapshot(),
     ssl: false,
   }, migrations, { allowInsecureLocalhost: true, localDatabase: true }));
+});
+
+test("client TLS evidence requires encryption and certificate authorization", () => {
+  assert.equal(hasVerifiedClientTls({
+    connection: { stream: { encrypted: true, authorized: true } },
+  }), true);
+  assert.equal(hasVerifiedClientTls({
+    connection: { stream: { encrypted: true, authorized: false } },
+  }), false);
+  assert.equal(hasVerifiedClientTls({
+    connection: { stream: { encrypted: false, authorized: true } },
+  }), false);
+  assert.equal(hasVerifiedClientTls({}), false);
 });
