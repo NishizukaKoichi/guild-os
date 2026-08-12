@@ -6,13 +6,13 @@ import {
   captureWorkerDeployments,
   assertResolvedResources,
   deploymentLockPath,
-  deploymentPath,
   deploymentResourceSummary,
   gitSourceSnapshot,
   migrationInventory,
   readResolvedDeployment,
   repositoryRoot,
   runCapture,
+  selectedDeploymentConfig,
   sha256File,
   sha256Object,
   workerEntries,
@@ -98,14 +98,15 @@ export async function buildReleaseManifest({
   const databaseVerification = database ?? (offline
     ? { status: "not-queried" }
     : await verifyProductionDatabase(process.env.DATABASE_URL));
+  const deploymentConfig = selectedDeploymentConfig();
   const files = {
     packageLock: {
       path: "pnpm-lock.yaml",
       sha256: await sha256File(resolve(repositoryRoot, "pnpm-lock.yaml")),
     },
     deployment: {
-      path: "deployment.jsonc",
-      sha256: await sha256File(deploymentPath),
+      source: deploymentConfig.evidenceLabel,
+      sha256: await sha256File(deploymentConfig.path),
     },
     deploymentLock: existsSync(deploymentLockPath) ? {
       path: "deployment.lock.json",
@@ -127,7 +128,10 @@ export async function buildReleaseManifest({
     files,
     verification: {
       localGatesRequired: [
+        "pnpm audit:dependencies",
+        "pnpm peers:check",
         "pnpm test",
+        "pnpm test:cloudflare-os",
         "pnpm build",
         "pnpm lint",
         "PostgreSQL integration",

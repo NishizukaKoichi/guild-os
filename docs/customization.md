@@ -21,7 +21,11 @@ The custom logo appears in the app chrome, sign-in screens, and browser tab on e
 
 ## Deployment configuration
 
-[`deployment.jsonc`](../deployment.jsonc) is an annotated, non-secret control surface. Its groups map directly to generated Wrangler configuration:
+[`deployment.jsonc`](../deployment.jsonc) is the annotated sales-template control surface. Copy it
+to ignored `deployment.local.jsonc` for an installed instance, or set
+`GUILD_OS_DEPLOYMENT_CONFIG` to an absolute encrypted external path. The commands prefer the local
+copy and refuse a live deploy from the tracked template. Its groups map directly to generated
+Wrangler configuration:
 
 | Path | Controls | Choices |
 | --- | --- | --- |
@@ -36,7 +40,8 @@ The custom logo appears in the app chrome, sign-in screens, and browser tab on e
 | `resources` | Blueprint/avatar KV plus blueprint and Knowledge R2 | `null` to provision or explicit IDs/names to reuse |
 | `observability` | Worker telemetry | Structured logs, invocation logs, traces, and sampling; see the [observability guide](observability.md) |
 
-Secrets are never valid values in this file. Install them interactively with Wrangler against the Worker that consumes them.
+Secrets are never valid values in these files. Install them only through the documented deployment
+environment and temporary Wrangler secret transfer.
 
 ### Workers and routing
 
@@ -224,7 +229,8 @@ Prefer wrapper-owned Workers and [service bindings](https://developers.cloudflar
 1. Record the current `cloudflare-os` gitlink for rollback.
 2. Update the submodule to the intended upstream commit.
 3. Review Workshop and Context Wrangler base-config changes and Gatekeeper contracts.
-4. Run `pnpm install`, `pnpm --dir cloudflare-os install`, and `pnpm check`.
+4. Run `pnpm install --frozen-lockfile`, `pnpm audit:dependencies`, `pnpm peers:check`, and
+   `pnpm check` from the repository root.
 5. Deploy and verify Access, administrator access, PostgreSQL/Hyperdrive, storage, configured AI, Context, Guild observations, and the Error Reporter query surface.
 6. If needed, restore the previous gitlink and redeploy, or use [Workers rollback](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/) when bindings remain compatible.
 

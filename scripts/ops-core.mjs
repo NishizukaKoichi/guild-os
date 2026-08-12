@@ -6,9 +6,12 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, printParseErrorCode } from "jsonc-parser";
 import { applyProvisioningLock, validateConfig } from "./deploy.mjs";
+import {
+  deploymentConfigEvidenceLabel,
+  resolveDeploymentConfigPath,
+} from "./deployment-config.mjs";
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-export const deploymentPath = join(repositoryRoot, "deployment.jsonc");
 export const deploymentLockPath = join(repositoryRoot, "deployment.lock.json");
 
 export function stableJson(value) {
@@ -51,9 +54,14 @@ export async function readJsonc(path) {
 }
 
 export async function readResolvedDeployment() {
-  const deployment = validateConfig(await readJsonc(deploymentPath));
+  const deployment = validateConfig(await readJsonc(resolveDeploymentConfigPath()));
   const lock = existsSync(deploymentLockPath) ? await readJsonc(deploymentLockPath) : null;
   return applyProvisioningLock(deployment, lock);
+}
+
+export function selectedDeploymentConfig() {
+  const path = resolveDeploymentConfigPath();
+  return { path, evidenceLabel: deploymentConfigEvidenceLabel(path) };
 }
 
 export function runCapture(command, args, options = {}) {

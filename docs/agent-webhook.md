@@ -1,7 +1,8 @@
 # Agent Webhook Contract
 
 Guild OS v1 performs one governed external-write operation: a signed `POST` to the fixed HTTPS URL
-in `deployment.jsonc`. The URL is deployment-owned and cannot be supplied by an Agent or browser.
+in the purchaser deployment configuration. The URL is deployment-owned and cannot be supplied by
+an Agent or browser.
 
 ## Request
 
@@ -82,7 +83,7 @@ or automation adapter when needed, while retaining claim-before-effect semantics
    ```
 
 4. Set a new `guild.webhook.connectorId`, name, and credential-free HTTPS URL in
-   `deployment.jsonc`.
+   `deployment.local.jsonc`.
 5. Run `pnpm check`, deploy, send one nonproduction event, and verify the receiver's idempotency
    record and the Guild Chronicle.
 
@@ -92,7 +93,7 @@ deduplicated `200` with the same body hash.
 
 Changing the URL requires a new Connector ID. The deploy script transfers the secret with a
 temporary mode-`0600` Wrangler secrets file and removes it after deployment. Never place the secret
-in Git, `deployment.jsonc`, query parameters, logs, or an Agent prompt.
+in Git, deployment JSONC, query parameters, logs, or an Agent prompt.
 
 ## Kill races
 

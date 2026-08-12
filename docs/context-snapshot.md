@@ -11,7 +11,8 @@ governed memory, work, decisions, and an append-only history.
 
 - Product requirements: the Guild OS v1.0 specification agreed in the project conversation.
 - Runtime behavior: the pinned `cloudflare-os` submodule and its source code.
-- Deployment behavior: this repository's `deployment.jsonc`, `scripts/deploy.mjs`, and tests.
+- Deployment behavior: the tracked `deployment.jsonc` template, ignored or external purchaser
+  configuration, `scripts/deploy.mjs`, and tests.
 - Architecture decisions: `docs/adr/`.
 
 When these disagree, executable code and a newer accepted ADR take precedence. A conflicting
@@ -102,14 +103,16 @@ product requirement must be resolved explicitly rather than silently weakened.
   release evidence, Access/receiver smoke evidence, consistent PostgreSQL/KV/R2/Access backup,
   checksum verification, and non-destructive KV restore preparation. ADR 0016 records the
   purchaser-owned recovery boundary.
+- The root pnpm workspace and lockfile are the release dependency authority for the selected
+  Cloudflare OS packages and Guild-owned packages. Supply-chain age policy, patched transitive
+  overrides, peer validation, and high-severity audit are enforced before deployment without
+  changing the pinned upstream submodule.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Make the root deployment lockfile authoritative for the Cloudflare OS build and eliminate the
-   audited vulnerable transitive build dependency without mutating the pinned submodule.
-2. Produce the clean committed local release evidence and complete release-source review.
-3. Provision the purchaser-owned PostgreSQL, Hyperdrive, Access, domain, and Cloudflare resources,
+1. Produce the clean committed local release evidence and complete release-source review.
+2. Provision the purchaser-owned PostgreSQL, Hyperdrive, Access, domain, and Cloudflare resources,
    deploy, and run the complete owner-to-agent
    smoke test.
-4. Record the production evidence in the v1 completion matrix and release manifest.
+3. Record the production evidence in the v1 completion matrix and release manifest.

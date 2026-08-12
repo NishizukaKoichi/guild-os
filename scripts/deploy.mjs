@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
 import { parse, printParseErrorCode } from "jsonc-parser";
+import {
+  assertPrivateDeploymentConfig,
+  resolveDeploymentConfigPath,
+} from "./deployment-config.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const deploymentLockPath = join(root, "deployment.lock.json");
@@ -18,6 +22,7 @@ const generatedPaths = {
   errorReporter: join(root, "packages/error-reporter", generatedName),
 };
 const defaultContextArtifactsNamespace = "gatekeeper-context-collections";
+const secretLikeKey = /(?:secret|token|password|credential|database[_-]?url|api[_-]?key)/i;
 
 const requiredPaths = [
   "accountId",
@@ -94,7 +99,7 @@ export function applyProvisioningLock(config, lock) {
   }
   const expectedWorkers = configuredWorkerNames(config);
   if (JSON.stringify(lock.workers) !== JSON.stringify(expectedWorkers)) {
-    throw new Error("deployment.lock.json Worker names do not match deployment.jsonc.");
+    throw new Error("deployment.lock.json Worker names do not match the deployment configuration.");
   }
 
   const resolved = structuredClone(config);
@@ -113,7 +118,7 @@ export function applyProvisioningLock(config, lock) {
     if (lockedValue === null) continue;
     const configuredValue = valueAt(resolved, path);
     if (configuredValue !== null && configuredValue !== lockedValue) {
-      throw new Error(`deployment.lock.json conflicts with deployment.jsonc at ${path}.`);
+      throw new Error(`deployment.lock.json conflicts with the deployment configuration at ${path}.`);
     }
     const keys = path.split(".");
     let target = resolved;
@@ -186,6 +191,24 @@ function valueAt(object, path) {
 }
 
 export function validateConfig(config) {
+  const inspectKeys = (value, path = []) => {
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => inspectKeys(entry, [...path, String(index)]));
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    for (const [key, entry] of Object.entries(value)) {
+      const nextPath = [...path, key];
+      if (secretLikeKey.test(key)) {
+        throw new Error(
+          `Secret-like deployment key is forbidden: ${nextPath.join(".")}. Use the process environment.`,
+        );
+      }
+      inspectKeys(entry, nextPath);
+    }
+  };
+  inspectKeys(config);
+
   const activePaths = [
     ...requiredPaths,
     ...(config.aiGateway?.enabled ? aiGatewayPaths : []),
@@ -706,6 +729,7 @@ function sanitizedChildEnv(env) {
   delete childEnv.CF_AI_GATEWAY_API_TOKEN;
   delete childEnv.CF_ACCESS_CLIENT_ID;
   delete childEnv.CF_ACCESS_CLIENT_SECRET;
+  delete childEnv.GUILD_OS_DEPLOYMENT_CONFIG;
   return childEnv;
 }
 
@@ -771,26 +795,28 @@ function requireSubmodule() {
 }
 
 function build(config) {
-  run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
-  run(["--dir", "packages/guild-gatekeeper", "run", "build"]);
+  run(["--filter", "@gadgets/gatekeeper-context", "build"]);
+  run(["--filter", "@guild-os/gatekeeper", "build"]);
   if (config.referenceWebhook.enabled) {
-    run(["--dir", "packages/webhook-receiver", "run", "build"]);
+    run(["--filter", "@guild-os/webhook-receiver", "build"]);
   }
   if (config.errorReporting.enabled) {
-    run(["--dir", "packages/error-reporter", "run", "build"]);
+    run(["--filter", "error-reporter", "build"]);
   }
-  run(["--dir", "cloudflare-os", "--filter", "@gadgets/workshop-frontend", "build"], root, {
+  run(["--filter", "@gadgets/workshop-frontend", "build"], root, {
     ...process.env,
     VITE_CF_ACCESS_MODE: "true",
   });
-  run(["--dir", "cloudflare-os", "--filter", "@gadgets/workshop-backend", "build"]);
+  run(["--filter", "@gadgets/workshop-backend", "build"]);
 }
 
 async function main() {
   requireSubmodule();
-  const deployment = await readDeployment(join(root, "deployment.jsonc"));
+  const configPath = resolveDeploymentConfigPath();
+  const deployment = await readDeployment(configPath);
   const config = applyProvisioningLock(deployment, await readDeploymentLock());
   const check = process.argv.includes("--check");
+  if (!check) assertPrivateDeploymentConfig(configPath);
   const releaseCommit = check ? null : releaseSource();
   if (!check) {
     const { verifyProductionDatabase } = await import("./database-preflight.mjs");
@@ -817,7 +843,10 @@ async function main() {
     for (const [name, generatedConfig] of Object.entries(generated)) {
       await writeFile(generatedPaths[name], JSON.stringify(generatedConfig, null, 2) + "\n");
     }
+    run(["audit:dependencies"]);
+    run(["peers:check"]);
     run(["test"]);
+    run(["test:cloudflare-os"]);
     run(["lint"]);
     build(config);
 

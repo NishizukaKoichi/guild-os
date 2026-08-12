@@ -114,8 +114,8 @@ application, Worker names, Guild UUID, and HMAC secret. Keep Access restricted t
    check` and compare the stored object count/bytes with `restore-plan.json`.
 4. Recreate the Access application and policies from `cloudflare/access.json`; review identities,
    session duration, and hostname instead of applying the old object blindly.
-5. Configure a new `deployment.jsonc` and let the first deploy create a new lock. Never transplant
-   production resource IDs into the rehearsal.
+5. Configure a new ignored `deployment.local.jsonc` and let the first deploy create a new lock.
+   Never transplant production resource IDs into the rehearsal.
 6. Deploy the exact source commit recorded by the backup, then apply only reviewed newer migrations.
 7. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
    Inbox, Chronicle ordering, Agent approval/delivery, and Kill behavior.

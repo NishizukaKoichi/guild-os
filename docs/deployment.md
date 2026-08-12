@@ -24,8 +24,8 @@ unreviewed changes.
 
 1. Create a blank PostgreSQL database with TLS, automated provider backups, point-in-time recovery
    where available, and a dedicated non-superuser application role.
-2. Run `pnpm db:migrate` with the direct database URL. Never put that URL in Git or
-   `deployment.jsonc`.
+2. Run `pnpm db:migrate` with the direct database URL. Never put that URL in Git or either
+   deployment configuration file.
    Then run `pnpm db:verify`; production verification requires PostgreSQL 17+, TLS, a non-superuser
    role without `BYPASSRLS`, exact migration checksums, and forced RLS on every Guild table.
 3. Create a Hyperdrive configuration for that database and record its 32-character ID.
@@ -46,8 +46,15 @@ Use the current official Cloudflare instructions for
 
 ## 3. Configure the deployment
 
-Replace every active placeholder in `deployment.jsonc`. Keep these identifiers stable after first
+Copy `deployment.jsonc` to the ignored `deployment.local.jsonc`, set mode `0600`, and replace every
+active placeholder in that copy. Alternatively, set `GUILD_OS_DEPLOYMENT_CONFIG` to an absolute
+path in the purchaser's encrypted operations area. Keep these identifiers stable after first
 production use:
+
+```sh
+cp deployment.jsonc deployment.local.jsonc
+chmod 600 deployment.local.jsonc
+```
 
 - Guild UUID
 - Worker names
@@ -70,22 +77,34 @@ stores. A release record or backup still refuses an unresolved partial lock.
 `deployment.lock.json` is ignored by Git because it belongs to one purchaser instance, not the
 reusable source template. Preserve it in the purchaser's encrypted operations vault and complete
 backup. Losing it does not delete data, but turns resource recovery into manual account discovery.
+The same separation applies to `deployment.local.jsonc`. Release evidence records only its source
+class and SHA-256, never its filesystem path or plaintext values.
 
 ## 4. Verify without changing cloud state
 
 ```sh
 git submodule update --init
 pnpm install --frozen-lockfile
-pnpm --dir cloudflare-os install --frozen-lockfile
+pnpm audit:dependencies
+pnpm peers:check
 pnpm build
 pnpm test
+pnpm test:cloudflare-os
 pnpm lint
 pnpm types:check
 pnpm check
 ```
 
-`pnpm check` runs tests, type/lint checks, builds all Workers, and asks Wrangler for deployment dry
-runs. It does not need application secrets and does not create cloud resources.
+The root lockfile covers the exact Cloudflare OS packages used by the deployment as well as the
+Guild-owned packages. Never run a second install from `cloudflare-os/pnpm-lock.yaml` for this
+release; doing so creates a different, unaudited dependency graph.
+
+`pnpm check` repeats dependency audit and peer checks, runs tests and type/lint checks, builds all
+Workers, and asks Wrangler for deployment dry runs. It does not need application secrets and does
+not create cloud resources.
+CI points it at `fixtures/deployment.ci.jsonc`, whose reserved values exist only to prove all Worker
+bundles. Local setup without a purchaser configuration still fails clearly on template
+placeholders.
 
 ## 5. Supply secrets and deploy
 

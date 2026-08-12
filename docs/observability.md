@@ -32,7 +32,8 @@ Error reporting does not replace logs or traces. The default Reporter sees only 
 
 ## Quick start
 
-The annotated [`deployment.jsonc`](../deployment.jsonc) enables the backend Reporter by default:
+The annotated [`deployment.jsonc`](../deployment.jsonc) template enables the backend Reporter by
+default; use its ignored purchaser-local copy for deployment:
 
 ```jsonc
 "workers": {

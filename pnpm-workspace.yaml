@@ -1,9 +1,44 @@
 packages:
-  - cloudflare-os/packages/workshop-shared
+  - cloudflare-os/packages/backend-utils
   - cloudflare-os/packages/error-reporting
+  - cloudflare-os/packages/gatekeeper-context
+  - cloudflare-os/packages/typed-storage
+  - cloudflare-os/packages/workshop-backend
+  - cloudflare-os/packages/workshop-frontend
+  - cloudflare-os/packages/workshop-shared
   - packages/*
 
+overrides:
+  'nanoid@<3.3.17': 3.3.17
+  'sharp@<0.35.0': 0.35.2
+  'undici@>=7.0.0 <7.29.0': 7.29.0
+  workerd: ">=1.20260623.1"
+  'js-yaml@4.1.1': ^4.2.0
+  '@codemirror/commands': 6.10.3
+  '@codemirror/state': 6.6.0
+  '@codemirror/view': 6.43.1
+  '@types/node': 26.1.0
+  '@lezer/markdown': 1.6.4
+
+minimumReleaseAge: 1440
+
+minimumReleaseAgeExclude:
+  - capnweb
+  - capnweb-validate
+  - workerd
+  - "@cloudflare/workerd-*"
+
 allowBuilds:
+  '@google/genai': true
+  core-js-pure: true
   esbuild: true
+  protobufjs: true
   sharp: true
   workerd: true
+
+autoInstallPeers: false
+
+packageExtensions:
+  '@cloudflare/vitest-pool-workers@0.16.20':
+    dependencies:
+      '@cloudflare/workers-types': 4.20260702.1

@@ -1,0 +1,54 @@
+{
+  "accountId": "0123456789abcdef0123456789abcdef",
+  "workers": {
+    "workshop": { "name": "guild-os-ci-workshop", "route": { "workersDev": true } },
+    "context": { "name": "guild-os-ci-context" },
+    "guildGatekeeper": { "name": "guild-os-ci-gatekeeper" },
+    "webhookReceiver": {
+      "name": "guild-os-ci-webhook",
+      "route": { "workersDev": true }
+    },
+    "errorReporter": { "name": "guild-os-ci-errors" }
+  },
+  "access": {
+    "issuer": "https://guild-os-ci.cloudflareaccess.com",
+    "audience": "ci-audience",
+    "admins": ["owner@example.invalid"]
+  },
+  "aiGateway": { "enabled": false },
+  "context": { "sharingDomain": "ci", "kvNamespaceId": null },
+  "guild": {
+    "id": "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a",
+    "name": "Guild OS CI",
+    "purpose": "Deterministic Worker bundle verification only.",
+    "rootSpaceName": "Guild",
+    "level2ApprovalQuorum": 1,
+    "level3ApprovalQuorum": 2,
+    "dataRetentionDays": 2555,
+    "hyperdriveId": "abcdef0123456789abcdef0123456789",
+    "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
+    "aiGatewayId": "default",
+    "askRequestsPerMinute": 20,
+    "recoveryAttemptsPerMinute": 5,
+    "agentWorkflowName": "guild-os-ci-agent-execution",
+    "webhook": {
+      "connectorId": "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
+      "name": "CI operations webhook",
+      "url": "https://hooks.example.invalid/guild-events"
+    }
+  },
+  "errorReporting": { "enabled": true, "environment": "ci", "release": null },
+  "referenceWebhook": { "enabled": true },
+  "resources": {
+    "blueprintsKvNamespaceId": null,
+    "avatarsKvNamespaceId": null,
+    "blueprintContentBucket": null,
+    "knowledgeFilesBucket": null
+  },
+  "observability": {
+    "enabled": true,
+    "headSamplingRate": 1,
+    "logs": { "invocationLogs": false },
+    "traces": { "enabled": false, "headSamplingRate": 0.1 }
+  }
+}

@@ -239,7 +239,9 @@ does not make deleted files visible or lose the cleanup obligation.
 - PostgreSQL credentials live in the database provider and Hyperdrive configuration.
 - Model-provider credentials live in AI Gateway or Wrangler secrets.
 - OAuth credentials live in their owning Gatekeeper Worker secrets.
-- Secrets are never valid `deployment.jsonc` values.
+- Secrets are never valid deployment JSONC values. Purchaser metadata belongs in ignored
+  `deployment.local.jsonc` or an absolute encrypted external configuration, not the tracked
+  template.
 - Live deployment validates all required secrets before the first Worker update, transfers only the
   required values through mode-`0600` temporary files, deletes them after use, and removes them from
   child-process environments.

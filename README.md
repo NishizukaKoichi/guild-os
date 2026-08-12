@@ -117,14 +117,19 @@ it receives a plan from Cloudflare OS and executes only the configured signed We
 ```sh
 git submodule update --init
 pnpm install --frozen-lockfile
-pnpm --dir cloudflare-os install --frozen-lockfile
+pnpm audit:dependencies
+pnpm peers:check
 pnpm test
+pnpm test:cloudflare-os
 pnpm build
 pnpm lint
 ```
 
-Node.js 22 currently passes the repository tests, but Node.js 24 is the supported build target from
-the upstream Starter.
+The root `pnpm-lock.yaml` is the authoritative dependency graph for both Guild-owned packages and
+the Cloudflare OS packages used in the release. Do not install the submodule as a second workspace.
+Node.js 24 and pnpm 11 are the supported release toolchain.
+The non-secret `fixtures/deployment.ci.jsonc` exists only for deterministic Wrangler dry-runs; it
+uses reserved example values and is never a production configuration.
 
 ## PostgreSQL
 
@@ -171,7 +176,12 @@ Create a Hyperdrive configuration for the migrated database from the Cloudflare 
 
 ## Deployment configuration
 
-Edit `deployment.jsonc`:
+Copy the annotated template to the ignored purchaser configuration, then edit the copy:
+
+```sh
+cp deployment.jsonc deployment.local.jsonc
+chmod 600 deployment.local.jsonc
+```
 
 1. Set the Cloudflare account and Worker names.
 2. Set the Workshop custom domain or use `workersDev` for evaluation.
@@ -184,7 +194,7 @@ Edit `deployment.jsonc`:
 8. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
 
 Provide the Webhook signing secret only for the live deploy. It must contain at least 32 random
-bytes and must never be stored in `deployment.jsonc` or a tracked environment file:
+bytes and must never be stored in either deployment JSONC file or a tracked environment file:
 
 ```sh
 read -r -s GUILD_WEBHOOK_SIGNING_SECRET
@@ -199,6 +209,11 @@ unset DATABASE_URL GUILD_WEBHOOK_SIGNING_SECRET
 required values to mode-`0600` temporary files for Wrangler's `--secrets-file` option, removes the
 files in a `finally` block, and strips those values from child-process environments. When AI Gateway
 is enabled, provide `CF_AI_GATEWAY_API_TOKEN` the same way. `pnpm check` never requires secrets.
+
+Commands prefer `deployment.local.jsonc`. For an encrypted configuration stored elsewhere, set
+`GUILD_OS_DEPLOYMENT_CONFIG` to its absolute path. A live deploy refuses the tracked template so
+purchaser emails, Guild labels, domains, and resource identifiers never need to enter source
+history.
 
 The first live deploy stores automatically provisioned KV/R2 identities in the ignored
 `deployment.lock.json`; preserve that purchaser-instance file outside the sales template. Live

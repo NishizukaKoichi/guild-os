@@ -39,18 +39,26 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Install wrapper dependencies
+      - name: Install release dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install pinned Cloudflare OS dependencies
-        run: pnpm --dir cloudflare-os install --frozen-lockfile
+      - name: Verify dependency integrity
+        run: |
+          pnpm audit:dependencies
+          pnpm peers:check
 
       - name: Verify build, tests, lint, and types
         run: |
           pnpm build
           pnpm test
+          pnpm test:cloudflare-os
           pnpm lint
           pnpm types:check
+
+      - name: Verify production Worker bundles
+        env:
+          GUILD_OS_DEPLOYMENT_CONFIG: ${{ github.workspace }}/fixtures/deployment.ci.jsonc
+        run: pnpm check
 
       - name: Verify Guild browser workflows
         run: |

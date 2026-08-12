@@ -100,6 +100,16 @@ test("rejects deployment placeholders", () => {
   assert.throws(() => validateConfig(placeholder), /placeholder/i);
 });
 
+test("rejects secret-like keys anywhere in deployment configuration", () => {
+  const nested = structuredClone(validConfig);
+  nested.guild.webhook.signingSecret = "do-not-store-this";
+  assert.throws(() => validateConfig(nested), /secret-like deployment key.*signingSecret/i);
+
+  const database = structuredClone(validConfig);
+  database.guild.databaseUrl = "postgresql://example.invalid/guild";
+  assert.throws(() => validateConfig(database), /secret-like deployment key.*databaseUrl/i);
+});
+
 test("rejects destructive or malformed deployment values", () => {
   const duplicateWorkers = structuredClone(validConfig);
   duplicateWorkers.workers.context.name = duplicateWorkers.workers.workshop.name;
