@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { AppLocale } from "@guild-os/domain";
 import { persistLocale, readInitialLocale } from "./locale-storage";
 
@@ -1424,17 +1424,20 @@ const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<AppLocale>(readInitialLocale);
+  const setLocale = useCallback((nextLocale: AppLocale) => {
+    persistLocale(nextLocale);
+    document.documentElement.lang = nextLocale;
+    setLocaleState(nextLocale);
+  }, []);
+  const translate = useCallback((key: TranslationKey) =>
+    dictionaries[locale][key] ??
+    (locale === "zh-CN" ? japanese[key] : undefined) ??
+    english[key], [locale]);
   const value = useMemo<I18nValue>(() => ({
     locale,
-    setLocale(nextLocale) {
-      persistLocale(nextLocale);
-      document.documentElement.lang = nextLocale;
-      setLocaleState(nextLocale);
-    },
-    t(key) {
-      return dictionaries[locale][key] ?? (locale === "zh-CN" ? japanese[key] : undefined) ?? english[key];
-    },
-  }), [locale]);
+    setLocale,
+    t: translate,
+  }), [locale, setLocale, translate]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

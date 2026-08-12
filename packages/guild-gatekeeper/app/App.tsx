@@ -1,5 +1,5 @@
 import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppLocale } from "@guild-os/domain";
 import type {
   AssignRoleRequest,
@@ -41,6 +41,8 @@ function messageFrom(error: unknown, fallback: string): string {
 
 export function App({ api }: { api: GuildUiApi }) {
   const { setLocale, t } = useI18n();
+  const translateRef = useRef(t);
+  translateRef.current = t;
   const [bootstrap, setBootstrap] = useState<UiBootstrapState | null>(null);
   const [directory, setDirectory] = useState<UiDirectory | null>(null);
   const [page, setPage] = useState<AppPage>("home");
@@ -71,11 +73,11 @@ export function App({ api }: { api: GuildUiApi }) {
       document.title = `${state.guildName} - Guild OS`;
       await loadDirectory(state);
     } catch (cause) {
-      setError(messageFrom(cause, t("error.generic")));
+      setError(messageFrom(cause, translateRef.current("error.generic")));
     } finally {
       setLoading(false);
     }
-  }, [api, loadDirectory, setLocale, t]);
+  }, [api, loadDirectory, setLocale]);
 
   useEffect(() => {
     void load();
@@ -149,7 +151,10 @@ export function App({ api }: { api: GuildUiApi }) {
         if (nextPage === "knowledge") setKnowledgeTarget(null);
         setPage(nextPage);
       }}
-      onLocaleChange={(locale) => api.setPreferredLocale(locale)}
+      onLocaleChange={async (locale) => {
+        await api.setPreferredLocale(locale);
+        setBootstrap((current) => current ? { ...current, preferredLocale: locale } : current);
+      }}
     >
       {visiblePage === "home" ? <HomePage bootstrap={bootstrap} directory={directory} /> : null}
       {visiblePage === "inbox" ? <InboxPage api={api} directory={directory} /> : null}

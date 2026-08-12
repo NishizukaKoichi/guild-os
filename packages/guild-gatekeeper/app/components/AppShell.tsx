@@ -75,6 +75,16 @@ export function AppShell({
     setMobileOpen(false);
   }
 
+  async function changeLocale(nextLocale: "en" | "ja" | "zh-CN") {
+    const previousLocale = locale;
+    setLocale(nextLocale);
+    try {
+      await onLocaleChange(nextLocale);
+    } catch {
+      setLocale(previousLocale);
+    }
+  }
+
   return (
     <div className="app-layout">
       <aside className={mobileOpen ? "sidebar sidebar-open" : "sidebar"}>
@@ -144,8 +154,7 @@ export function AppShell({
               value={locale}
               onChange={(event) => {
                 const nextLocale = event.target.value as "en" | "ja" | "zh-CN";
-                setLocale(nextLocale);
-                void onLocaleChange(nextLocale);
+                void changeLocale(nextLocale);
               }}
             >
               <option value="en">{t("language.en")}</option>
