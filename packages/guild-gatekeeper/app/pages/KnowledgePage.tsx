@@ -324,19 +324,20 @@ export function KnowledgePage({ api, directory, requestedKnowledgeId }: {
                   <div className="section-heading-row compact-heading">
                     <div><h2>{t("knowledge.files")}</h2><p>{t("knowledge.uploadHint")}</p></div>
                     {detail.capabilities.uploadFile ? (
-                      <button className="secondary-button" type="button" disabled={busy} onClick={() => fileInput.current?.click()}>
+                      <label className={`secondary-button knowledge-upload-control${busy ? " control-disabled" : ""}`}>
                         <Upload size={16} /><span>{t("common.upload")}</span>
-                      </button>
+                        <input
+                          ref={fileInput}
+                          aria-label={t("common.upload")}
+                          type="file"
+                          disabled={busy}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void uploadFile(file);
+                          }}
+                        />
+                      </label>
                     ) : null}
-                    <input
-                      ref={fileInput}
-                      className="sr-only"
-                      type="file"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void uploadFile(file);
-                      }}
-                    />
                   </div>
                   {detail.files.filter((file) => file.status === "ready").length === 0 ? (
                     <p className="empty-state compact-empty">{t("knowledge.noFiles")}</p>

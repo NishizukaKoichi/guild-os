@@ -38,7 +38,10 @@ test("runs the governed Knowledge and Ask Guild path", async ({ page }) => {
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("A new immutable draft version was saved.")).toBeVisible();
 
-  await page.locator('input[type="file"]').setInputFiles({
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByLabel("Upload", { exact: true }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
     name: "incident-template.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("fictional demo incident template"),
