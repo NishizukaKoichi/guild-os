@@ -137,7 +137,7 @@ Create a blank PostgreSQL database, then run migrations with the connection stri
 through the process environment:
 
 ```sh
-export DATABASE_URL='postgresql://user:password@host:5432/guild_os?sslmode=require'
+export DATABASE_URL='postgresql://user:password@host:5432/guild_os?sslmode=verify-full'
 pnpm db:migrate
 unset DATABASE_URL
 ```

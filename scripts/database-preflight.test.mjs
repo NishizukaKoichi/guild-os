@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertDatabasePreflight,
+  assertVerifiedTlsConfiguration,
   hasVerifiedClientTls,
 } from "./database-preflight.mjs";
 
@@ -67,4 +68,20 @@ test("client TLS evidence requires encryption and certificate authorization", ()
     connection: { stream: { encrypted: false, authorized: true } },
   }), false);
   assert.equal(hasVerifiedClientTls({}), false);
+});
+
+test("production database URL requires explicit certificate verification", () => {
+  assert.doesNotThrow(() => assertVerifiedTlsConfiguration(
+    "postgresql://user:pass@example.invalid/guild_os?sslmode=verify-full",
+  ));
+  assert.throws(() => assertVerifiedTlsConfiguration(
+    "postgresql://user:pass@example.invalid/guild_os?sslmode=require",
+  ), /verify-full/i);
+  assert.throws(() => assertVerifiedTlsConfiguration(
+    "postgresql://user:pass@example.invalid/guild_os?sslmode=verify-full&uselibpqcompat=false",
+  ), /verify-full/i);
+  assert.doesNotThrow(() => assertVerifiedTlsConfiguration(
+    "postgresql://user:pass@127.0.0.1/guild_os",
+    { allowInsecureLocalhost: true },
+  ));
 });

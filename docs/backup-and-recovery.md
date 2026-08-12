@@ -34,7 +34,7 @@ operator assertion; the script cannot prove the storage layer's encryption polic
 
 - A clean source checkout with the purchaser's `deployment.lock.json`
 - `pg_dump` and `psql` matching the production PostgreSQL major version
-- `DATABASE_URL` with read access to the full Guild database
+- `DATABASE_URL` with read access to the full Guild database and explicit `sslmode=verify-full`
 - `CLOUDFLARE_API_TOKEN` scoped to read the configured KV namespaces, R2 buckets, Access
   application/policies, and Worker deployments
 - Zero nonterminal Agent Runs, pending/processing outbox rows, or pending file uploads

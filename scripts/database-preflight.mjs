@@ -15,6 +15,17 @@ function isLocalDatabase(connectionString) {
   return ["localhost", "127.0.0.1", "::1"].includes(hostname);
 }
 
+export function assertVerifiedTlsConfiguration(connectionString, options = {}) {
+  const parsed = new URL(connectionString);
+  const localDatabase = isLocalDatabase(connectionString);
+  if (localDatabase && options.allowInsecureLocalhost) return;
+  if (parsed.searchParams.get("sslmode") !== "verify-full" ||
+      parsed.searchParams.getAll("sslmode").length !== 1 ||
+      parsed.searchParams.has("uselibpqcompat")) {
+    throw new Error("Production DATABASE_URL must set exactly sslmode=verify-full.");
+  }
+}
+
 export function hasVerifiedClientTls(client) {
   const stream = client?.connection?.stream;
   return stream?.encrypted === true && stream?.authorized === true;
@@ -64,6 +75,7 @@ export async function verifyProductionDatabase(connectionString, options = {}) {
   if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
     throw new Error("DATABASE_URL must use the postgres or postgresql scheme.");
   }
+  assertVerifiedTlsConfiguration(connectionString, options);
   const client = options.client ?? new Client({
     connectionString,
     connectionTimeoutMillis: 10_000,

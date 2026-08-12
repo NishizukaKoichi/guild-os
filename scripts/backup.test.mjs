@@ -317,6 +317,10 @@ test("PostgreSQL dump is explicitly Guild-scoped under forced RLS", () => {
     assert.equal(environment.PGSSLMODE, "verify-full");
     assert.equal(environment.PGPASSWORD, undefined);
     assert.throws(() => pgDumpEnvironment("postgresql://example", "not-a-uuid"), /Guild UUID/i);
+    assert.throws(() => pgDumpEnvironment(
+      "postgresql://runtime@example.invalid/guild_os?sslmode=require",
+      "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a",
+    ), /verify-full/i);
   } finally {
     if (inherited === undefined) delete process.env.PGOPTIONS;
     else process.env.PGOPTIONS = inherited;

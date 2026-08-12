@@ -32,6 +32,7 @@ import {
   sha256Object,
   writeAtomicJson,
 } from "./ops-core.mjs";
+import { assertVerifiedTlsConfiguration } from "./database-preflight.mjs";
 
 const postgresRequire = createRequire(join(
   repositoryRoot,
@@ -365,6 +366,7 @@ export function pgDumpEnvironment(connectionString, guildId) {
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guildId)) {
     throw new Error("A valid Guild UUID is required for backup.");
   }
+  assertVerifiedTlsConfiguration(connectionString);
   const path = process.env.PATH;
   return {
     ...(path ? { PATH: path } : {}),

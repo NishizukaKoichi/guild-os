@@ -24,8 +24,8 @@ unreviewed changes.
 
 1. Create a blank PostgreSQL database with TLS, automated provider backups, point-in-time recovery
    where available, and a dedicated non-superuser application role.
-2. Run `pnpm db:migrate` with the direct database URL. Never put that URL in Git or either
-   deployment configuration file.
+2. Run `pnpm db:migrate` with the direct database URL containing exactly
+   `sslmode=verify-full`. Never put that URL in Git or either deployment configuration file.
    Then run `pnpm db:verify`; production verification requires PostgreSQL 17+, TLS, a non-superuser
    role without `BYPASSRLS`, exact migration checksums, and forced RLS on every Guild table.
 3. Create a Hyperdrive configuration for that database and record its 32-character ID.
