@@ -2,4 +2,4 @@ export const CURRENT_GUILD_SCHEMA_MIGRATION =
   "0029_agent_token_limits.sql" as const;
 
 export const CURRENT_GUILD_SCHEMA_CHECKSUM =
-  "5be4a996b3cd04ccbefff0b6ac06c788bd6b155c49ae325ff857528603f5006a" as const;
+  "0b388d2b41f67c74e04af4eac4ba3c8c7fc7f9d66f5176b60b0b7a9dbea248c6" as const;

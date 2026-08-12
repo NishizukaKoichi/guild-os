@@ -2,6 +2,19 @@
 -- Actor/Memory/Activity. Compatibility is intentionally one-way for shapes that
 -- cannot be represented by the fixed legacy hierarchy.
 
+-- The final compatibility audit must observe every Guild. RLS remains enabled while FORCE is
+-- temporarily relaxed for the migration-owning role and is restored before commit.
+ALTER TABLE identities NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity_actor_links NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE actors NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE memories NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE goals NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE quests NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE steps NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE activities NO FORCE ROW LEVEL SECURITY;
+
 CREATE FUNCTION guild_runtime.sync_identity_actor()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -675,3 +688,14 @@ BEGIN
   END IF;
 END;
 $$;
+
+ALTER TABLE identities FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity_actor_links FORCE ROW LEVEL SECURITY;
+ALTER TABLE actors FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge FORCE ROW LEVEL SECURITY;
+ALTER TABLE memories FORCE ROW LEVEL SECURITY;
+ALTER TABLE goals FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects FORCE ROW LEVEL SECURITY;
+ALTER TABLE quests FORCE ROW LEVEL SECURITY;
+ALTER TABLE steps FORCE ROW LEVEL SECURITY;
+ALTER TABLE activities FORCE ROW LEVEL SECURITY;

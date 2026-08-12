@@ -5,6 +5,12 @@ Migrations `0026_actor_collective_core.sql`, `0027_memory_activity_core.sql`,
 complete Agent hard limits without deleting or renumbering any production record. They are
 forward-only, checksum-pinned, transactional, and safe to rerun through the migration runner.
 
+During each backfill transaction, the migration-owning non-superuser temporarily relaxes `FORCE`
+on only the source and target tables needed for an all-Guild reconciliation. RLS remains enabled,
+the transaction is not externally visible, deferred constraints and count guards are resolved
+before the tables are forced behind tenant RLS again, and any failure rolls the entire migration
+back. This ordering is covered by migration tests and a populated PostgreSQL 17 upgrade rehearsal.
+
 ## Mapping
 
 | Compatibility source | Canonical target |

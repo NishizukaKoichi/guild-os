@@ -324,6 +324,32 @@ SELECT source.guild_id, source.role_id, alias.permission
     ON source.permission = alias.legacy_permission
 ON CONFLICT DO NOTHING;
 
+-- identity_actor_links intentionally uses a deferred pair constraint so both sides can be
+-- backfilled in one transaction. Drain those trigger events before ALTER TABLE configures RLS.
+SET CONSTRAINTS ALL IMMEDIATE;
+
+-- Reconcile every Guild while the owner can still observe the complete backfill. New tables are
+-- forced behind tenant RLS only after these guards succeed.
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM actors) <> (SELECT count(*) FROM identities) THEN
+    RAISE EXCEPTION 'Actor backfill count does not match Identity count';
+  END IF;
+  IF (SELECT count(*) FROM actor_memberships) <> (SELECT count(*) FROM memberships) THEN
+    RAISE EXCEPTION 'Actor Membership backfill count does not match Membership count';
+  END IF;
+  IF (SELECT count(*) FROM identity_actor_links) <> (SELECT count(*) FROM identities) THEN
+    RAISE EXCEPTION 'Identity-to-Actor compatibility links are incomplete';
+  END IF;
+  IF (SELECT count(*) FROM actor_role_bindings) <> (SELECT count(*) FROM role_bindings) THEN
+    RAISE EXCEPTION 'Actor Role Binding backfill count does not match legacy bindings';
+  END IF;
+  IF (SELECT count(*) FROM guild_collective_settings) <> (SELECT count(*) FROM guilds) THEN
+    RAISE EXCEPTION 'Every Guild requires Collective settings';
+  END IF;
+END;
+$$;
+
 CREATE INDEX actor_memberships_actor_idx
   ON actor_memberships (actor_id, guild_id, state);
 CREATE INDEX actors_home_kind_status_idx
@@ -414,26 +440,6 @@ $$;
 CREATE TRIGGER seed_new_guild_collective
 AFTER INSERT ON guilds
 FOR EACH ROW EXECUTE FUNCTION guild_runtime.seed_new_guild_collective();
-
-DO $$
-BEGIN
-  IF (SELECT count(*) FROM actors) <> (SELECT count(*) FROM identities) THEN
-    RAISE EXCEPTION 'Actor backfill count does not match Identity count';
-  END IF;
-  IF (SELECT count(*) FROM actor_memberships) <> (SELECT count(*) FROM memberships) THEN
-    RAISE EXCEPTION 'Actor Membership backfill count does not match Membership count';
-  END IF;
-  IF (SELECT count(*) FROM identity_actor_links) <> (SELECT count(*) FROM identities) THEN
-    RAISE EXCEPTION 'Identity-to-Actor compatibility links are incomplete';
-  END IF;
-  IF (SELECT count(*) FROM actor_role_bindings) <> (SELECT count(*) FROM role_bindings) THEN
-    RAISE EXCEPTION 'Actor Role Binding backfill count does not match legacy bindings';
-  END IF;
-  IF (SELECT count(*) FROM guild_collective_settings) <> (SELECT count(*) FROM guilds) THEN
-    RAISE EXCEPTION 'Every Guild requires Collective settings';
-  END IF;
-END;
-$$;
 
 ALTER TABLE guilds FORCE ROW LEVEL SECURITY;
 ALTER TABLE identities FORCE ROW LEVEL SECURITY;

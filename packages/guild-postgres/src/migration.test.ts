@@ -75,11 +75,25 @@ describe("Guild PostgreSQL migration", () => {
       expect(memorySql).toContain(`CREATE TABLE ${table}`);
     }
     expect(actorSql).toContain("CHECK (identity_id = actor_id)");
+    expect(actorSql.indexOf("SET CONSTRAINTS ALL IMMEDIATE")).toBeLessThan(
+      actorSql.indexOf("ALTER TABLE %I FORCE ROW LEVEL SECURITY"),
+    );
+    expect(actorSql.indexOf("Actor backfill count does not match Identity count")).toBeLessThan(
+      actorSql.indexOf("ALTER TABLE %I FORCE ROW LEVEL SECURITY"),
+    );
     expect(actorSql).toContain("FORCE ROW LEVEL SECURITY");
     expect(memorySql).toContain("Legacy Work UUID collision");
+    expect(memorySql.indexOf("SET CONSTRAINTS ALL IMMEDIATE")).toBeLessThan(
+      memorySql.indexOf("ALTER TABLE %I FORCE ROW LEVEL SECURITY"),
+    );
+    expect(memorySql.indexOf("Memory backfill count does not match Knowledge count")).toBeLessThan(
+      memorySql.indexOf("ALTER TABLE %I FORCE ROW LEVEL SECURITY"),
+    );
     expect(compatibilitySql).toContain("sync_identity_actor");
     expect(compatibilitySql).toContain("sync_knowledge_memory");
     expect(compatibilitySql).toContain("sync_goal_activity");
+    expect(compatibilitySql).toContain("ALTER TABLE identities NO FORCE ROW LEVEL SECURITY");
+    expect(compatibilitySql).toContain("ALTER TABLE activities FORCE ROW LEVEL SECURITY");
   });
 
   it("enforces Agent token limits across profiles, plans, and recorded usage", async () => {
@@ -89,6 +103,11 @@ describe("Guild PostgreSQL migration", () => {
     expect(sql).toContain("maxTokens");
     expect(sql).toContain("'{estimatedUsage,tokens}'");
     expect(sql).toContain("actor_agent_profiles_limits_valid");
+    expect(sql).toContain("COALESCE(jsonb_typeof(candidate) = 'object'");
+    expect(sql).toContain("ALTER TABLE identities NO FORCE ROW LEVEL SECURITY");
+    expect(sql.indexOf("Agent Run token-usage backfill is incomplete")).toBeLessThan(
+      sql.lastIndexOf("ALTER TABLE agent_runs FORCE ROW LEVEL SECURITY"),
+    );
   });
 
   it("covers every v1 aggregate and applies Guild row-level security", async () => {

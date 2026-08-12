@@ -11,6 +11,7 @@ ALTER TABLE quests NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE steps NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE decisions NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE agent_runs NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE actor_memberships NO FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE memories (
   id uuid PRIMARY KEY,
@@ -315,6 +316,36 @@ SELECT s.id, s.guild_id, s.quest_id, q.space_id, q.owner_identity_id,
 
 UPDATE agent_runs SET activity_id = quest_id WHERE quest_id IS NOT NULL;
 
+-- Drain the deferred Memory/Activity references before configuring RLS or altering source tables.
+SET CONSTRAINTS ALL IMMEDIATE;
+
+DO $$
+DECLARE
+  legacy_activity_count bigint;
+BEGIN
+  SELECT (SELECT count(*) FROM goals)
+       + (SELECT count(*) FROM projects)
+       + (SELECT count(*) FROM quests)
+       + (SELECT count(*) FROM steps)
+    INTO legacy_activity_count;
+  IF (SELECT count(*) FROM memories) <> (SELECT count(*) FROM knowledge) THEN
+    RAISE EXCEPTION 'Memory backfill count does not match Knowledge count';
+  END IF;
+  IF (SELECT count(*) FROM memory_versions) <> (SELECT count(*) FROM knowledge_versions) THEN
+    RAISE EXCEPTION 'Memory version backfill count does not match Knowledge version count';
+  END IF;
+  IF (SELECT count(*) FROM memory_version_files) <> (SELECT count(*) FROM knowledge_version_files) THEN
+    RAISE EXCEPTION 'Memory file backfill count does not match Knowledge file count';
+  END IF;
+  IF (SELECT count(*) FROM activities) <> legacy_activity_count THEN
+    RAISE EXCEPTION 'Activity backfill count does not match legacy Work count';
+  END IF;
+  IF EXISTS (SELECT 1 FROM files WHERE owner_actor_id IS NULL OR allowed_actor_ids IS NULL) THEN
+    RAISE EXCEPTION 'File Actor ownership backfill is incomplete';
+  END IF;
+END;
+$$;
+
 CREATE INDEX memories_recent_idx
   ON memories (guild_id, status, space_id, updated_at DESC, id DESC);
 CREATE INDEX memory_versions_search_idx ON memory_versions USING GIN (
@@ -413,33 +444,6 @@ BEFORE UPDATE ON memories FOR EACH ROW EXECUTE FUNCTION guild_runtime.touch_upda
 CREATE TRIGGER touch_updated_at
 BEFORE UPDATE ON activities FOR EACH ROW EXECUTE FUNCTION guild_runtime.touch_updated_at();
 
-DO $$
-DECLARE
-  legacy_activity_count bigint;
-BEGIN
-  SELECT (SELECT count(*) FROM goals)
-       + (SELECT count(*) FROM projects)
-       + (SELECT count(*) FROM quests)
-       + (SELECT count(*) FROM steps)
-    INTO legacy_activity_count;
-  IF (SELECT count(*) FROM memories) <> (SELECT count(*) FROM knowledge) THEN
-    RAISE EXCEPTION 'Memory backfill count does not match Knowledge count';
-  END IF;
-  IF (SELECT count(*) FROM memory_versions) <> (SELECT count(*) FROM knowledge_versions) THEN
-    RAISE EXCEPTION 'Memory version backfill count does not match Knowledge version count';
-  END IF;
-  IF (SELECT count(*) FROM memory_version_files) <> (SELECT count(*) FROM knowledge_version_files) THEN
-    RAISE EXCEPTION 'Memory file backfill count does not match Knowledge file count';
-  END IF;
-  IF (SELECT count(*) FROM activities) <> legacy_activity_count THEN
-    RAISE EXCEPTION 'Activity backfill count does not match legacy Work count';
-  END IF;
-  IF EXISTS (SELECT 1 FROM files WHERE owner_actor_id IS NULL OR allowed_actor_ids IS NULL) THEN
-    RAISE EXCEPTION 'File Actor ownership backfill is incomplete';
-  END IF;
-END;
-$$;
-
 ALTER TABLE knowledge FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_versions FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_version_files FORCE ROW LEVEL SECURITY;
@@ -450,3 +454,4 @@ ALTER TABLE quests FORCE ROW LEVEL SECURITY;
 ALTER TABLE steps FORCE ROW LEVEL SECURITY;
 ALTER TABLE decisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE agent_runs FORCE ROW LEVEL SECURITY;
+ALTER TABLE actor_memberships FORCE ROW LEVEL SECURITY;

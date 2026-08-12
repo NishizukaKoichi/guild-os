@@ -47,6 +47,9 @@ branches over a Company model.
   write, and irreversible action boundaries remain explicit.
 - The migration is additive. Existing APIs and tables are deprecated compatibility adapters and
   mirror their writes into canonical tables. No production UUID or Chronicle event is rewritten.
+- All-Guild backfills run in one transaction under the non-superuser table owner. `FORCE RLS` is
+  relaxed only inside that transaction, deferred constraints and count reconciliation are drained,
+  and forced tenant RLS is restored before commit. A failed guard rolls back the schema and data.
 
 ## Alternatives considered
 

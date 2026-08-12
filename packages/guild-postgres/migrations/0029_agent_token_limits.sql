@@ -3,7 +3,7 @@
 
 CREATE FUNCTION guild_runtime.valid_agent_limits(candidate jsonb) RETURNS boolean
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT jsonb_typeof(candidate) = 'object'
+  SELECT COALESCE(jsonb_typeof(candidate) = 'object'
     AND jsonb_typeof(candidate -> 'currency') = 'string'
     AND (candidate ->> 'currency') ~ '^[A-Z]{3}$'
     AND jsonb_typeof(candidate -> 'maxBudgetMinor') = 'number'
@@ -23,12 +23,12 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     AND (candidate ->> 'maxRetries')::numeric <= 9007199254740991
     AND jsonb_typeof(candidate -> 'maxDelegationDepth') = 'number'
     AND (candidate ->> 'maxDelegationDepth') ~ '^[0-9]+$'
-    AND (candidate ->> 'maxDelegationDepth')::numeric <= 9007199254740991
+    AND (candidate ->> 'maxDelegationDepth')::numeric <= 9007199254740991, false)
 $$;
 
 CREATE FUNCTION guild_runtime.valid_agent_usage(candidate jsonb) RETURNS boolean
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT jsonb_typeof(candidate) = 'object'
+  SELECT COALESCE(jsonb_typeof(candidate) = 'object'
     AND jsonb_typeof(candidate -> 'budgetMinor') = 'number'
     AND (candidate ->> 'budgetMinor') ~ '^[0-9]+$'
     AND (candidate ->> 'budgetMinor')::numeric <= 9007199254740991
@@ -46,20 +46,29 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     AND (candidate ->> 'retries')::numeric <= 9007199254740991
     AND jsonb_typeof(candidate -> 'delegationDepth') = 'number'
     AND (candidate ->> 'delegationDepth') ~ '^[0-9]+$'
-    AND (candidate ->> 'delegationDepth')::numeric <= 9007199254740991
+    AND (candidate ->> 'delegationDepth')::numeric <= 9007199254740991, false)
 $$;
 
 CREATE FUNCTION guild_runtime.agent_usage_within_limits(limits jsonb, usage jsonb)
 RETURNS boolean LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT guild_runtime.valid_agent_limits(limits)
+  SELECT COALESCE(guild_runtime.valid_agent_limits(limits)
     AND guild_runtime.valid_agent_usage(usage)
     AND (usage ->> 'budgetMinor')::numeric <= (limits ->> 'maxBudgetMinor')::numeric
     AND (usage ->> 'tokens')::numeric <= (limits ->> 'maxTokens')::numeric
     AND (usage ->> 'durationSeconds')::numeric <= (limits ->> 'maxDurationSeconds')::numeric
     AND (usage ->> 'steps')::numeric <= (limits ->> 'maxSteps')::numeric
     AND (usage ->> 'retries')::numeric <= (limits ->> 'maxRetries')::numeric
-    AND (usage ->> 'delegationDepth')::numeric <= (limits ->> 'maxDelegationDepth')::numeric
+    AND (usage ->> 'delegationDepth')::numeric <= (limits ->> 'maxDelegationDepth')::numeric,
+    false)
 $$;
+
+-- Backfill every Guild as the migration owner, then restore forced tenant isolation before commit.
+ALTER TABLE constitutions NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE identities NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE agent_profiles NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE actor_memberships NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE actor_agent_profiles NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE agent_runs NO FORCE ROW LEVEL SECURITY;
 
 DROP TRIGGER constitution_governance ON constitutions;
 UPDATE constitutions
@@ -86,6 +95,39 @@ UPDATE agent_runs
            THEN jsonb_set(plan, '{estimatedUsage,tokens}', '0'::jsonb, true)
          ELSE plan
        END;
+
+SET CONSTRAINTS ALL IMMEDIATE;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM constitutions
+     WHERE NOT guild_runtime.valid_agent_limits(agent_defaults)
+  ) THEN
+    RAISE EXCEPTION 'Constitution Agent token-limit backfill is incomplete';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM agent_profiles
+     WHERE NOT guild_runtime.valid_agent_limits(limits)
+  ) THEN
+    RAISE EXCEPTION 'Agent profile token-limit backfill is incomplete';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM actor_agent_profiles
+     WHERE NOT guild_runtime.valid_agent_limits(limits)
+  ) THEN
+    RAISE EXCEPTION 'Actor Agent profile token-limit backfill is incomplete';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM agent_runs
+     WHERE NOT guild_runtime.agent_usage_within_limits(limits, usage)
+        OR NOT guild_runtime.agent_usage_within_limits(limits, plan -> 'estimatedUsage')
+  ) THEN
+    RAISE EXCEPTION 'Agent Run token-usage backfill is incomplete';
+  END IF;
+END;
+$$;
+
 CREATE TRIGGER agent_run_integrity
 BEFORE INSERT OR UPDATE ON agent_runs
 FOR EACH ROW EXECUTE FUNCTION guild_runtime.enforce_agent_run_integrity();
@@ -116,3 +158,10 @@ ALTER TABLE agent_runs
         plan -> 'estimatedUsage'
       )
     );
+
+ALTER TABLE constitutions FORCE ROW LEVEL SECURITY;
+ALTER TABLE identities FORCE ROW LEVEL SECURITY;
+ALTER TABLE agent_profiles FORCE ROW LEVEL SECURITY;
+ALTER TABLE actor_memberships FORCE ROW LEVEL SECURITY;
+ALTER TABLE actor_agent_profiles FORCE ROW LEVEL SECURITY;
+ALTER TABLE agent_runs FORCE ROW LEVEL SECURITY;
