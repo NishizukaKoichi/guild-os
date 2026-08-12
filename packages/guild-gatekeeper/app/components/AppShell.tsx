@@ -36,6 +36,7 @@ interface AppShellProps {
   peopleAvailable: boolean;
   agentsAvailable: boolean;
   onPageChange(page: AppPage): void;
+  onLocaleChange(locale: "en" | "ja" | "zh-CN"): Promise<void>;
   children: ReactNode;
 }
 
@@ -45,6 +46,7 @@ export function AppShell({
   peopleAvailable,
   agentsAvailable,
   onPageChange,
+  onLocaleChange,
   children,
 }: AppShellProps) {
   const { locale, setLocale, t } = useI18n();
@@ -140,7 +142,11 @@ export function AppShell({
             <select
               aria-label={t("language.label")}
               value={locale}
-              onChange={(event) => setLocale(event.target.value as "en" | "ja" | "zh-CN")}
+              onChange={(event) => {
+                const nextLocale = event.target.value as "en" | "ja" | "zh-CN";
+                setLocale(nextLocale);
+                void onLocaleChange(nextLocale);
+              }}
             >
               <option value="en">{t("language.en")}</option>
               <option value="ja">{t("language.ja")}</option>

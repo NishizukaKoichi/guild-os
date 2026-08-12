@@ -40,7 +40,7 @@ function messageFrom(error: unknown, fallback: string): string {
 }
 
 export function App({ api }: { api: GuildUiApi }) {
-  const { t } = useI18n();
+  const { setLocale, t } = useI18n();
   const [bootstrap, setBootstrap] = useState<UiBootstrapState | null>(null);
   const [directory, setDirectory] = useState<UiDirectory | null>(null);
   const [page, setPage] = useState<AppPage>("home");
@@ -67,6 +67,7 @@ export function App({ api }: { api: GuildUiApi }) {
     try {
       const state = await api.getBootstrap();
       setBootstrap(state);
+      setLocale(state.preferredLocale);
       document.title = `${state.guildName} - Guild OS`;
       await loadDirectory(state);
     } catch (cause) {
@@ -74,7 +75,7 @@ export function App({ api }: { api: GuildUiApi }) {
     } finally {
       setLoading(false);
     }
-  }, [api, loadDirectory, t]);
+  }, [api, loadDirectory, setLocale, t]);
 
   useEffect(() => {
     void load();
@@ -148,6 +149,7 @@ export function App({ api }: { api: GuildUiApi }) {
         if (nextPage === "knowledge") setKnowledgeTarget(null);
         setPage(nextPage);
       }}
+      onLocaleChange={(locale) => api.setPreferredLocale(locale)}
     >
       {visiblePage === "home" ? <HomePage bootstrap={bootstrap} directory={directory} /> : null}
       {visiblePage === "inbox" ? <InboxPage api={api} directory={directory} /> : null}

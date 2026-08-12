@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import type { AppLocale } from "@guild-os/domain";
+import { persistLocale, readInitialLocale } from "./locale-storage";
 
 const english = {
   "app.name": "Guild OS",
@@ -1413,13 +1414,6 @@ const dictionaries: Record<AppLocale, Dictionary> = {
   "zh-CN": simplifiedChinese,
 };
 
-const STORAGE_KEY = "guild-os.locale";
-
-function initialLocale(): AppLocale {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "en" || stored === "ja" || stored === "zh-CN" ? stored : "en";
-}
-
 interface I18nValue {
   locale: AppLocale;
   setLocale(locale: AppLocale): void;
@@ -1429,11 +1423,11 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<AppLocale>(initialLocale);
+  const [locale, setLocaleState] = useState<AppLocale>(readInitialLocale);
   const value = useMemo<I18nValue>(() => ({
     locale,
     setLocale(nextLocale) {
-      localStorage.setItem(STORAGE_KEY, nextLocale);
+      persistLocale(nextLocale);
       document.documentElement.lang = nextLocale;
       setLocaleState(nextLocale);
     },
