@@ -6,20 +6,21 @@ Accepted
 
 ## Context
 
-Wrangler can automatically provision KV namespaces and R2 buckets on first deploy. It writes their
-identifiers back to the generated configuration file. Guild OS generated those files temporarily,
-then deleted them, so a later deploy could accidentally create replacement resources. A Git commit
-also does not prove which Worker versions were active, whether Access protected the Workshop, or
-whether PostgreSQL, KV, R2, and Access could be recovered together.
+Wrangler can automatically provision KV namespaces and R2 buckets on first deploy. Guild OS creates
+its Wrangler configuration files temporarily, so a later deploy could accidentally create
+replacement resources unless the resulting cloud bindings are captured. A Git commit also does not
+prove which Worker versions were active, whether Access protected the Workshop, or whether
+PostgreSQL, KV, R2, and Access could be recovered together.
 
 The product has no seller-operated control plane. Recovery evidence must therefore remain usable by
 the purchaser even if the seller, source marketplace, or original development machine disappears.
 
 ## Decision
 
-- The first live deploy captures automatically provisioned resource identities in a mode-`0600`
-  `deployment.lock.json`. Every later deploy verifies the account, Guild, Worker names, and resources
-  against that lock and fails on drift.
+- The first live deploy reads the active Worker Version bindings and captures automatically
+  provisioned resource identities in a mode-`0600` `deployment.lock.json`. It accepts only the
+  current Git release at 100 percent traffic. Every later deploy verifies the account, Guild,
+  Worker names, and resources against that lock and fails on drift.
 - The lock is purchaser-instance state. It is ignored by the reusable source template and retained
   in the purchaser's encrypted operations vault and backup set.
 - A live deploy requires a clean Git tree and the recorded Cloudflare OS submodule commit. Every

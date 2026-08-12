@@ -9,6 +9,7 @@ import {
   deploymentSecretsFromEnvironment,
   generateConfigs,
   provisioningLockFromGenerated,
+  provisioningLockFromWorkerVersions,
   validateConfig,
 } from "./deploy.mjs";
 
@@ -520,6 +521,73 @@ test("captures and reapplies automatically provisioned resource identities", asy
   });
   assert.equal(resolved.context.kvNamespaceId, "context-kv-id");
   assert.deepEqual(resolved.resources, validConfig.resources);
+});
+
+test("captures provisioned resources from the active release bindings", () => {
+  const automatic = structuredClone(validConfig);
+  automatic.context.kvNamespaceId = null;
+  automatic.resources = {
+    blueprintsKvNamespaceId: null,
+    avatarsKvNamespaceId: null,
+    blueprintContentBucket: null,
+    knowledgeFilesBucket: null,
+  };
+  const releaseCommit = "0123456789abcdef0123456789abcdef01234567";
+  const version = (bindings) => ({
+    annotations: { "workers/message": `Guild OS ${releaseCommit}` },
+    resources: { bindings },
+  });
+
+  const lock = provisioningLockFromWorkerVersions(automatic, {
+    context: version([{
+      name: "CONTEXT_COLLECTIONS",
+      type: "kv_namespace",
+      namespace_id: "context-kv-id",
+    }]),
+    workshop: version([
+      { name: "BLUEPRINTS", type: "kv_namespace", namespace_id: "blueprints-kv-id" },
+      { name: "AVATARS", type: "kv_namespace", namespace_id: "avatars-kv-id" },
+      { name: "BLUEPRINT_CONTENT", type: "r2_bucket", bucket_name: "cloudflare-os-blueprints" },
+    ]),
+    guildGatekeeper: version([{
+      name: "KNOWLEDGE_FILES",
+      type: "r2_bucket",
+      bucket_name: "acme-guild-knowledge",
+    }]),
+  }, { releaseCommit });
+
+  assert.deepEqual(lock.resources, {
+    contextKvNamespaceId: "context-kv-id",
+    blueprintsKvNamespaceId: "blueprints-kv-id",
+    avatarsKvNamespaceId: "avatars-kv-id",
+    blueprintContentBucket: "cloudflare-os-blueprints",
+    knowledgeFilesBucket: "acme-guild-knowledge",
+  });
+});
+
+test("rejects stale releases and conflicting deployed resources", () => {
+  const releaseCommit = "0123456789abcdef0123456789abcdef01234567";
+  const versions = {
+    context: {
+      annotations: { "workers/message": "Guild OS ffffffffffffffffffffffffffffffffffffffff" },
+      resources: { bindings: [] },
+    },
+  };
+  assert.throws(
+    () => provisioningLockFromWorkerVersions(validConfig, versions, { releaseCommit }),
+    /not running release/i,
+  );
+
+  versions.context.annotations["workers/message"] = `Guild OS ${releaseCommit}`;
+  versions.context.resources.bindings = [{
+    name: "CONTEXT_COLLECTIONS",
+    type: "kv_namespace",
+    namespace_id: "different-context-kv-id",
+  }];
+  assert.throws(
+    () => provisioningLockFromWorkerVersions(validConfig, versions, { releaseCommit }),
+    /conflicts/i,
+  );
 });
 
 test("rejects stale, conflicting, or incomplete provisioning locks", () => {

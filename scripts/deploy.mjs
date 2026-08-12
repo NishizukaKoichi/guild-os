@@ -186,6 +186,138 @@ export function provisioningLockFromGenerated(config, generated, { allowIncomple
   };
 }
 
+function deployedBinding(
+  version,
+  workerName,
+  bindingName,
+  bindingType,
+  valueKey,
+  configuredValue,
+  { allowIncomplete, releaseCommit },
+) {
+  if (!version) {
+    if (allowIncomplete) return configuredValue ?? null;
+    throw new Error(`Cloudflare did not return an active version for ${workerName}.`);
+  }
+  const expectedMessage = `Guild OS ${releaseCommit}`;
+  if (version.annotations?.["workers/message"] !== expectedMessage) {
+    if (allowIncomplete) return configuredValue ?? null;
+    throw new Error(`${workerName} is not running release ${releaseCommit}.`);
+  }
+  const binding = version.resources?.bindings?.find((candidate) =>
+    candidate.name === bindingName && candidate.type === bindingType);
+  const deployedValue = binding?.[valueKey];
+  if (typeof deployedValue !== "string" || !deployedValue) {
+    if (allowIncomplete) return configuredValue ?? null;
+    throw new Error(
+      `Cloudflare did not return ${bindingName} ${valueKey} for ${workerName}.`,
+    );
+  }
+  if (configuredValue !== null && configuredValue !== deployedValue) {
+    throw new Error(
+      `${workerName} ${bindingName} conflicts with the configured production resource.`,
+    );
+  }
+  return deployedValue;
+}
+
+export function provisioningLockFromWorkerVersions(
+  config,
+  versions,
+  { allowIncomplete = false, releaseCommit } = {},
+) {
+  if (!/^[a-f0-9]{40}$/i.test(releaseCommit ?? "")) {
+    throw new Error("A full release commit is required to inspect deployed Worker bindings.");
+  }
+  const options = { allowIncomplete, releaseCommit };
+  const resolved = structuredClone(config);
+  resolved.context.kvNamespaceId = deployedBinding(
+    versions.context,
+    config.workers.context.name,
+    "CONTEXT_COLLECTIONS",
+    "kv_namespace",
+    "namespace_id",
+    config.context.kvNamespaceId,
+    options,
+  );
+  resolved.resources.blueprintsKvNamespaceId = deployedBinding(
+    versions.workshop,
+    config.workers.workshop.name,
+    "BLUEPRINTS",
+    "kv_namespace",
+    "namespace_id",
+    config.resources.blueprintsKvNamespaceId,
+    options,
+  );
+  resolved.resources.avatarsKvNamespaceId = deployedBinding(
+    versions.workshop,
+    config.workers.workshop.name,
+    "AVATARS",
+    "kv_namespace",
+    "namespace_id",
+    config.resources.avatarsKvNamespaceId,
+    options,
+  );
+  resolved.resources.blueprintContentBucket = deployedBinding(
+    versions.workshop,
+    config.workers.workshop.name,
+    "BLUEPRINT_CONTENT",
+    "r2_bucket",
+    "bucket_name",
+    config.resources.blueprintContentBucket,
+    options,
+  );
+  resolved.resources.knowledgeFilesBucket = deployedBinding(
+    versions.guildGatekeeper,
+    config.workers.guildGatekeeper.name,
+    "KNOWLEDGE_FILES",
+    "r2_bucket",
+    "bucket_name",
+    config.resources.knowledgeFilesBucket,
+    options,
+  );
+  return provisioningLockFromGenerated(config, generateConfigsForLock(resolved), {
+    allowIncomplete,
+  });
+}
+
+function generateConfigsForLock(config) {
+  return {
+    context: {
+      kv_namespaces: [{
+        binding: "CONTEXT_COLLECTIONS",
+        ...(config.context.kvNamespaceId ? { id: config.context.kvNamespaceId } : {}),
+      }],
+    },
+    workshop: {
+      kv_namespaces: [
+        {
+          binding: "BLUEPRINTS",
+          ...(config.resources.blueprintsKvNamespaceId
+            ? { id: config.resources.blueprintsKvNamespaceId } : {}),
+        },
+        {
+          binding: "AVATARS",
+          ...(config.resources.avatarsKvNamespaceId
+            ? { id: config.resources.avatarsKvNamespaceId } : {}),
+        },
+      ],
+      r2_buckets: [{
+        binding: "BLUEPRINT_CONTENT",
+        ...(config.resources.blueprintContentBucket
+          ? { bucket_name: config.resources.blueprintContentBucket } : {}),
+      }],
+    },
+    guildGatekeeper: {
+      r2_buckets: [{
+        binding: "KNOWLEDGE_FILES",
+        ...(config.resources.knowledgeFilesBucket
+          ? { bucket_name: config.resources.knowledgeFilesBucket } : {}),
+      }],
+    },
+  };
+}
+
 function valueAt(object, path) {
   return path.split(".").reduce((value, key) => value?.[key], object);
 }
@@ -708,14 +840,41 @@ async function readDeploymentLock() {
   return readJsonc(deploymentLockPath);
 }
 
-async function persistDeploymentLock(config, allowIncomplete = false) {
-  const deployed = {};
-  for (const [name, path] of Object.entries(generatedPaths)) {
-    if ((name === "webhookReceiver" && !config.referenceWebhook.enabled) ||
-        (name === "errorReporter" && !config.errorReporting.enabled)) continue;
-    deployed[name] = await readJsonc(path);
+function captureActiveWorkerVersion(workerName, allowIncomplete) {
+  try {
+    const status = JSON.parse(capture("pnpm", [
+      "exec", "wrangler", "deployments", "status", "--name", workerName, "--json",
+    ]));
+    const active = Array.isArray(status.versions)
+      ? status.versions.filter((version) => version?.percentage === 100)
+      : [];
+    if (active.length !== 1 || status.versions.length !== 1 ||
+        typeof active[0].version_id !== "string") {
+      throw new Error(`${workerName} does not have one version receiving 100 percent of traffic.`);
+    }
+    return JSON.parse(capture("pnpm", [
+      "exec", "wrangler", "versions", "view", active[0].version_id,
+      "--name", workerName, "--json",
+    ]));
+  } catch (error) {
+    if (allowIncomplete) return null;
+    throw error;
   }
-  const lock = provisioningLockFromGenerated(config, deployed, { allowIncomplete });
+}
+
+async function persistDeploymentLock(config, releaseCommit, allowIncomplete = false) {
+  const versions = {
+    workshop: captureActiveWorkerVersion(config.workers.workshop.name, allowIncomplete),
+    context: captureActiveWorkerVersion(config.workers.context.name, allowIncomplete),
+    guildGatekeeper: captureActiveWorkerVersion(
+      config.workers.guildGatekeeper.name,
+      allowIncomplete,
+    ),
+  };
+  const lock = provisioningLockFromWorkerVersions(config, versions, {
+    allowIncomplete,
+    releaseCommit,
+  });
   const temporaryPath = `${deploymentLockPath}.${process.pid}.tmp`;
   await writeFile(temporaryPath, JSON.stringify(lock, null, 2) + "\n", { mode: 0o600 });
   await rename(temporaryPath, deploymentLockPath);
@@ -882,14 +1041,14 @@ async function main() {
     run(["exec", "wrangler", "deploy", "--config", generatedName,
       ...secretsArgs("workshop"), ...deployArgs],
       join(root, "cloudflare-os/packages/workshop-backend"));
-    if (!check) await persistDeploymentLock(config);
+    if (!check) await persistDeploymentLock(config, releaseCommit);
   } catch (error) {
     deploymentError = error;
     throw error;
   } finally {
     if (deploymentStarted && deploymentError) {
       try {
-        await persistDeploymentLock(config, true);
+        await persistDeploymentLock(config, releaseCommit, true);
       } catch {
         // Preserve the deployment failure. Wrangler may not have provisioned any resource yet.
       }

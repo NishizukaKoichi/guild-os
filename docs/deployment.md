@@ -66,13 +66,15 @@ chmod 600 deployment.local.jsonc
 - KV namespace IDs and R2 bucket names after automatic provisioning
 - Per-Identity Ask and emergency-recovery attempt limits
 
-For first deployment, `null` KV/R2 values allow Wrangler automatic provisioning. The deploy script
-captures the IDs and bucket names Wrangler writes into temporary configs and atomically creates a
-mode-`0600` `deployment.lock.json`. Every later deploy reapplies the lock and fails if its account,
-Guild, Worker names, or configured resource values differ.
-If an initial multi-Worker deploy fails, the same file retains every ID Wrangler had already
-provisioned and leaves unknown entries `null`, so the next attempt resumes without replacing known
-stores. A release record or backup still refuses an unresolved partial lock.
+For first deployment, `null` KV/R2 values allow Wrangler automatic provisioning. After every Worker
+is deployed, the deploy script reads the single version receiving 100 percent of traffic, verifies
+that its release message contains the current Git SHA, captures the actual KV/R2 bindings returned
+by Cloudflare, and atomically creates a mode-`0600` `deployment.lock.json`. Every later deploy
+reapplies the lock and fails if its account, Guild, Worker names, configured resource values, active
+release, or deployed bindings differ.
+If an initial multi-Worker deploy fails, the same discovery path retains resources from Workers that
+reached the current release and leaves unknown entries `null`, so the next attempt can resume.
+A release record or backup still refuses an unresolved partial lock.
 
 `deployment.lock.json` is ignored by Git because it belongs to one purchaser instance, not the
 reusable source template. Preserve it in the purchaser's encrypted operations vault and complete
