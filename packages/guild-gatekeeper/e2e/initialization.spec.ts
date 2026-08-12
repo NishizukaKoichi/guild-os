@@ -13,7 +13,7 @@ function collectBrowserErrors(page: Page): string[] {
 
 async function mountSandboxedStandaloneApp(
   page: Page,
-  mode: "uninitialized-admin" | "uninitialized-member",
+  mode: "root" | "uninitialized-admin" | "uninitialized-member",
 ) {
   const appHtml = await readFile(resolve("dist-app/app/index.html"), "utf8");
   await page.goto(`?standalone=${mode}`);
@@ -119,5 +119,28 @@ test("supports keyboard submission in the form-restricted sandbox", async ({ pag
   await confirmation.press("Enter");
 
   await expect(app.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("opens the native Knowledge file chooser inside the Cloudflare OS sandbox", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  const app = await mountSandboxedStandaloneApp(page, "root");
+
+  await app.getByRole("button", { name: "Knowledge", exact: true }).click();
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await app.getByRole("button", { name: "Start revision", exact: true }).click();
+  await expect(app.getByText("Draft", { exact: true }).first()).toBeVisible();
+
+  const chooserPromise = page.waitForEvent("filechooser");
+  await app.getByLabel("Upload", { exact: true }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: "sandbox-upload.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("sandbox upload verification"),
+  });
+
+  await expect(app.getByText("File uploaded and verified.")).toBeVisible();
+  await expect(app.getByText("sandbox-upload.txt")).toBeVisible();
   expect(errors).toEqual([]);
 });
