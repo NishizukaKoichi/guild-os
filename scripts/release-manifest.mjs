@@ -3,6 +3,7 @@ import { chmod, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  assertWorkerDeploymentsMatchRelease,
   captureWorkerDeployments,
   assertResolvedResources,
   deploymentLockPath,
@@ -95,6 +96,9 @@ export async function buildReleaseManifest({
       status: "not-queried",
     }))
     : captureWorkerDeployments(resolvedConfig));
+  if (!offline && !deployments) {
+    assertWorkerDeploymentsMatchRelease(activeDeployments, sourceSnapshot.commit);
+  }
   const databaseVerification = database ?? (offline
     ? { status: "not-queried" }
     : await verifyProductionDatabase(process.env.DATABASE_URL));

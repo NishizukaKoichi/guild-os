@@ -8,9 +8,9 @@ does not depend on a seller account or service.
 
 | Store | Export |
 | --- | --- |
-| PostgreSQL | Custom-format `pg_dump`, restore catalog, migration and quiescence boundary |
+| PostgreSQL | Guild-scoped, forced-RLS-aware plain SQL with column `INSERT`s, migration and quiescence boundary |
 | Context, Blueprints, Avatars KV | Binary-safe JSONL with expiration and metadata |
-| Knowledge and Blueprint R2 | Full object trees plus per-object SHA-256 indexes |
+| Knowledge and Blueprint R2 | Full object trees plus per-object metadata and SHA-256 indexes |
 | Cloudflare Access | Matching application and policies |
 | Workers | Active deployment and Version IDs, with author identity removed |
 | Deployment | Restorable resource lock, summary, and source/migration hashes; no secret values |
@@ -33,21 +33,23 @@ operator assertion; the script cannot prove the storage layer's encryption polic
 ## Requirements
 
 - A clean source checkout with the purchaser's `deployment.lock.json`
-- `pg_dump` and `pg_restore` matching the production PostgreSQL major version
-- `rclone` configured for the purchaser's R2 account
+- `pg_dump` and `psql` matching the production PostgreSQL major version
 - `DATABASE_URL` with read access to the full Guild database
-- `CLOUDFLARE_API_TOKEN` scoped to read the configured KV namespaces, Access application/policies,
-  and Worker deployments
+- `CLOUDFLARE_API_TOKEN` scoped to read the configured KV namespaces, R2 buckets, Access
+  application/policies, and Worker deployments
 - Zero nonterminal Agent Runs, pending/processing outbox rows, or pending file uploads
 - Access temporarily restricted to the backup operator for the whole command
 
-The script checks the latest migration, Guild existence, active-work counts, and Chronicle sequence
-before and after export. If the Chronicle sequence changes, it deletes the incomplete output.
+The script checks the latest migration, Guild existence, active-work counts, Chronicle sequence, and
+every Guild-scoped table count before and after export. If any boundary changes, it deletes the
+incomplete output.
 
 ## Create and verify
 
-Use an absolute destination outside the repository. `R2_REMOTE` is the name of an existing `rclone`
-remote, not a secret or bucket name.
+Use an absolute destination outside the repository. The default R2 exporter uses Cloudflare's REST
+API and the same scoped API token as the other Cloudflare stores. It lists all cursor pages,
+downloads each object, preserves list metadata in the index, and rejects a bucket whose inventory
+changes before the export completes.
 
 ```sh
 export DATABASE_URL='postgresql://...'
@@ -55,7 +57,6 @@ export CLOUDFLARE_API_TOKEN='...'
 
 pnpm backup:create -- \
   --output /Volumes/EncryptedOps/guild-os/2026-08-12T010000Z \
-  --r2-remote purchaser-r2 \
   --confirm-encrypted-destination
 
 unset DATABASE_URL CLOUDFLARE_API_TOKEN
@@ -70,9 +71,43 @@ When Context Artifacts is enabled, also pass its clean local mirror:
 --artifacts-repository /Volumes/Pensive/Operations/context-artifacts
 ```
 
-Creation uses restricted file modes, verifies the `pg_dump` catalog, compares the remote R2 tree,
-indexes every object, hashes every exported control file, and runs the same full verification used
-by `backup:verify`. Copy the finished directory off-site only after the command succeeds.
+Creation uses restricted file modes, sets the configured Guild UUID for every `pg_dump` query,
+enables row security explicitly, and emits column-name `INSERT`s rather than `COPY` so the dump can
+be restored while row security remains active. It compares Chronicle and per-table row counts plus
+the remote R2 tree, indexes every object, hashes every exported control file, and runs the same full
+verification used by `backup:verify`. Copy the finished directory off-site only after the command
+succeeds.
+
+For large R2 stores, `rclone` remains an optional high-throughput path. Configure a purchaser-owned
+R2 remote, then add `--r2-remote purchaser-r2`. The backup still indexes and verifies the local
+object tree after `rclone check` succeeds.
+
+Cloudflare Access read permission is separate from Workers/KV/R2 permission. If the backup token
+cannot read Access, export the application and policies with a separately scoped read-only token or
+create a reviewed JSON snapshot with this exact non-secret shape:
+
+```json
+{
+  "application": {
+    "id": "ACCESS_APPLICATION_UUID",
+    "aud": "CONFIGURED_ACCESS_AUDIENCE",
+    "domain": "guild.example.com"
+  },
+  "policies": [
+    {
+      "id": "ACCESS_POLICY_UUID",
+      "name": "Allow members",
+      "decision": "allow",
+      "include": []
+    }
+  ]
+}
+```
+
+Pass the absolute file path as `--access-snapshot`. The command rejects secret-like fields, an
+audience mismatch, an empty policy set, or malformed IDs. Preserve every non-secret application and
+policy field returned by the API; the abbreviated example only documents the required validation
+boundary.
 
 ## Prepare a restore
 
@@ -97,11 +132,17 @@ application, Worker names, Guild UUID, and HMAC secret. Keep Access restricted t
 1. Restore PostgreSQL and verify the catalog:
 
    ```sh
-   pg_restore --list BACKUP/postgres/guild-os.dump
-   pg_restore --exit-on-error --no-owner --no-acl \
-     --dbname "$RESTORE_DATABASE_URL" BACKUP/postgres/guild-os.dump
+   # Configure PGHOST, PGPORT, PGUSER, PGDATABASE, PGPASSWORD, and PGSSLMODE
+   # for the isolated target; do not expose a credential URL in process arguments.
+   PGOPTIONS="-c app.guild_id=GUILD_UUID" psql \
+     --no-psqlrc --single-transaction --set ON_ERROR_STOP=on \
+     --file BACKUP/postgres/guild-os.sql
    DATABASE_URL="$RESTORE_DATABASE_URL" pnpm db:migrate
    ```
+
+   Compare every restored Guild table count and the maximum Chronicle sequence with
+   `stores.postgres.expectedGuildTableRows` and `expectedChronicleSequence` in
+   `restore-plan.json` before testing the application.
 
 2. For every generated KV batch, target the newly created namespace explicitly:
 
@@ -110,8 +151,9 @@ application, Worker names, Guild UUID, and HMAC secret. Keep Access restricted t
      --namespace-id "$NEW_CONTEXT_KV_ID" --remote
    ```
 
-3. Copy each backed-up R2 directory into its new bucket, preserving metadata, then run `rclone
-   check` and compare the stored object count/bytes with `restore-plan.json`.
+3. Copy each backed-up R2 directory into its new bucket, preserving the metadata recorded in the
+   adjacent index. Use the Cloudflare R2 REST API, Wrangler for individual objects, or `rclone` for
+   bulk transfer, then compare object count, bytes, and hashes with `restore-plan.json`.
 4. Recreate the Access application and policies from `cloudflare/access.json`; review identities,
    session duration, and hostname instead of applying the old object blindly.
 5. Configure a new ignored `deployment.local.jsonc` and let the first deploy create a new lock.

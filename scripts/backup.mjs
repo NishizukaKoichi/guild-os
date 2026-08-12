@@ -19,6 +19,7 @@ import { pathToFileURL } from "node:url";
 import {
   assertCommand,
   assertResolvedResources,
+  assertWorkerDeploymentsMatchRelease,
   captureWorkerDeployments,
   deploymentLockSnapshot,
   deploymentRecoveryConfiguration,
@@ -38,10 +39,11 @@ const postgresRequire = createRequire(join(
 ));
 const { Client } = postgresRequire("pg");
 
-const BACKUP_FORMAT = "guild-os-backup/v1";
-const RESTORE_PLAN_FORMAT = "guild-os-restore-plan/v1";
+const BACKUP_FORMAT = "guild-os-backup/v2";
+const RESTORE_PLAN_FORMAT = "guild-os-restore-plan/v2";
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const KV_CONCURRENCY = 4;
+const R2_CONCURRENCY = 4;
 const KV_RESTORE_BATCH_ENTRIES = 5_000;
 const KV_RESTORE_BATCH_BYTES = 50 * 1024 * 1024;
 
@@ -76,6 +78,7 @@ export function parseBackupArguments(args) {
     pathFlag,
     ...(command === "prepare-restore" ? ["--output"] : []),
     "--r2-remote",
+    "--access-snapshot",
     "--artifacts-repository",
   ]);
   const boolean = new Set(["--confirm-encrypted-destination"]);
@@ -91,7 +94,10 @@ export function parseBackupArguments(args) {
     );
   }
   const r2Remote = valueAfter(args, "--r2-remote");
-  if (command === "create" && !r2Remote) throw new Error("create requires --r2-remote.");
+  const accessSnapshot = valueAfter(args, "--access-snapshot");
+  if (accessSnapshot && !isAbsolute(accessSnapshot)) {
+    throw new Error("--access-snapshot must be an absolute path.");
+  }
   const restoreOutput = command === "prepare-restore" ? valueAfter(args, "--output") : null;
   if (command === "prepare-restore" && (!restoreOutput || !isAbsolute(restoreOutput))) {
     throw new Error("prepare-restore requires an absolute --output path outside the repository.");
@@ -100,6 +106,7 @@ export function parseBackupArguments(args) {
     command,
     path,
     r2Remote,
+    accessSnapshot,
     artifactsRepository: valueAfter(args, "--artifacts-repository"),
     ...(restoreOutput ? { restoreOutput } : {}),
   };
@@ -124,11 +131,42 @@ async function assertExternalPath(path, mustExist) {
 }
 
 function safeChildEnvironment(extra = {}) {
-  const env = { ...process.env, ...extra };
-  delete env.DATABASE_URL;
-  delete env.GUILD_WEBHOOK_SIGNING_SECRET;
-  delete env.CF_AI_GATEWAY_API_TOKEN;
-  return env;
+  const env = { ...process.env };
+  for (const name of [
+    "DATABASE_URL",
+    "GUILD_WEBHOOK_SIGNING_SECRET",
+    "CF_AI_GATEWAY_API_TOKEN",
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
+    "CLOUDFLARE_API_KEY",
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_EMAIL",
+    "PGAPPNAME",
+    "PGCHANNELBINDING",
+    "PGCONNECT_TIMEOUT",
+    "PGDATABASE",
+    "PGHOST",
+    "PGHOSTADDR",
+    "PGOPTIONS",
+    "PGPASSWORD",
+    "PGPORT",
+    "PGSERVICE",
+    "PGSERVICEFILE",
+    "PGSSLCERT",
+    "PGSSLCRL",
+    "PGSSLCRLDIR",
+    "PGSSLKEY",
+    "PGSSLMAXPROTOCOLVERSION",
+    "PGSSLMINPROTOCOLVERSION",
+    "PGSSLMODE",
+    "PGSSLNEGOTIATION",
+    "PGSSLPASSWORD",
+    "PGSSLROOTCERT",
+    "PGSSLSNI",
+    "PGTARGETSESSIONATTRS",
+    "PGUSER",
+  ]) delete env[name];
+  return { ...env, ...extra };
 }
 
 function runChecked(command, args, options = {}) {
@@ -150,7 +188,7 @@ async function databaseBoundary(connectionString, guildId) {
   const client = new Client({ connectionString });
   await client.connect();
   try {
-    await client.query("BEGIN READ ONLY");
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     await client.query("SELECT set_config('app.guild_id', $1, true)", [guildId]);
     const result = await client.query(
       `SELECT
@@ -168,6 +206,48 @@ async function databaseBoundary(connectionString, guildId) {
            ORDER BY name DESC LIMIT 1) AS latest_migration`,
       [guildId],
     );
+    const guildTables = (await client.query(
+      `SELECT class.relname AS table_name
+         FROM pg_class class
+         JOIN pg_namespace namespace ON namespace.oid = class.relnamespace
+         JOIN pg_attribute attribute ON attribute.attrelid = class.oid
+        WHERE namespace.nspname = 'public'
+          AND class.relkind IN ('r', 'p')
+          AND attribute.attname = 'guild_id'
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+        ORDER BY class.relname`,
+    )).rows.map((table) => table.table_name);
+    const unexpectedUnscopedTables = (await client.query(
+      `SELECT class.relname AS table_name
+         FROM pg_class class
+         JOIN pg_namespace namespace ON namespace.oid = class.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND class.relkind IN ('r', 'p')
+          AND class.relname NOT IN ('guilds', 'guild_schema_migrations')
+          AND NOT EXISTS (
+            SELECT 1 FROM pg_attribute attribute
+             WHERE attribute.attrelid = class.oid
+               AND attribute.attname = 'guild_id'
+               AND attribute.attnum > 0
+               AND NOT attribute.attisdropped
+          )
+        ORDER BY class.relname`,
+    )).rows.map((table) => table.table_name);
+    if (unexpectedUnscopedTables.length) {
+      throw new Error(
+        `Guild backup found unscoped public tables: ${unexpectedUnscopedTables.join(", ")}.`,
+      );
+    }
+    guildTables.unshift("guilds");
+    const guildTableRows = {};
+    for (const table of guildTables) {
+      if (typeof table !== "string" || !/^[a-z][a-z0-9_]*$/.test(table)) {
+        throw new Error("The database contains an unsafe Guild table name.");
+      }
+      const count = await client.query(`SELECT count(*)::text AS count FROM "${table}"`);
+      guildTableRows[table] = count.rows[0]?.count ?? "0";
+    }
     await client.query("COMMIT");
     const row = result.rows[0];
     if (!row) throw new Error("The database boundary query returned no row.");
@@ -178,6 +258,7 @@ async function databaseBoundary(connectionString, guildId) {
       activeOutboxItems: row.active_outbox_items,
       pendingFileUploads: row.pending_file_uploads,
       latestMigration: row.latest_migration,
+      guildTableRows,
     };
   } catch (error) {
     try {
@@ -203,6 +284,120 @@ export function assertQuiescentBoundary(boundary, expectedMigration) {
       "Backup requires zero active Agent Runs, pending/processing outbox items, and pending file uploads.",
     );
   }
+}
+
+export function pgDumpArguments(outputPath) {
+  return [
+    "--format=plain",
+    "--no-owner",
+    "--no-acl",
+    "--enable-row-security",
+    "--column-inserts",
+    "--rows-per-insert=100",
+    "--file",
+    outputPath,
+  ];
+}
+
+const POSTGRES_URI_ENVIRONMENT = new Map([
+  ["application_name", "PGAPPNAME"],
+  ["channel_binding", "PGCHANNELBINDING"],
+  ["connect_timeout", "PGCONNECT_TIMEOUT"],
+  ["hostaddr", "PGHOSTADDR"],
+  ["sslcert", "PGSSLCERT"],
+  ["sslcrl", "PGSSLCRL"],
+  ["sslcrldir", "PGSSLCRLDIR"],
+  ["sslkey", "PGSSLKEY"],
+  ["ssl_max_protocol_version", "PGSSLMAXPROTOCOLVERSION"],
+  ["ssl_min_protocol_version", "PGSSLMINPROTOCOLVERSION"],
+  ["sslmode", "PGSSLMODE"],
+  ["sslnegotiation", "PGSSLNEGOTIATION"],
+  ["sslpassword", "PGSSLPASSWORD"],
+  ["sslrootcert", "PGSSLROOTCERT"],
+  ["sslsni", "PGSSLSNI"],
+  ["target_session_attrs", "PGTARGETSESSIONATTRS"],
+]);
+
+export function postgresConnectionEnvironment(connectionString) {
+  let url;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new Error("DATABASE_URL must be a PostgreSQL URL for backup.");
+  }
+  if (!["postgres:", "postgresql:"].includes(url.protocol) || url.hash ||
+      !url.username || !url.hostname || !url.pathname.slice(1)) {
+    throw new Error("DATABASE_URL must identify a PostgreSQL user, host, and database.");
+  }
+  const decode = (value, label) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      throw new Error(`DATABASE_URL contains invalid ${label} encoding.`);
+    }
+  };
+  const env = {
+    PGHOST: url.hostname.startsWith("[") && url.hostname.endsWith("]")
+      ? url.hostname.slice(1, -1)
+      : url.hostname,
+    PGPORT: url.port || "5432",
+    PGUSER: decode(url.username, "user"),
+    PGDATABASE: decode(url.pathname.slice(1), "database"),
+    ...(url.password ? { PGPASSWORD: decode(url.password, "password") } : {}),
+  };
+  const seen = new Set();
+  for (const [name, value] of url.searchParams) {
+    const target = POSTGRES_URI_ENVIRONMENT.get(name);
+    if (!target || seen.has(name) || !value) {
+      throw new Error(`DATABASE_URL contains an unsupported or duplicate parameter: ${name}`);
+    }
+    seen.add(name);
+    env[target] = value;
+  }
+  return env;
+}
+
+export function pgDumpEnvironment(connectionString, guildId) {
+  if (typeof connectionString !== "string" || !connectionString) {
+    throw new Error("A PostgreSQL connection string is required for backup.");
+  }
+  if (typeof guildId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guildId)) {
+    throw new Error("A valid Guild UUID is required for backup.");
+  }
+  const path = process.env.PATH;
+  return {
+    ...(path ? { PATH: path } : {}),
+    LANG: "C",
+    ...postgresConnectionEnvironment(connectionString),
+    PGOPTIONS: `-c app.guild_id=${guildId}`,
+  };
+}
+
+export async function verifyPostgresDump(path) {
+  const details = await lstat(path);
+  if (!details.isFile() || !details.size) {
+    throw new Error("PostgreSQL backup is not a nonempty regular file.");
+  }
+  let rowSecurityOn = 0;
+  let inserts = 0;
+  for await (const line of createInterface({
+    input: createReadStream(path),
+    crlfDelay: Infinity,
+  })) {
+    if (line === "SET row_security = on;") rowSecurityOn += 1;
+    if (/^SET row_security = off;/i.test(line)) {
+      throw new Error("PostgreSQL backup disables row security.");
+    }
+    if (/^(?:\\?copy|COPY)\s/i.test(line)) {
+      throw new Error("PostgreSQL backup contains COPY and cannot be restored through row security.");
+    }
+    if (/^INSERT INTO\s/i.test(line)) inserts += 1;
+  }
+  if (rowSecurityOn !== 1 || inserts < 1) {
+    throw new Error("PostgreSQL backup is missing its row-security or INSERT boundary.");
+  }
+  return { bytes: details.size, insertStatements: inserts, rowSecurity: "enabled" };
 }
 
 async function cloudflareJson(path, token, options = {}, fetcher = fetch) {
@@ -266,6 +461,156 @@ async function cloudflareBytes(path, token, fetcher = fetch) {
         );
       }
       return Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      lastError = error;
+      if (error instanceof CloudflareRequestError && !error.retryable) throw error;
+      if (attempt < 2) await new Promise((resolvePromise) => setTimeout(resolvePromise, 250 * 2 ** attempt));
+    }
+  }
+  throw lastError;
+}
+
+function encodeR2ObjectKey(key) {
+  return key.split("/").map((segment) => encodeURIComponent(segment)
+    .replace(/[!'()*]/g, (character) =>
+      `%${character.charCodeAt(0).toString(16).toUpperCase()}`)).join("/");
+}
+
+export function safeR2ObjectPath(key, seen = new Set()) {
+  if (typeof key !== "string" || !key || Buffer.byteLength(key) > 1_024) {
+    throw new Error("R2 returned an invalid object key.");
+  }
+  const segments = key.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".." ||
+      /[. ]$/.test(segment) ||
+      /[\\\u0000-\u001f\u007f]/.test(segment) || Buffer.byteLength(segment) > 240)) {
+    throw new Error(`R2 object key cannot be represented safely in a backup tree: ${key}`);
+  }
+  const collisionKey = key.normalize("NFC").toLocaleLowerCase("en-US");
+  if (seen.has(collisionKey)) {
+    throw new Error(`R2 object keys collide on a case-insensitive backup volume: ${key}`);
+  }
+  seen.add(collisionKey);
+  return key;
+}
+
+function validateR2Metadata(value, label, depth = 0) {
+  if (value === undefined) return;
+  if (depth > 4) throw new Error(`Cloudflare R2 ${label} is too deeply nested.`);
+  if (value === null || typeof value === "string" || typeof value === "number" ||
+      typeof value === "boolean") return;
+  if (Array.isArray(value)) {
+    value.forEach((entry) => validateR2Metadata(entry, label, depth + 1));
+    return;
+  }
+  if (!value || typeof value !== "object") {
+    throw new Error(`Cloudflare R2 returned invalid ${label}.`);
+  }
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof key !== "string" || Buffer.byteLength(key) > 1_024) {
+      throw new Error(`Cloudflare R2 returned invalid ${label}.`);
+    }
+    validateR2Metadata(entry, label, depth + 1);
+  }
+}
+
+export async function listR2Objects(accountId, bucket, token, fetcher = fetch) {
+  const objects = [];
+  const keys = new Set();
+  const cursors = new Set();
+  let cursor = null;
+  do {
+    const query = new URLSearchParams({ per_page: "1000" });
+    if (cursor) query.set("cursor", cursor);
+    const body = await cloudflareJson(
+      `/accounts/${accountId}/r2/buckets/${encodeURIComponent(bucket)}/objects?${query}`,
+      token,
+      {},
+      fetcher,
+    );
+    if (!Array.isArray(body.result)) throw new Error("Cloudflare R2 object list is invalid.");
+    for (const object of body.result) {
+      if (typeof object?.key !== "string" || !object.key ||
+          !Number.isSafeInteger(object.size) || object.size < 0 ||
+          typeof object.etag !== "string" || !object.etag) {
+        throw new Error("Cloudflare R2 returned invalid object metadata.");
+      }
+      if (object.last_modified !== undefined &&
+          (typeof object.last_modified !== "string" ||
+            !Number.isFinite(Date.parse(object.last_modified)))) {
+        throw new Error("Cloudflare R2 returned an invalid last-modified time.");
+      }
+      if (object.storage_class !== undefined && typeof object.storage_class !== "string") {
+        throw new Error("Cloudflare R2 returned an invalid storage class.");
+      }
+      validateR2Metadata(object.http_metadata, "HTTP metadata");
+      validateR2Metadata(object.custom_metadata, "custom metadata");
+      if (keys.has(object.key)) throw new Error("Cloudflare R2 pagination returned a duplicate key.");
+      keys.add(object.key);
+      objects.push({
+        key: object.key,
+        size: object.size,
+        etag: object.etag,
+        ...(typeof object.last_modified === "string"
+          ? { lastModified: object.last_modified }
+          : {}),
+        ...(typeof object.storage_class === "string"
+          ? { storageClass: object.storage_class }
+          : {}),
+        ...(object.http_metadata && typeof object.http_metadata === "object"
+          ? { httpMetadata: object.http_metadata }
+          : {}),
+        ...(object.custom_metadata && typeof object.custom_metadata === "object"
+          ? { customMetadata: object.custom_metadata }
+          : {}),
+      });
+    }
+    const truncated = body.result_info?.is_truncated === true;
+    cursor = truncated && typeof body.result_info?.cursor === "string" &&
+      body.result_info.cursor ? body.result_info.cursor : null;
+    if (truncated && !cursor) throw new Error("Cloudflare R2 omitted a required pagination cursor.");
+    if (!body.result_info && body.result.length === 1_000) {
+      throw new Error("Cloudflare R2 omitted pagination metadata for a full page.");
+    }
+    if (cursor && cursors.has(cursor)) throw new Error("Cloudflare R2 pagination cursor repeated.");
+    if (cursor) cursors.add(cursor);
+  } while (cursor);
+  return objects;
+}
+
+async function downloadR2Object(accountId, bucket, object, token, fetcher = fetch) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetcher(
+        `${CLOUDFLARE_API}/accounts/${accountId}/r2/buckets/${encodeURIComponent(bucket)}` +
+          `/objects/${encodeR2ObjectKey(object.key)}`,
+        {
+          headers: {
+            authorization: `Bearer ${token}`,
+            "if-none-match": `"guild-os-backup-never-match"`,
+          },
+          signal: AbortSignal.timeout(60_000),
+        },
+      );
+      if (response.status === 429 || response.status >= 500) {
+        throw new CloudflareRequestError(
+          `Cloudflare R2 temporarily returned HTTP ${response.status}.`,
+          true,
+        );
+      }
+      if (!response.ok) {
+        throw new CloudflareRequestError(
+          `Cloudflare R2 object read failed with HTTP ${response.status}.`,
+          false,
+        );
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      const responseEtag = response.headers.get("etag")?.replace(/^"|"$/g, "");
+      if (bytes.byteLength !== object.size || responseEtag !== object.etag) {
+        throw new CloudflareRequestError("Cloudflare R2 object changed while it was read.", true);
+      }
+      return bytes;
     } catch (error) {
       lastError = error;
       if (error instanceof CloudflareRequestError && !error.retryable) throw error;
@@ -411,7 +756,50 @@ async function exportAccess(config, token, path, fetcher = fetch) {
     throw new Error("The Access application has no policies to back up.");
   }
   await writeAtomicJson(path, { application: app, policies });
-  return { applicationId: app.id, policyCount: policies.length };
+  return { applicationId: app.id, policyCount: policies.length, source: "cloudflare-api" };
+}
+
+function assertNoSecretLikeKeys(value, path = "access snapshot") {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoSecretLikeKeys(entry, `${path}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, entry] of Object.entries(value)) {
+    if (/(?:secret|token|password|private[_-]?key)/i.test(key)) {
+      throw new Error(`Access snapshot contains a secret-like field at ${path}.${key}.`);
+    }
+    assertNoSecretLikeKeys(entry, `${path}.${key}`);
+  }
+}
+
+function assertJsonObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+}
+
+export async function importAccessSnapshot(config, sourcePath, outputPath) {
+  const snapshot = JSON.parse(await readFile(sourcePath, "utf8"));
+  assertJsonObject(snapshot, "Access snapshot");
+  assertNoSecretLikeKeys(snapshot);
+  const app = snapshot?.application;
+  const policies = snapshot?.policies;
+  if (!app || typeof app.id !== "string" || !app.id ||
+      app.aud !== config.access.audience ||
+      typeof app.domain !== "string" || !app.domain ||
+      !Array.isArray(policies) || !policies.length ||
+      policies.some((policy) => typeof policy?.id !== "string" || !policy.id)) {
+    throw new Error("Access snapshot does not match the configured application audience.");
+  }
+  assertJsonObject(app, "Access application");
+  policies.forEach((policy) => assertJsonObject(policy, "Access policy"));
+  await writeAtomicJson(outputPath, snapshot);
+  return {
+    applicationId: app.id,
+    policyCount: policies.length,
+    source: "operator-reviewed-snapshot",
+  };
 }
 
 async function* walkFiles(directory, prefix = "") {
@@ -445,14 +833,69 @@ async function indexFileTree(directory, indexPath) {
   return { objectCount: count, bytes };
 }
 
-async function exportR2Bucket({ remote, bucket, directory, indexPath, rclone }) {
+async function exportR2BucketWithRclone({ remote, bucket, directory, indexPath, rclone }) {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const source = `${remote}:${bucket}`;
   runChecked(rclone, [
     "copy", source, directory, "--metadata", "--checkers", "8", "--transfers", "4",
   ]);
   runChecked(rclone, ["check", source, directory, "--one-way", "--size-only"]);
-  return indexFileTree(directory, indexPath);
+  return { ...await indexFileTree(directory, indexPath), exportMethod: "rclone" };
+}
+
+export async function exportR2BucketWithCloudflare({
+  accountId,
+  bucket,
+  token,
+  directory,
+  indexPath,
+  fetcher = fetch,
+}) {
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const before = await listR2Objects(accountId, bucket, token, fetcher);
+  const seenPaths = new Set();
+  const paths = before.map((object) => safeR2ObjectPath(object.key, seenPaths));
+  const index = await open(indexPath, "wx", 0o600);
+  let bytes = 0;
+  try {
+    for (let offset = 0; offset < before.length; offset += R2_CONCURRENCY) {
+      const batch = before.slice(offset, offset + R2_CONCURRENCY);
+      const downloads = await Promise.all(batch.map((object) =>
+        downloadR2Object(accountId, bucket, object, token, fetcher)));
+      for (let indexInBatch = 0; indexInBatch < batch.length; indexInBatch += 1) {
+        const object = batch[indexInBatch];
+        const data = downloads[indexInBatch];
+        const relativePath = paths[offset + indexInBatch];
+        const target = join(directory, relativePath);
+        await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+        await writeFile(target, data, { flag: "wx", mode: 0o600 });
+        await index.write(`${JSON.stringify({
+          path: relativePath,
+          key: object.key,
+          bytes: data.byteLength,
+          sha256: await sha256File(target),
+          etag: object.etag,
+          ...(object.lastModified ? { lastModified: object.lastModified } : {}),
+          ...(object.storageClass ? { storageClass: object.storageClass } : {}),
+          ...(object.httpMetadata ? { httpMetadata: object.httpMetadata } : {}),
+          ...(object.customMetadata ? { customMetadata: object.customMetadata } : {}),
+        })}\n`);
+        bytes += data.byteLength;
+      }
+    }
+  } finally {
+    await index.close();
+  }
+  const after = await listR2Objects(accountId, bucket, token, fetcher);
+  if (sha256Object(after) !== sha256Object(before)) {
+    throw new Error(`R2 bucket changed during backup: ${bucket}`);
+  }
+  return {
+    objectCount: before.length,
+    bytes,
+    inventorySha256: sha256Object(before),
+    exportMethod: "cloudflare-rest",
+  };
 }
 
 async function exportArtifacts(repository, output) {
@@ -504,20 +947,24 @@ async function createBackup(options) {
   const databaseUrl = process.env.DATABASE_URL;
   const cloudflareToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for backup creation.");
-  if (!cloudflareToken) throw new Error("CLOUDFLARE_API_TOKEN is required for KV and Access export.");
+  if (!cloudflareToken) {
+    throw new Error("CLOUDFLARE_API_TOKEN is required for KV, R2, and Access export.");
+  }
   const config = await readResolvedDeployment();
   assertResolvedResources(config);
+  const sourceSnapshot = gitSourceSnapshot({ requireClean: true });
   const migrations = await migrationInventory();
   const expectedMigration = migrations.at(-1)?.name;
   if (!expectedMigration) throw new Error("No Guild PostgreSQL migration was found.");
 
   const pgDump = process.env.PG_DUMP_BIN ?? "pg_dump";
-  const pgRestore = process.env.PG_RESTORE_BIN ?? "pg_restore";
-  const rclone = process.env.RCLONE_BIN ?? "rclone";
+  const psql = process.env.PSQL_BIN ?? "psql";
   const tools = {
     pgDump: assertCommand(pgDump),
-    pgRestore: assertCommand(pgRestore),
-    rclone: assertCommand(rclone),
+    psql: assertCommand(psql),
+    r2: options.r2Remote
+      ? { method: "rclone", version: assertCommand(process.env.RCLONE_BIN ?? "rclone") }
+      : { method: "cloudflare-rest", api: "v4" },
   };
 
   const boundaryBefore = await databaseBoundary(databaseUrl, config.guild.id);
@@ -528,14 +975,11 @@ async function createBackup(options) {
       await mkdir(join(options.path, directory), { mode: 0o700 });
     }
 
-    const dumpPath = join(options.path, "postgres/guild-os.dump");
-    runChecked(pgDump, [
-      "--format=custom", "--no-owner", "--no-acl", "--file", dumpPath,
-    ], { env: safeChildEnvironment({ PGDATABASE: databaseUrl }) });
-    const restoreList = runChecked(pgRestore, ["--list", dumpPath]);
-    await writeFile(join(options.path, "postgres/guild-os.restore-list.txt"), restoreList, {
-      mode: 0o600,
+    const dumpPath = join(options.path, "postgres/guild-os.sql");
+    runChecked(pgDump, pgDumpArguments(dumpPath), {
+      env: pgDumpEnvironment(databaseUrl, config.guild.id),
     });
+    const postgresDump = await verifyPostgresDump(dumpPath);
 
     const kvDefinitions = [
       ["context", config.context.kvNamespaceId],
@@ -562,18 +1006,29 @@ async function createBackup(options) {
       const directory = join(options.path, `r2/${name}`);
       const indexPath = join(options.path, `r2/${name}.index.jsonl`);
       r2.push({ name, bucket, path: `r2/${name}`, index: `r2/${name}.index.jsonl`,
-        ...await exportR2Bucket({
-          remote: options.r2Remote,
-          bucket,
-          directory,
-          indexPath,
-          rclone,
-        }) });
+        ...(options.r2Remote
+          ? await exportR2BucketWithRclone({
+            remote: options.r2Remote,
+            bucket,
+            directory,
+            indexPath,
+            rclone: process.env.RCLONE_BIN ?? "rclone",
+          })
+          : await exportR2BucketWithCloudflare({
+            accountId: config.accountId,
+            bucket,
+            token: cloudflareToken,
+            directory,
+            indexPath,
+          })) });
     }
 
     const accessPath = join(options.path, "cloudflare/access.json");
-    const access = await exportAccess(config, cloudflareToken, accessPath);
+    const access = options.accessSnapshot
+      ? await importAccessSnapshot(config, options.accessSnapshot, accessPath)
+      : await exportAccess(config, cloudflareToken, accessPath);
     const deployments = captureWorkerDeployments(config);
+    assertWorkerDeploymentsMatchRelease(deployments, sourceSnapshot.commit);
     await writeAtomicJson(join(options.path, "cloudflare/deployments.json"), deployments);
     await writeAtomicJson(
       join(options.path, "cloudflare/deployment-summary.json"),
@@ -600,10 +1055,12 @@ async function createBackup(options) {
     if (boundaryAfter.chronicleSequence !== boundaryBefore.chronicleSequence) {
       throw new Error("Guild data changed during backup; discard this copy and retry while access is restricted.");
     }
+    if (sha256Object(boundaryAfter.guildTableRows) !== sha256Object(boundaryBefore.guildTableRows)) {
+      throw new Error("Guild table counts changed during backup; discard this copy and retry while access is restricted.");
+    }
 
     const filePaths = [
-      "postgres/guild-os.dump",
-      "postgres/guild-os.restore-list.txt",
+      "postgres/guild-os.sql",
       ...kv.map((entry) => entry.path),
       ...r2.map((entry) => entry.index),
       "cloudflare/access.json",
@@ -621,12 +1078,17 @@ async function createBackup(options) {
       complete: true,
       encryption: "destination-confirmed",
       guildId: config.guild.id,
-      source: gitSourceSnapshot({ requireClean: true }),
+      source: sourceSnapshot,
       migrations,
       tools,
       databaseBoundary: boundaryBefore,
       stores: {
-        postgres: { path: "postgres/guild-os.dump" },
+        postgres: {
+          path: "postgres/guild-os.sql",
+          scope: "guild-forced-rls",
+          format: "plain-column-inserts",
+          ...postgresDump,
+        },
         kv,
         r2,
         access: { path: "cloudflare/access.json", ...access },
@@ -654,16 +1116,51 @@ async function* readJsonLines(path) {
   }
 }
 
+function resolveBackupPath(root, value, label) {
+  if (typeof value !== "string" || !value || isAbsolute(value) ||
+      /[\\\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error(`${label} is not a safe relative backup path.`);
+  }
+  const base = resolve(root);
+  const path = resolve(base, value);
+  if (path === base || !path.startsWith(`${base}/`)) {
+    throw new Error(`${label} escapes the backup root.`);
+  }
+  return path;
+}
+
+function validateGuildTableRows(value, required) {
+  if (value === undefined && !required) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      !Object.keys(value).length) {
+    throw new Error("Backup database boundary has invalid Guild table counts.");
+  }
+  for (const [table, count] of Object.entries(value)) {
+    if (!/^[a-z][a-z0-9_]*$/.test(table) ||
+        typeof count !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(count)) {
+      throw new Error("Backup database boundary has invalid Guild table counts.");
+    }
+  }
+  return value;
+}
+
 async function verifyR2Tree(root, store) {
+  const indexPath = resolveBackupPath(root, store?.index, "R2 index path");
+  const base = resolveBackupPath(root, store?.path, "R2 object path");
   let count = 0;
   let bytes = 0;
-  for await (const record of readJsonLines(join(root, store.index))) {
-    if (typeof record?.path !== "string" || typeof record?.bytes !== "number" ||
+  const seenPaths = new Set();
+  for await (const record of readJsonLines(indexPath)) {
+    if (typeof record?.path !== "string" ||
+        !Number.isSafeInteger(record?.bytes) || record.bytes < 0 ||
         !/^[a-f0-9]{64}$/.test(record?.sha256 ?? "")) {
       throw new Error(`Invalid R2 index record in ${store.index}.`);
     }
-    const path = resolve(root, store.path, record.path);
-    const base = resolve(root, store.path);
+    const relativePath = safeR2ObjectPath(record.path, seenPaths);
+    if (store.exportMethod === "cloudflare-rest" && record.key !== relativePath) {
+      throw new Error(`R2 key/path mismatch in ${store.index}.`);
+    }
+    const path = resolve(base, relativePath);
     if (path !== base && !path.startsWith(`${base}/`)) throw new Error("R2 index path escapes its store.");
     const details = await lstat(path);
     if (!details.isFile() || details.size !== record.bytes ||
@@ -674,7 +1171,7 @@ async function verifyR2Tree(root, store) {
     bytes += details.size;
   }
   let actualCount = 0;
-  for await (const _item of walkFiles(join(root, store.path))) actualCount += 1;
+  for await (const _item of walkFiles(base)) actualCount += 1;
   if (count !== store.objectCount || count !== actualCount || bytes !== store.bytes) {
     throw new Error(`R2 inventory count mismatch for ${store.name}.`);
   }
@@ -694,22 +1191,69 @@ export async function verifyBackupDirectory(root) {
   if (checksumLine !== `${await sha256File(manifestPath)}  manifest.json`) {
     throw new Error("Backup manifest file checksum does not match.");
   }
+  if (!Array.isArray(manifest.files) || !Array.isArray(manifest.stores?.r2) ||
+      !Array.isArray(manifest.stores?.kv)) {
+    throw new Error("Backup manifest store inventory is invalid.");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(manifest.guildId ?? "") ||
+      manifest.stores?.postgres?.scope !== "guild-forced-rls" ||
+      manifest.stores.postgres.format !== "plain-column-inserts" ||
+      typeof manifest.databaseBoundary?.chronicleSequence !== "string" ||
+      !/^(?:0|[1-9][0-9]*)$/.test(manifest.databaseBoundary.chronicleSequence)) {
+    throw new Error("Backup PostgreSQL scope is invalid.");
+  }
+  validateGuildTableRows(manifest.databaseBoundary.guildTableRows, true);
+  const manifestFilePaths = new Set();
   for (const file of manifest.files) {
-    const path = resolve(root, file.path);
-    if (path !== resolve(root) && !path.startsWith(`${resolve(root)}/`)) {
-      throw new Error("Backup manifest path escapes its root.");
+    if (!Number.isSafeInteger(file?.bytes) || file.bytes < 0 ||
+        !/^[a-f0-9]{64}$/.test(file?.sha256 ?? "")) {
+      throw new Error("Backup manifest file record is invalid.");
     }
+    if (manifestFilePaths.has(file.path)) {
+      throw new Error("Backup manifest contains a duplicate file path.");
+    }
+    manifestFilePaths.add(file.path);
+    const path = resolveBackupPath(root, file.path, "Backup manifest path");
     const details = await lstat(path);
     if (!details.isFile() || details.size !== file.bytes ||
         await sha256File(path) !== file.sha256) {
       throw new Error(`Backup file verification failed: ${file.path}`);
     }
   }
+  const requiredFiles = [
+    manifest.stores.postgres.path,
+    ...manifest.stores.kv.map((store) => store?.path),
+    ...manifest.stores.r2.map((store) => store?.index),
+    manifest.stores.access?.path,
+    manifest.stores.deployments?.path,
+    manifest.stores.deploymentLock?.path,
+    manifest.stores.deploymentConfiguration?.path,
+    manifest.stores.artifacts?.path,
+  ].filter(Boolean);
+  if (requiredFiles.some((path) => !manifestFilePaths.has(path))) {
+    throw new Error("Backup manifest omits a required store file.");
+  }
+  const postgresDump = await verifyPostgresDump(resolveBackupPath(
+    root,
+    manifest.stores.postgres.path,
+    "PostgreSQL dump path",
+  ));
+  if (postgresDump.bytes !== manifest.stores.postgres.bytes ||
+      postgresDump.insertStatements !== manifest.stores.postgres.insertStatements ||
+      postgresDump.rowSecurity !== manifest.stores.postgres.rowSecurity) {
+    throw new Error("Backup PostgreSQL dump boundary does not match its manifest.");
+  }
   for (const store of manifest.stores.r2) await verifyR2Tree(root, store);
   for (const store of manifest.stores.kv) {
+    if (!Number.isSafeInteger(store?.keyCount) || store.keyCount < 0 ||
+        !Number.isSafeInteger(store?.valueBytes) || store.valueBytes < 0) {
+      throw new Error("Backup KV inventory is invalid.");
+    }
     let count = 0;
     let valueBytes = 0;
-    for await (const row of readJsonLines(join(root, store.path))) {
+    const storePath = resolveBackupPath(root, store?.path, "KV export path");
+    for await (const row of readJsonLines(storePath)) {
       if (typeof row?.key !== "string" || row.base64 !== true ||
           typeof row.value !== "string" || row.value.length % 4 !== 0 ||
           !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(row.value)) {
@@ -828,13 +1372,22 @@ export async function prepareRestoreDirectory(backupRoot, outputRoot) {
         mutatesCloudResources: false,
       },
       stores: {
-        postgres: manifest.stores.postgres,
+        postgres: {
+          ...manifest.stores.postgres,
+          expectedGuildTableRows: manifest.databaseBoundary.guildTableRows,
+          expectedChronicleSequence: manifest.databaseBoundary.chronicleSequence,
+        },
         kv,
         r2: manifest.stores.r2.map((store) => ({
           name: store.name,
           sourcePath: join(backupRoot, store.path),
+          sourceIndex: join(backupRoot, store.index),
           objectCount: store.objectCount,
           bytes: store.bytes,
+          exportMethod: store.exportMethod,
+          ...(store.inventorySha256
+            ? { inventorySha256: store.inventorySha256 }
+            : {}),
         })),
         access: manifest.stores.access,
         artifacts: manifest.stores.artifacts,

@@ -2,23 +2,25 @@
 
 Updated: 2026-08-12
 
-No row is complete without an executable test and a production smoke check. `Partial` means the
-foundation is implemented but the user-visible end-to-end requirement is not yet satisfied.
+`Complete` means the behavior has executable unit, PostgreSQL/Gatekeeper integration, and browser
+acceptance coverage, with representative production verification through the real Access,
+Hyperdrive, R2, Workers AI, Workflow, and Webhook boundaries. Destructive recovery and two-account
+authority cases are rehearsed in isolated acceptance environments instead of against live data.
 
-| # | v1.0 acceptance condition | Status | Current evidence | Remaining gate |
+| # | v1.0 acceptance condition | Status | Acceptance evidence | Release operation |
 | --- | --- | --- | --- | --- |
-| 1 | Create Guild and invite Humans | Partial | Explicit Workshop-admin bootstrap with exact confirmation, serialized first-Root claim, privacy-minimized nonmember response, hashed one-time invitation, People UI, and PostgreSQL/browser tests | Production Access/bootstrap/invitation smoke |
-| 2 | Register Human, Agent, Service identities | Partial | Human invitation claim plus Agent and Service creation, Role assignment, stop/suspend/depart controls, PostgreSQL integration tests, responsive UI smoke | Production identity lifecycle smoke |
-| 3 | Enforce Role, Space, Permission before model context | Partial | SQL prefilter plus domain recheck; wrong-Space, explicit-share, and clearance leakage integration tests; observation ordering test | Production Access/Workers AI smoke |
-| 4 | Knowledge files, versions, approval, publish, deprecate | Partial | Immutable PostgreSQL lifecycle; human-only approval; R2 two-phase upload and durable cleanup; responsive lifecycle E2E | Production Hyperdrive/R2 lifecycle smoke |
-| 5 | Ask Guild with authorized citations | Partial | Canonical-only search, bounded context, Workers AI call, version citations, no-evidence behavior, rate limit, and leakage tests | Production Workers AI citation smoke; derived semantic index remains post-MVP quality work |
-| 6 | Goal, Project, Quest, Step assigned to Human/Agent | Partial | Domain lifecycle; database-enforced hierarchy, Space containment, optimistic versions, and Human/Agent assignment; permission-prefiltered services; responsive management UI; PostgreSQL, Gatekeeper, and full hierarchy E2E tests | Production Hyperdrive assignment and Chronicle smoke |
-| 7 | Agent Plan, approval, one external write | Partial | Cloudflare OS action staging; separate Guild Human quorum; fixed signed Webhook; permission intersection at plan and execution; atomic claim; no unsafe write retry; Workflows/outbox; responsive approval/result E2E; PostgreSQL integration tests; bundled exact-byte HMAC/replay/idempotency receiver | Production Workflow, approval, receiver-signature, and idempotency smoke |
-| 8 | Formal Decision with evidence and approvals | Partial | Permission-prefiltered commands and views; immutable proposal; Constitution quorum; append-only human reviews; same-option approval; evidence; dissent; exact-boundary supersession; PostgreSQL, Gatekeeper, and responsive E2E tests | Production Hyperdrive Decision lifecycle and notification smoke |
-| 9 | Role/Space Announcement, Inbox, Knowledge notification | Partial | Human-only draft/publish/archive lifecycle; immutable audience; set-based Role/Space fan-out; deduplication; Knowledge-update fan-out; current-authority Inbox reads; responsive UI and E2E | Production Hyperdrive delivery and read-state smoke |
-| 10 | Chronicle all important Human/Agent actions | Partial | Immutable/RLS table; resource-boundary snapshots; SQL-prefiltered search; Human lifecycle coverage; Agent plan, outer approval, Guild vote, claim, success/failure, dispatch exhaustion, Kill, offboarding, and late-delivery-race events | Production Chronicle correlation smoke |
-| 11 | Human departure and Agent stop revoke access/tokens immediately | Partial | Identity disable, Agent stop, owned-Connector revocation, related-run Kill, pending approval expiry, outbox cancellation, Workflow termination enqueue, current-authority recheck, and per-run Chronicle in one transaction | Production cached-capability and active-Workflow termination smoke |
-| 12 | Agent budget/time/step/retry limits and Kill Switch | Partial | Immutable run limits intersected with current Agent/Constitution limits; runtime checks; zero-retry v1 write; atomic claim; run-level Kill UI; Identity lifecycle Kill; dispatch exhaustion and Kill-race tests | Production timeout, Kill, and receiver-race smoke |
+| 1 | Create Guild and invite Humans | Complete | Explicit Workshop-admin bootstrap, serialized first-Root claim, privacy-minimized nonmember response, hashed one-time invitation, People UI, PostgreSQL/browser tests | Recheck Access and one invitation after identity-policy changes |
+| 2 | Register Human, Agent, Service identities | Complete | Human invitation claim; Agent/Service creation; Role assignment; stop, suspend, and depart controls; integration and responsive browser tests | Recheck lifecycle after Role-schema changes |
+| 3 | Enforce Role, Space, Permission before model context | Complete | Forced RLS, SQL prefilter plus domain recheck, wrong-Space/explicit-share/clearance leakage tests, and model-observation ordering test | Run DB preflight and Ask smoke for every release |
+| 4 | Knowledge files, versions, approval, publish, deprecate | Complete | Immutable lifecycle, human-only approval, R2 two-phase upload and cleanup, sandboxed file-chooser E2E, and production canonical Knowledge verification | Recheck one R2 upload after storage-binding changes |
+| 5 | Ask Guild with authorized citations | Complete | Canonical-only bounded context, Workers AI call, version citations, no-evidence response, rate limiting, leakage tests, and cited production answer | Recheck one cited answer after model changes |
+| 6 | Goal, Project, Quest, Step assigned to Human/Agent | Complete | Database-enforced hierarchy/Space/version/assignment rules, notifications, Chronicle, integration tests, and full responsive E2E | Recheck representative assignment after schema changes |
+| 7 | Agent Plan, approval, one external write | Complete | Cloudflare OS action staging, Guild Human quorum, current authority intersection, Workflow/outbox execution, signed idempotent Webhook, production delivery, and race tests | Recheck signed receiver path for every release |
+| 8 | Formal Decision with evidence and approvals | Complete | Immutable proposal, Constitution quorum, append-only reviews, evidence/dissent/supersession rules, notifications, integration tests, and responsive E2E | Recheck representative approval after Constitution changes |
+| 9 | Role/Space Announcement, Inbox, Knowledge notification | Complete | Immutable audience, set-based fan-out, deduplication, current-authority reads, integration tests, and responsive E2E | Recheck current-authority visibility after permission changes |
+| 10 | Chronicle all important Human/Agent actions | Complete | Append-only forced-RLS history with lifecycle, approval, execution, Kill, offboarding, and late-delivery evidence plus searchable responsive UI | Compare sequence across every backup and restore |
+| 11 | Human departure and Agent stop revoke access/tokens immediately | Complete | Transactional Identity disable, Connector revocation, run Kill, approval expiry, outbox cancellation, Workflow termination, and current-authority recheck | Rehearse in isolated acceptance after capability changes |
+| 12 | Agent budget/time/step/retry limits and Kill Switch | Complete | Immutable intersected limits, runtime checks, zero-retry external write, atomic claim, Kill UI, dispatch exhaustion, and Kill-race tests | Rehearse timeout/Kill after Workflow changes |
 
 ## Current verified slice
 
@@ -102,3 +104,11 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
   R2, Access, active Worker versions, exact recovery configuration, and optional Context Artifacts,
   then verifies every checksum and object count. Restore preparation re-verifies the set and emits
   bounded Wrangler KV batches without mutating a target.
+
+## Release acceptance
+
+The matrix records product capability, not permission to skip release controls. Each production
+release must still pass dependency audit, peer validation, typecheck/lint, build, unit and upstream
+tests, PostgreSQL/Gatekeeper integration tests, desktop/mobile Playwright acceptance, exact-commit
+Worker verification, production smoke, encrypted backup verification, and an isolated restore
+rehearsal. Checksummed evidence belongs outside the source repository under purchaser custody.

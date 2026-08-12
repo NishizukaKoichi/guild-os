@@ -3,6 +3,7 @@ import { chmod, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  assertWorkerDeploymentsMatchRelease,
   assertResolvedResources,
   captureWorkerDeployments,
   gitSourceSnapshot,
@@ -147,6 +148,7 @@ export async function smokeReceiver(healthUrl, fetcher = fetch) {
 export async function runProductionSmoke({ config, workshopUrl, fetcher = fetch, deployments } = {}) {
   const resolvedConfig = config ?? await readResolvedDeployment();
   assertResolvedResources(resolvedConfig);
+  const source = gitSourceSnapshot({ requireClean: true });
   const urls = productionUrls(resolvedConfig, workshopUrl);
   const [workshop, receiver] = await Promise.all([
     smokeWorkshop(urls.workshop, resolvedConfig.access.issuer, {
@@ -156,10 +158,13 @@ export async function runProductionSmoke({ config, workshopUrl, fetcher = fetch,
     urls.receiver ? smokeReceiver(urls.receiver, fetcher) : Promise.resolve(null),
   ]);
   const activeDeployments = deployments ?? captureWorkerDeployments(resolvedConfig);
+  if (!deployments) {
+    assertWorkerDeploymentsMatchRelease(activeDeployments, source.commit);
+  }
   const core = {
     format: "guild-os-production-smoke/v1",
     checkedAt: new Date().toISOString(),
-    source: gitSourceSnapshot({ requireClean: true }),
+    source,
     workshop,
     receiver,
     activeDeployments,

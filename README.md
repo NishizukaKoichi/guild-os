@@ -282,16 +282,17 @@ a production acceptance result.
 Purchaser-owned backup and recovery commands are:
 
 ```sh
-pnpm backup:create -- --output /absolute/encrypted/path --r2-remote REMOTE \
+pnpm backup:create -- --output /absolute/encrypted/path \
   --confirm-encrypted-destination
 pnpm backup:verify -- --input /absolute/backup/path
 pnpm restore:prepare -- --input /absolute/backup/path --output /absolute/restore/path
 ```
 
-They capture and verify PostgreSQL, binary KV, R2, Access, Worker versions, and optional Context
-Artifacts without storing secrets. `restore:prepare` generates bounded KV bulk files and never
-mutates cloud state. Full requirements and the new-resource restore drill are in
-[backup and recovery](docs/backup-and-recovery.md).
+They capture and verify a Guild-scoped forced-RLS PostgreSQL SQL dump, binary KV, R2, Access,
+Worker versions, and optional Context Artifacts without storing secrets. R2 uses the Cloudflare
+REST API by default; `--r2-remote` selects an optional configured `rclone` path for large stores.
+`restore:prepare` generates bounded KV bulk files and never mutates cloud state. Full requirements
+and the new-resource restore drill are in [backup and recovery](docs/backup-and-recovery.md).
 
 ## Upgrades
 

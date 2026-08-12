@@ -100,9 +100,10 @@ product requirement must be resolved explicitly rather than silently weakened.
   paths, and emits bounded maintenance counts without Guild content or exception messages.
 - Production operations are implemented as executable tools: exact database/TLS/RLS preflight,
   partial-to-complete Cloudflare resource locking, Git-annotated clean-source deploys, redacted
-  release evidence, Access/receiver smoke evidence, consistent PostgreSQL/KV/R2/Access backup,
-  checksum verification, and non-destructive KV restore preparation. ADR 0016 records the
-  purchaser-owned recovery boundary.
+  release evidence, Access/receiver smoke evidence, Guild-scoped forced-RLS PostgreSQL export,
+  binary-safe KV export, Cloudflare REST R2 export, Access snapshot validation, checksum
+  verification, and non-destructive restore preparation. ADRs 0016 and 0027 record the
+  purchaser-owned recovery boundary and default R2 transfer path.
 - The root pnpm workspace and lockfile are the release dependency authority for the selected
   Cloudflare OS packages and Guild-owned packages. Supply-chain age policy, patched transitive
   overrides, peer validation, and high-severity audit are enforced before deployment without
@@ -110,9 +111,9 @@ product requirement must be resolved explicitly rather than silently weakened.
 - The purchaser-owned production deployment is live behind Cloudflare Access. Root initialization,
   canonical Knowledge, comments, and cited Ask Guild answers have been verified against production.
 
-## Next sequence
+## Release sequence
 
-1. Complete the owner-to-agent production journey, including approval, external Webhook delivery,
-   Work, Decision, communications, and immediate stop behavior.
-2. Capture and verify a purchaser-owned backup.
-3. Record final production smoke and release evidence for the exact deployed commit.
+1. Deploy only a clean, pushed commit and verify every active Worker identifies that exact commit.
+2. Record checksummed release and production-smoke evidence outside the source repository.
+3. Capture a purchaser-owned encrypted backup, prepare an isolated restore, and compare Guild table
+   counts plus Chronicle sequence before accepting the release.

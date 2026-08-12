@@ -301,6 +301,36 @@ export function captureWorkerDeployments(config, runner = runCapture) {
   });
 }
 
+export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, runner = runCapture) {
+  if (!/^[a-f0-9]{40}$/i.test(releaseCommit ?? "")) {
+    throw new Error("A full release commit is required to verify active Worker versions.");
+  }
+  const env = { ...process.env };
+  delete env.DATABASE_URL;
+  delete env.GUILD_WEBHOOK_SIGNING_SECRET;
+  delete env.CF_AI_GATEWAY_API_TOKEN;
+  delete env.CF_ACCESS_CLIENT_ID;
+  delete env.CF_ACCESS_CLIENT_SECRET;
+  const expectedMessage = `Guild OS ${releaseCommit}`;
+  for (const deployment of deployments) {
+    if (!Array.isArray(deployment?.versions) || deployment.versions.length !== 1 ||
+        deployment.versions[0]?.percentage !== 100 ||
+        typeof deployment.versions[0]?.id !== "string") {
+      throw new Error(`${deployment?.workerName ?? "Worker"} is not on one complete active version.`);
+    }
+    const version = JSON.parse(runner("pnpm", [
+      "exec", "wrangler", "versions", "view", deployment.versions[0].id,
+      "--name", deployment.workerName, "--json",
+    ], { env: { ...env, ...(process.env.CLOUDFLARE_API_TOKEN
+      ? { CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN }
+      : {}) } }));
+    if (version?.annotations?.["workers/message"] !== expectedMessage) {
+      throw new Error(`${deployment.workerName} is not running release ${releaseCommit}.`);
+    }
+  }
+  return deployments;
+}
+
 export function productionUrls(config, workshopOverride) {
   const workshop = workshopOverride ?? (config.workers.workshop.route.customDomain
     ? `https://${config.workers.workshop.route.customDomain}`

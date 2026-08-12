@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertResolvedResources,
+  assertWorkerDeploymentsMatchRelease,
   deploymentLockSnapshot,
   deploymentRecoveryConfiguration,
   deploymentResourceSummary,
@@ -97,6 +98,32 @@ test("active deployment evidence strips author identity and requires 100 percent
   assert.throws(() => sanitizeDeploymentStatus("guild-workshop", {
     versions: [{ version_id: "version-id", percentage: 50 }],
   }), /complete active deployment/i);
+});
+
+test("active Worker versions must identify the exact source release", () => {
+  const deployments = [{
+    workerName: "guild-workshop",
+    versions: [{ id: "version-id", percentage: 100 }],
+  }];
+  const release = "0123456789abcdef0123456789abcdef01234567";
+  const calls = [];
+  assert.equal(assertWorkerDeploymentsMatchRelease(
+    deployments,
+    release,
+    (command, args) => {
+      calls.push([command, args]);
+      return JSON.stringify({ annotations: { "workers/message": `Guild OS ${release}` } });
+    },
+  ), deployments);
+  assert.deepEqual(calls[0][1], [
+    "exec", "wrangler", "versions", "view", "version-id",
+    "--name", "guild-workshop", "--json",
+  ]);
+  assert.throws(() => assertWorkerDeploymentsMatchRelease(
+    deployments,
+    release,
+    () => JSON.stringify({ annotations: { "workers/message": "Guild OS stale" } }),
+  ), /not running release/i);
 });
 
 test("production resources and URLs must resolve explicitly", () => {
