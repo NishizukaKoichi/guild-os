@@ -82,6 +82,7 @@ export function assertUsageWithinLimits(
 ): void {
   const checks: readonly [number, number, string][] = [
     [usage.budgetMinor, limits.maxBudgetMinor, "budget"],
+    [usage.tokens, limits.maxTokens, "tokens"],
     [usage.durationSeconds, limits.maxDurationSeconds, "duration"],
     [usage.steps, limits.maxSteps, "steps"],
     [usage.retries, limits.maxRetries, "retries"],
@@ -109,6 +110,7 @@ export function intersectAgentLimits(
   return {
     currency: runLimits.currency,
     maxBudgetMinor: Math.min(runLimits.maxBudgetMinor, currentLimits.maxBudgetMinor),
+    maxTokens: Math.min(runLimits.maxTokens, currentLimits.maxTokens),
     maxDurationSeconds: Math.min(runLimits.maxDurationSeconds, currentLimits.maxDurationSeconds),
     maxSteps: Math.min(runLimits.maxSteps, currentLimits.maxSteps),
     maxRetries: Math.min(runLimits.maxRetries, currentLimits.maxRetries),
@@ -121,6 +123,7 @@ export function intersectAgentLimits(
 
 function assertEstimatedUsage(usage: AgentRunUsage): void {
   assertNonNegativeInteger(usage.budgetMinor, "Estimated Agent budget");
+  assertNonNegativeInteger(usage.tokens, "Estimated Agent tokens");
   assertPositiveInteger(usage.durationSeconds, "Estimated Agent duration");
   assertPositiveInteger(usage.steps, "Estimated Agent steps");
   assertNonNegativeInteger(usage.retries, "Estimated Agent retries");

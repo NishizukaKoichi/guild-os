@@ -120,6 +120,7 @@ export function AgentDialog({
             <div className="limits-grid">
               <label><span>{t("agents.currency")}</span><input required maxLength={3} value={limits.currency} onChange={(event) => setLimit("currency", event.target.value.toUpperCase())} /></label>
               <label><span>{t("agents.budget")}</span><input required type="number" min={0} step={1} value={limits.maxBudgetMinor} onChange={(event) => setLimit("maxBudgetMinor", Number(event.target.value))} /></label>
+              <label><span>{t("agents.tokens")}</span><input required type="number" min={1} step={1} value={limits.maxTokens} onChange={(event) => setLimit("maxTokens", Number(event.target.value))} /></label>
               <label><span>{t("agents.duration")}</span><input required type="number" min={1} step={1} value={limits.maxDurationSeconds} onChange={(event) => setLimit("maxDurationSeconds", Number(event.target.value))} /></label>
               <label><span>{t("agents.steps")}</span><input required type="number" min={1} step={1} value={limits.maxSteps} onChange={(event) => setLimit("maxSteps", Number(event.target.value))} /></label>
               <label><span>{t("agents.retries")}</span><input required type="number" min={0} step={1} value={limits.maxRetries} onChange={(event) => setLimit("maxRetries", Number(event.target.value))} /></label>

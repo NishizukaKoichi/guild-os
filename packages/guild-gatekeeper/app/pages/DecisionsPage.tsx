@@ -16,11 +16,13 @@ import {
 import { useCallback, useMemo, useState, useEffect } from "react";
 import type {
   GuildUiApi,
+  UiCollectiveContext,
   UiDecisionDetail,
   UiDecisionPage,
   UiDecisionSummary,
   UiDirectory,
 } from "../../src/management-types";
+import { decisionMethodLabel } from "../collective-language";
 import { CommentsPanel } from "../components/CommentsPanel";
 import { DecisionEditorDialog } from "../components/DecisionEditorDialog";
 import { DecisionReviewDialog } from "../components/DecisionReviewDialog";
@@ -51,10 +53,12 @@ function sameBoundary(left: UiDecisionSummary, right: UiDecisionSummary): boolea
 
 export function DecisionsPage({
   api,
+  collective,
   directory,
   onOpenKnowledge,
 }: {
   api: GuildUiApi;
+  collective: UiCollectiveContext;
   directory: UiDirectory | null;
   onOpenKnowledge(knowledgeId: string): void;
 }) {
@@ -204,6 +208,7 @@ export function DecisionsPage({
                 </span>
                 <strong>{decision.title}</strong>
                 <small>{spaceNames.get(decision.spaceId ?? "") ?? t("people.global")}</small>
+                <small>{decisionMethodLabel(decision.method, locale)}</small>
                 <span>{decision.approvalCount}/{decision.requiredApprovals}</span>
               </button>
             ))}
@@ -255,6 +260,7 @@ export function DecisionsPage({
 
                 <dl className="decision-meta">
                   <div><UserRound size={16} /><dt>{t("decision.proposer")}</dt><dd>{identityNames.get(detail.decision.proposerIdentityId) ?? t("common.unknown")}</dd></div>
+                  <div><Scale size={16} /><dt>{t("decision.method")}</dt><dd>{decisionMethodLabel(detail.decision.method, locale)}</dd></div>
                   <div><ShieldCheck size={16} /><dt>{t("decision.classification")}</dt><dd>{t(classificationTranslationKey(detail.decision.classification))}</dd></div>
                   <div><CalendarClock size={16} /><dt>{t("decision.reviewDate")}</dt><dd>{detail.decision.reviewAt ? dateFormatter.format(new Date(detail.decision.reviewAt)) : t("common.none")}</dd></div>
                   <div><FileCheck2 size={16} /><dt>{t("decision.version")}</dt><dd>v{detail.decision.version}</dd></div>
@@ -344,6 +350,7 @@ export function DecisionsPage({
       {editor && directory ? (
         <DecisionEditorDialog
           api={api}
+          collective={collective}
           directory={directory}
           detail={editor === "create" ? null : editor}
           onClose={() => setEditor(null)}

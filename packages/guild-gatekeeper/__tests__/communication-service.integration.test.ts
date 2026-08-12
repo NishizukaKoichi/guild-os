@@ -37,6 +37,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,

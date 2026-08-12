@@ -9,6 +9,7 @@ import {
   authorize,
   assertAgentLimits,
   assertCanDelegatePermissions,
+  collectiveTemplate,
   assertNonBlank,
   assertNonNegativeInteger,
   assertPositiveInteger,
@@ -41,19 +42,26 @@ import { GuildDecisionService } from "./decision-service.js";
 import { GuildConversationService } from "./conversation-service.js";
 import { GuildCommunicationService } from "./communication-service.js";
 import { GuildAgentService } from "./agent-service.js";
+import { GuildCollectiveService } from "./collective-service.js";
 import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
 import type {
   AnnouncementTransitionRequest,
+  ArchiveMemoryRequest,
   AskGuildRequest,
   AskGuildResponse,
+  AssignActivityRequest,
   AssignRoleRequest,
   ClaimInvitationInput,
+  ChangeActivityStatusRequest,
+  ConfigureCollectiveRequest,
+  CreateActivityRequest,
   CreateAgentRequest,
   CreateAgentWebhookRunRequest,
   CreateAnnouncementRequest,
   CreateDecisionRequest,
   CreateGoalRequest,
   CreateKnowledgeRequest,
+  CreateMemoryRequest,
   CreateProjectRequest,
   CreateQuestRequest,
   CreateRoleRequest,
@@ -83,9 +91,11 @@ import type {
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
   SaveKnowledgeDraftRequest,
+  SaveMemoryRequest,
   SearchConversationMentionsRequest,
   SaveAnnouncementDraftRequest,
   SaveDecisionDraftRequest,
+  SetSpaceVocabularyRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
   UiMemberBootstrapState,
@@ -103,12 +113,15 @@ import type {
   UiAnnouncementPageRequest,
   UiChroniclePage,
   UiChroniclePageRequest,
+  UiCollectiveContext,
   UiDirectory,
   UiDirectoryRequest,
   UiKnowledgeDetail,
   UiKnowledgeFile,
   UiKnowledgePage,
   UiKnowledgePageRequest,
+  UiMemoryPage,
+  UiMemoryPageRequest,
   UiInboxPage,
   UiInboxPageRequest,
   UiDecisionDetail,
@@ -119,6 +132,8 @@ import type {
   UiRootOwnershipTransfer,
   UiWorkPage,
   UiWorkPageRequest,
+  UiActivityPage,
+  UiActivityPageRequest,
   UpdateRoleRequest,
   UpdateConstitutionRequest,
   UploadKnowledgeFileRequest,
@@ -466,6 +481,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   async initializeGuild(input: InitializeGuildRequest): Promise<UiBootstrapState> {
     assertNonBlank(input.displayName, "Root Owner display name");
     assertLocale(input.preferredLocale);
+    collectiveTemplate(input.templateKey);
+    assertNonBlank(input.purpose, "Collective purpose", 2_000);
+    assertNonBlank(input.participants, "Collective participants", 2_000);
+    assertNonBlank(input.memoryIntent, "Collective memory intent", 2_000);
+    assertNonBlank(input.activityIntent, "Collective activity intent", 2_000);
+    assertNonBlank(input.decisionStyle, "Collective decision style", 2_000);
     if (input.confirmation !== this.#env.GUILD_NAME) {
       throw new Error("Type the Guild name exactly to initialize it.");
     }
@@ -475,8 +496,28 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
       this.#isWorkshopAdmin,
       input.displayName.trim(),
       input.preferredLocale,
+      input.templateKey,
+      {
+        purpose: input.purpose.trim(),
+        participants: input.participants.trim(),
+        memoryIntent: input.memoryIntent.trim(),
+        activityIntent: input.activityIntent.trim(),
+        decisionStyle: input.decisionStyle.trim(),
+      },
     );
     return this.getBootstrap();
+  }
+
+  getCollectiveContext(): Promise<UiCollectiveContext> {
+    return new GuildCollectiveService(this.#env, this.#accountId).getContext();
+  }
+
+  configureCollective(input: ConfigureCollectiveRequest): Promise<UiCollectiveContext> {
+    return new GuildCollectiveService(this.#env, this.#accountId).configure(input);
+  }
+
+  setSpaceVocabulary(input: SetSpaceVocabularyRequest): Promise<UiCollectiveContext> {
+    return new GuildCollectiveService(this.#env, this.#accountId).setSpaceVocabulary(input);
   }
 
   async claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState> {
@@ -1211,7 +1252,10 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   }
 
   async createService(input: CreateServiceRequest): Promise<string> {
-    assertNonBlank(input.displayName, "Service display name");
+    if (input.kind !== undefined && !["service", "guild"].includes(input.kind)) {
+      throw new Error("Machine Actor kind is invalid.");
+    }
+    assertNonBlank(input.displayName, "Machine Actor display name");
     assertClassification(input.clearance);
     assertUuid(input.roleId, "Role ID");
     if (input.spaceId !== null) assertUuid(input.spaceId, "Space ID");
@@ -1226,10 +1270,10 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         chronicleEvent: makeChronicleEvent(
           this.#env.GUILD_ID,
           this.#accountId,
-          "service.created",
+          `${input.kind ?? "service"}.created`,
           "identity",
           identityId,
-          { source: "guild-ui" },
+          { kind: input.kind ?? "service", source: "guild-ui" },
         ),
       });
     });
@@ -1277,6 +1321,38 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     if (["suspended", "departed"].includes(nextState)) {
       await drainAgentWorkflowOutbox(this.#env);
     }
+  }
+
+  getMemoryPage(request: UiMemoryPageRequest = {}): Promise<UiMemoryPage> {
+    return new GuildCollectiveService(this.#env, this.#accountId).getMemoryPage(request);
+  }
+
+  createMemory(input: CreateMemoryRequest): Promise<string> {
+    return new GuildCollectiveService(this.#env, this.#accountId).createMemory(input);
+  }
+
+  saveMemory(input: SaveMemoryRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).saveMemory(input);
+  }
+
+  archiveMemory(input: ArchiveMemoryRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).archiveMemory(input);
+  }
+
+  getActivityPage(request: UiActivityPageRequest = {}): Promise<UiActivityPage> {
+    return new GuildCollectiveService(this.#env, this.#accountId).getActivityPage(request);
+  }
+
+  createActivity(input: CreateActivityRequest): Promise<string> {
+    return new GuildCollectiveService(this.#env, this.#accountId).createActivity(input);
+  }
+
+  changeActivityStatus(input: ChangeActivityStatusRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).changeActivityStatus(input);
+  }
+
+  assignActivity(input: AssignActivityRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).assignActivity(input);
   }
 
   getKnowledgePage(request: UiKnowledgePageRequest = {}): Promise<UiKnowledgePage> {
@@ -1577,8 +1653,10 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   async #loadIdentityKind(
     connection: GuildTransactionConnection,
     identityId: string,
-  ): Promise<"human" | "agent" | "service"> {
-    const result = await connection.query<{ kind: "human" | "agent" | "service" }>(
+  ): Promise<"human" | "agent" | "service" | "guild"> {
+    const result = await connection.query<{
+      kind: "human" | "agent" | "service" | "guild";
+    }>(
       "SELECT kind FROM identities WHERE guild_id = $1 AND id = $2",
       [this.#env.GUILD_ID, identityId],
     );

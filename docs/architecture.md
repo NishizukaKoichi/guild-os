@@ -34,6 +34,40 @@ After initialization, bootstrap responses are split into `access` and `member` s
 invited-but-unclaimed, suspended, and departed accounts do not receive Root Owner, Constitution,
 ownership-transfer, or Agent policy metadata.
 
+## Canonical Collective substrate
+
+The persisted core is deliberately smaller than any one organization type:
+
+```text
+Guild
+|- Actors and Guild-scoped Memberships
+|- Spaces
+|- Roles and Capabilities
+|- Memory
+|- Activity
+|- Decisions and Conversations
+|- Connections and Runs
+|- Events
+`- Templates and Vocabulary Profiles
+```
+
+An Actor is a global subject of kind `human`, `agent`, `service`, or `guild`. A Membership places
+that Actor inside a Guild with neutral state, clearance, operational status, Roles, and Space
+scope. Human, Agent, Service, and Guild profiles extend the same Actor; they do not create parallel
+member systems. A separate active Human Custodian remains mandatory for platform recovery and
+irreversible governance, but Company ownership is not a core Role.
+
+Memory stores broad durable context and may have no governance workflow. The Canonical Knowledge
+workflow is one governed Memory view. Activity is recursive and typed; it does not require a fixed
+Goal -> Project -> Quest -> Step depth and may be assigned to any active operational Actor. The
+effect of an assignment is still constrained by that Actor's Capability, Space, Connection, risk,
+and approval policy.
+
+Templates configure initial Roles, vocabulary, Memory and Activity types, decision methods,
+workflows, dashboard intentions, and a suggested Agent. They do not branch the database schema or
+authorization semantics. Blank is the default. A Space can select a different Vocabulary Profile,
+so multiple operating cultures can coexist inside one Guild.
+
 ## Packages
 
 | Package | Responsibility |
@@ -48,7 +82,7 @@ package will be introduced only if the supported Gatekeeper UI boundary becomes 
 architectural placeholders are not created.
 
 Management responsibilities stay separated inside those packages: domain validation and permission
-delegation are framework independent; PostgreSQL administration owns Role, Space, Identity, and
+delegation are framework independent; PostgreSQL administration owns Role, Space, Actor, and
 Membership transactions; the Gatekeeper validates transport input and authorizes each operation;
 React pages and dialogs only call typed management methods. Adding a later module does not require
 placing its conditions in a central page or a shared untyped data client.
@@ -76,13 +110,15 @@ in one transaction. Database triggers recognize exactly one Root-change path: ac
 transfer or completed Break Glass recovery. A normal transfer also invalidates the previous Root's
 current recovery generation atomically before the ownership change can commit.
 
-Work follows the same boundary. `guild-domain/work.ts` owns lifecycle validation,
+The fixed Work hierarchy is a compatibility workflow. `guild-domain/work.ts` owns lifecycle validation,
 `guild-postgres/work.ts` owns bounded queries and atomic mutations, `guild-gatekeeper/work-service.ts`
 owns request validation plus authorization, and the Work page owns presentation state only. Goal,
 Project, Quest, and Step use exact-version optimistic concurrency. PostgreSQL independently prevents
 parent reassignment, Space-scope broadening, invalid transitions, and nonmaterial version bumps.
-Assignments are limited to active Humans and active Agents whose Role and Space can read the target;
-Service identities cannot own executable Work.
+Assignments in that compatibility workflow remain limited to active Humans and Agents. New neutral
+Activity uses `guild-domain/collective.ts`, `guild-postgres/collective.ts`, and
+`guild-gatekeeper/collective-service.ts`; it supports arbitrary recursive depth and any active
+operational Actor assignee without weakening execution policy.
 
 Decisions follow the same module boundary. `guild-domain/decision.ts` owns content, lifecycle, and
 review validation; `guild-postgres/decision.ts` owns permission-prefiltered keyset reads and atomic
@@ -125,9 +161,10 @@ that module with another owned receiver without changing Agent policy or Run sta
 
 ## Source-of-truth rules
 
-- PostgreSQL owns Guild, Constitution, Spaces, Identities, Memberships, Roles, grants, Knowledge
-  metadata and versions, Work, Decisions, Announcements, Conversations, Inbox state, Agent policies,
-  Agent runs, and Chronicle events.
+- PostgreSQL owns Guild, Constitution, Actors, Guild Memberships, Spaces, Roles, Capabilities,
+  Memory and versions, Activity, Decisions, Conversations, Connections, Runs, Events, and Template
+  settings. Legacy Identity, Knowledge, and fixed Work tables are temporary compatibility sources
+  mirrored into that substrate.
 - R2 owns immutable file bodies addressed by checksums. PostgreSQL stores their metadata and links.
 - Vectorize or `pgvector` is a rebuildable search index. Search results are filtered by authorized
   Guild, Space, visibility, classification, and lifecycle state before model context construction.
@@ -141,7 +178,7 @@ that module with another owned receiver without changing Agent policy or Run sta
 Every operation receives an actor identity and an immutable request context. The policy engine
 checks membership state, Space scope, role grants, resource visibility, and operation risk.
 
-For an agent operation:
+For an Agent operation, the requester may be a Human or another active Agent:
 
 ```text
 effective authority =
@@ -150,6 +187,10 @@ effective authority =
   intersection workflow grants
   intersection connector capability
 ```
+
+Every Agent in a delegation chain must remain active and independently authorized. Human-only
+Custodianship, Role/Capability changes, approval, recovery, and Kill authority never become
+delegable merely because an Agent is a Member.
 
 The frontend may hide unavailable commands for usability, but backend authorization remains the
 enforcement point.

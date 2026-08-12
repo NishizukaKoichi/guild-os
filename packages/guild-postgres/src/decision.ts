@@ -1,12 +1,14 @@
 import {
   GuildDomainError,
   assertDecisionContent,
+  assertDecisionMethod,
   assertDecisionOptions,
   assertDecisionTransition,
   type ChronicleEvent,
   type Classification,
   type Decision,
   type DecisionApproval,
+  type DecisionMethod,
   type DecisionOption,
   type Visibility,
 } from "@guild-os/domain";
@@ -33,6 +35,7 @@ export interface DecisionOptionWrite {
 
 interface DecisionContentInput {
   spaceId: string | null;
+  method?: DecisionMethod;
   title: string;
   description: string;
   rationale: string;
@@ -102,6 +105,7 @@ type DecisionRow = QueryResultRow & {
   space_id: string | null;
   proposer_identity_id: string;
   owner_identity_id: string;
+  method: DecisionMethod;
   title: string;
   description: string;
   rationale: string;
@@ -160,6 +164,7 @@ function decisionFromRow(row: DecisionRow): Decision {
     spaceId: row.space_id,
     proposerIdentityId: row.proposer_identity_id,
     ownerIdentityId: row.owner_identity_id,
+    method: row.method,
     title: row.title,
     description: row.description,
     rationale: row.rationale,
@@ -277,16 +282,17 @@ export class GuildDecisionRepository {
     await this.#connection.query(
       `INSERT INTO decisions
          (id, guild_id, space_id, proposer_identity_id, owner_identity_id,
-          title, description, status, rationale, review_at, visibility,
+          method, title, description, status, rationale, review_at, visibility,
           classification, allowed_identity_ids, source_ids, version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11,
-               $12::uuid[], $13::uuid[], 1)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12,
+               $13::uuid[], $14::uuid[], 1)`,
       [
         input.id,
         this.#guildId,
         input.spaceId,
         input.actorIdentityId,
         input.ownerIdentityId,
+        input.method ?? "custodian",
         input.title,
         input.description,
         input.rationale,
@@ -309,15 +315,17 @@ export class GuildDecisionRepository {
     if (decision.status !== "draft") throw new Error("Only a draft Decision can be edited.");
     const result = await this.#connection.query<{ version: number }>(
       `UPDATE decisions
-          SET space_id = $3, title = $4, description = $5, rationale = $6,
-              review_at = $7, visibility = $8, classification = $9,
-              allowed_identity_ids = $10::uuid[], source_ids = $11::uuid[],
+          SET method = COALESCE($3, method), space_id = $4, title = $5,
+              description = $6, rationale = $7, review_at = $8,
+              visibility = $9, classification = $10,
+              allowed_identity_ids = $11::uuid[], source_ids = $12::uuid[],
               version = version + 1
-        WHERE guild_id = $1 AND id = $2 AND version = $12
+        WHERE guild_id = $1 AND id = $2 AND version = $13
         RETURNING version`,
       [
         this.#guildId,
         input.id,
+        input.method ?? null,
         input.spaceId,
         input.title,
         input.description,
@@ -467,6 +475,7 @@ export class GuildDecisionRepository {
   }
 
   #assertContent(input: DecisionContentInput): void {
+    if (input.method !== undefined) assertDecisionMethod(input.method);
     assertDecisionContent(input.title, input.description, input.rationale);
     assertDecisionOptions(input.options);
     if (input.options.some((option, index) => option.position !== index)) {
@@ -586,7 +595,7 @@ export class GuildDecisionRepository {
 
   #decisionSelect(): string {
     return `SELECT d.id::text, d.guild_id::text, d.space_id::text,
-                   d.proposer_identity_id::text, d.owner_identity_id::text,
+                   d.proposer_identity_id::text, d.owner_identity_id::text, d.method,
                    d.title, d.description, d.rationale, d.status, d.visibility,
                    d.classification, d.allowed_identity_ids::text[], d.source_ids::text[],
                    d.required_approvals, d.approval_count, d.selected_option_id::text,

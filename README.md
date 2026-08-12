@@ -1,7 +1,8 @@
 # Guild OS
 
-Guild OS is an organizational layer for humans and AI agents to share governed memory, work,
-decisions, and history. It extends the open-source
+Guild OS is an Actor-neutral Collective OS where Humans, Agents, Services, and other Guilds share
+Memory, Activity, Roles, Decisions, and History. Company is one optional Template, not the core
+model. Guild OS extends the open-source
 [Cloudflare OS](https://github.com/cloudflare/cloudflare-os) instead of rebuilding its agent
 workspace, Gadgets, Blueprints, sandboxing, or Gatekeeper approval system.
 
@@ -18,8 +19,10 @@ There is no seller-operated API, licensing server, or required subscription.
 Implemented and tested:
 
 - Pinned Cloudflare OS Starter deployment wrapper
-- Human, Agent, and Service domain types
-- Role and hierarchical Space permission engine
+- Global Actor plus Guild-scoped Membership for Human, Agent, Service, and Guild Actor kinds
+- Neutral Membership lifecycle and Role/Capability engine with hierarchical Space scopes
+- Blank, Company, Community, Research, Creator, Open Source, and Agent Collective Templates
+- Editable Guild vocabulary plus per-Space Vocabulary Profile overrides
 - Root Owner and private-data invariants
 - Root-only, versioned Constitution management with mandatory Chronicle reasons
 - Two-party, expiring Root ownership transfer with outgoing Role preservation and atomic Chronicle
@@ -27,7 +30,7 @@ Implemented and tested:
   rate limiting, previous-Root Role preservation, and mandatory Chronicle disclosure
 - Agent/requester/workflow/connector permission intersection
 - Knowledge lifecycle and risk-based approval rules
-- Agent budget, duration, step, retry, and delegation limits
+- Agent budget, model-token, duration, step, retry, and delegation limits
 - PostgreSQL schema for Guild v1 entities
 - PostgreSQL row-level Guild isolation
 - Append-only Chronicle and idempotent external-action outbox
@@ -35,13 +38,18 @@ Implemented and tested:
 - Guild Gatekeeper with explicit administrator-confirmed bootstrap, privacy-minimized nonmember
   responses, one-time invitation binding, observation approval, and permission-filtered discovery
 - Action-first, role-aware Home and progressive navigation with a four-item mobile tab bar
-- Sandboxed, mobile-responsive Team, AI Agents, invitation, offboarding, and Settings UI
-- Human, Agent, and Service registration with scoped Role assignment and lifecycle controls
+- Sandboxed, mobile-responsive Members, invitation, lifecycle, and Settings UI
+- Unified Human, Agent, Service, and Guild Actor registration, filtering, Role assignment, and controls
+- Broad versioned Memory for facts, documents, events, experiences, rules, artifacts, research,
+  data, failures, learning, external sources, Agent output, and governed Knowledge
+- Recursive typed Activity with optional parent, any operational Actor assignee, status, timing,
+  Space, and Memory sources; no mandatory Goal/Project/Quest/Step depth
 - Custom Role and hierarchical Space administration with database-enforced invariants
 - Governed Knowledge creation, immutable versions, human review, publication, deprecation,
   acknowledgement, and multilingual content
 - R2 attachments with per-file authorization, checksums, two-phase upload, and durable cleanup
-- Ask Guild over permission-filtered Canonical Knowledge with citations and per-Identity rate limits
+- Ask Guild over SQL-prefiltered authorized Memory with exact-version citations and per-Actor rate limits;
+  governed Knowledge contributes only its approved Canonical version
 - Governed Goal, Project, Quest, and Step planning with status lifecycles, Human/Agent assignment,
   Inbox notifications, optimistic concurrency, and Chronicle evidence
 - Governed Decisions with evidence, immutable proposals, Constitution-defined human approval
@@ -61,7 +69,7 @@ Implemented and tested:
   post-Kill delivery-race Chronicle evidence
 - Permission-filtered Agent/Space/Connector discovery for Cloudflare OS and a responsive run,
   approval, result, usage, and Kill management surface
-- English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
+- English-first UI with complete Japanese and Simplified Chinese dictionaries and persisted language choice
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
   evidence
 - Strict Gatekeeper liveness/readiness, bounded maintenance metrics, reproducible resource locking,
@@ -96,6 +104,15 @@ Cloudflare OS remains a Git submodule. Guild-owned packages live outside it:
 | `packages/guild-gatekeeper` | Cloudflare OS capability and management-UI boundary |
 | `packages/webhook-receiver` | Optional external-write receiver and durable replay protection |
 | `packages/error-reporter` | Private structured backend error events |
+
+### Compatibility window
+
+`actors`, `actor_memberships`, `memories`, and `activities` are the canonical neutral substrate.
+The previous `identities`/`memberships`, governed `knowledge`, and fixed
+`goals`/`projects`/`quests`/`steps` tables remain as explicit compatibility views and workflows.
+Migrations preserve UUIDs and mirror legacy writes into the canonical tables. New neutral features
+must target Actor, Memory, and Activity; compatibility removal is governed by
+[the migration runbook](docs/collective-migration.md), not by an ad hoc table drop.
 
 See [architecture](docs/architecture.md), [security](docs/security.md), and the
 [accepted decisions](docs/adr/). Operational owners should also keep the
@@ -230,7 +247,7 @@ configured Guild name exactly, and submit the initialization form. PostgreSQL se
 attempts, so only one human account can become Root Owner. Keep the Access policy and Workshop
 administrator list restricted to that intended person until initialization is complete.
 
-The Root Owner then issues a high-entropy, one-time invitation from **People**. A recipient's stable
+The Root Owner then issues a high-entropy, one-time invitation from **Members**. A recipient's stable
 Cloudflare OS account capability is bound to the selected Role, Space, and initial Membership state
 only after that token is claimed. The database stores only the token's SHA-256 hash. Accounts that
 are not usable Guild members receive no Root identity, Constitution, ownership-transfer, or Agent

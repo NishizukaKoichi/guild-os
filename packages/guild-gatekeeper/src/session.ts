@@ -5,6 +5,7 @@ import type {
   GuildAgentActionReceipt,
   GuildAgentExecutionContext,
   GuildKnowledgeSearchResult,
+  GuildMemorySearchResult,
   GuildOverview,
   GuildSession,
   GuildWebhookPlanInput,
@@ -21,6 +22,10 @@ export class GuildSessionImpl extends RpcTarget implements GuildSession {
     query: string,
     locale: "en" | "ja" | "zh-CN",
   ) => Promise<GuildKnowledgeSearchResult[]>;
+  readonly #searchMemory: (
+    query: string,
+    locale: "en" | "ja" | "zh-CN",
+  ) => Promise<GuildMemorySearchResult[]>;
   readonly #planWebhookAction: (
     input: GuildWebhookPlanInput,
   ) => Promise<GuildAgentActionReceipt>;
@@ -43,6 +48,10 @@ export class GuildSessionImpl extends RpcTarget implements GuildSession {
       agents: [],
       connectors: [],
     }),
+    searchMemory: (
+      query: string,
+      locale: "en" | "ja" | "zh-CN",
+    ) => Promise<GuildMemorySearchResult[]> = async () => [],
   ) {
     super();
     this.#approvalQueue = approvalQueue;
@@ -50,6 +59,7 @@ export class GuildSessionImpl extends RpcTarget implements GuildSession {
     this.#searchKnowledge = searchKnowledge;
     this.#planWebhookAction = planWebhookAction;
     this.#loadAgentExecutionContext = loadAgentExecutionContext;
+    this.#searchMemory = searchMemory;
   }
 
   async getOverview(): Promise<GuildOverview> {
@@ -69,6 +79,18 @@ export class GuildSessionImpl extends RpcTarget implements GuildSession {
     await this.#approvalQueue.authorizeObservation({
       title: "Search approved Guild Knowledge",
       description: `Return ${results.length} permission-filtered Canonical Knowledge result(s).`,
+    });
+    return results;
+  }
+
+  async searchMemory(
+    query: string,
+    locale: "en" | "ja" | "zh-CN" = "en",
+  ): Promise<GuildMemorySearchResult[]> {
+    const results = await this.#searchMemory(query, locale);
+    await this.#approvalQueue.authorizeObservation({
+      title: "Search authorized Guild Memory",
+      description: `Return ${results.length} permission-filtered Memory result(s).`,
     });
     return results;
   }

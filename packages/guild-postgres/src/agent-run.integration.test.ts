@@ -50,6 +50,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 100,
+      maxTokens: 100_000,
       maxDurationSeconds: 60,
       maxSteps: 5,
       maxRetries: 1,
@@ -191,6 +192,7 @@ function run(ids: Awaited<ReturnType<typeof fixture>>): AgentRun {
       },
       estimatedUsage: {
         budgetMinor: 0,
+        tokens: 0,
         durationSeconds: 10,
         steps: 2,
         retries: 0,
@@ -202,6 +204,7 @@ function run(ids: Awaited<ReturnType<typeof fixture>>): AgentRun {
     limits: constitution(ids.guild, ids.root).agentDefaults,
     usage: {
       budgetMinor: 0,
+      tokens: 0,
       durationSeconds: 0,
       steps: 0,
       retries: 0,
@@ -239,6 +242,38 @@ function approval(ids: Awaited<ReturnType<typeof fixture>>, candidate: AgentRun)
 }
 
 integration("Guild Agent run repository", () => {
+  it("enforces token limits in persisted Agent profiles and usage", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required.");
+    const ids = await fixture();
+    await expect(withGuildTransaction(connectionString, ids.guild, (connection) =>
+      connection.query(
+        `UPDATE agent_profiles
+            SET limits = jsonb_set(limits, '{maxTokens}', '0'::jsonb)
+          WHERE guild_id = $1 AND identity_id = $2`,
+        [ids.guild, ids.agent],
+      ))).rejects.toThrow("agent_profiles_limits_valid");
+
+    const result = await withGuildTransaction(connectionString, ids.guild, (connection) =>
+      connection.query<{ permitted: boolean }>(
+        `SELECT guild_runtime.agent_usage_within_limits(
+           $1::jsonb,
+           $2::jsonb
+         ) AS permitted`,
+        [
+          JSON.stringify(constitution(ids.guild, ids.root).agentDefaults),
+          JSON.stringify({
+            budgetMinor: 0,
+            tokens: 100_001,
+            durationSeconds: 1,
+            steps: 1,
+            retries: 0,
+            delegationDepth: 0,
+          }),
+        ],
+      ));
+    expect(result.rows[0]?.permitted).toBe(false);
+  });
+
   it("plans, approves, dispatches, completes, filters, and audits one idempotent external write", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required.");
     const ids = await fixture();
@@ -323,7 +358,7 @@ integration("Guild Agent run repository", () => {
         candidate.id,
         candidate.workflowInstanceId,
         { kind: "https_webhook", statusCode: 202, deliveredAt: new Date().toISOString() },
-        { budgetMinor: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 },
+        { budgetMinor: 0, tokens: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 },
         event(
           ids.guild,
           ids.agent,

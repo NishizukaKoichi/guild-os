@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { navigateToMore } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -17,7 +18,7 @@ test("runs a complete Goal to Step workflow", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Work", exact: true }).click();
+  await navigateToMore(page, "Structured work");
   await expect(page.getByRole("heading", { name: "Verify the onboarding research request" })).toBeVisible();
 
   await page.getByRole("button", { name: "Create Goal", exact: true }).click();
@@ -85,7 +86,7 @@ test("keeps the Work hierarchy operable in a mobile viewport", async ({ page }) 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Work", exact: true }).click();
+  await navigateToMore(page, "Structured work");
   await expect(page.locator(".sidebar-scrim")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Verify the onboarding research request" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Step", exact: true })).toBeVisible();

@@ -1,11 +1,11 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-12
+Updated: 2026-08-13
 
 ## Current goal
 
-Build Guild OS as a self-owned organizational operating system where humans and AI agents share
-governed memory, work, decisions, and an append-only history.
+Build Guild OS as a self-owned Actor-neutral Collective OS where Humans, Agents, Services, and
+other Guilds share Memory, Activity, Roles, Decisions, and append-only History.
 
 ## Authoritative sources
 
@@ -33,6 +33,8 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Cloudflare OS Gatekeepers remain the only path from agents and Gadgets to Guild data or external
   side effects.
 - No central seller-operated API, licensing server, database, or mandatory subscription is allowed.
+- Company is one Template. Blank remains the default, and Space vocabulary may mix Templates
+  without changing the schema or authorization engine.
 
 ## Security invariants
 
@@ -46,7 +48,7 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Every material mutation and every approved external action produces a Chronicle event.
 - Level 2 actions require human approval by default. Level 3 actions require reauthentication and
   the Constitution's approval quorum.
-- Every run has budget, duration, step, retry, and delegation limits plus a kill switch.
+- Every run has budget, model-token, duration, step, retry, and delegation limits plus a kill switch.
 
 ## Current implementation state
 
@@ -57,12 +59,24 @@ product requirement must be resolved explicitly rather than silently weakened.
   implemented. The Gatekeeper requires explicit Workshop-admin initialization, serializes the
   first-Root claim in PostgreSQL, minimizes bootstrap data for nonmembers, supports one-time Human
   invitations and Membership lifecycle writes, and provides a sandboxed responsive management UI.
+- The canonical substrate now persists global Actors, Guild-scoped neutral Memberships, Actor Role
+  bindings and kind profiles, broad versioned Memory, recursive Activity, seven built-in Templates,
+  Guild settings, and per-Space Vocabulary Profiles. Human, Agent, Service, and Guild appear in one
+  Members surface. Root is a separate Human Custodian boundary.
+- Migrations 0026-0029 preserve legacy UUIDs, grants, security boundaries, versions, file links,
+  Work relationships, and Chronicle history. Identity, Knowledge, and fixed Work writes mirror to
+  Actor, Memory, and Activity during the explicit compatibility window. Migration 0029 also
+  backfills and enforces model-token limits without invalidating an older Worker rollback.
 - PostgreSQL 17 integration verification applies migrations twice using a non-superuser owner, then
   proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
-- Role/Space editors and governed Knowledge/Ask Guild are implemented. Knowledge includes immutable
+- Role/Space editors and governed Knowledge are implemented. Knowledge includes immutable
   versions, human approval, multilingual content, R2 files, acknowledgement, retirement, citations,
-  locale-aware SQL-before-model authorization, rate limiting, and durable file cleanup.
-- Governed Work is implemented from Goal through Project, Quest, and Step. It includes bounded
+  locale-aware SQL-before-model authorization, rate limiting, and durable file cleanup. Ask Guild
+  now searches all authorized active Memory; Canonical workflow content contributes only its
+  approved version. The legacy `searchKnowledge` capability remains available for compatibility.
+- Recursive Activity is the neutral creation path and can be assigned to any operational Actor.
+  Governed Work remains available as a compatibility workflow from Goal through Project, Quest,
+  and Step. It includes bounded
   keyset lists, SQL-before-service authorization, legal status transitions, optimistic versions,
   hierarchical Space containment, active Human/Agent assignment, Inbox notification writes,
   Chronicle evidence, and responsive browser flows.
@@ -113,7 +127,10 @@ product requirement must be resolved explicitly rather than silently weakened.
 
 ## Release sequence
 
-1. Deploy only a clean, pushed commit and verify every active Worker identifies that exact commit.
-2. Record checksummed release and production-smoke evidence outside the source repository.
-3. Capture a purchaser-owned encrypted backup, prepare an isolated restore, and compare Guild table
-   counts plus Chronicle sequence before accepting the release.
+1. Produce a clean commit with all local, PostgreSQL, E2E, build, lint, type, dependency, and visual
+   gates green.
+2. Capture and verify a purchaser-owned encrypted production backup before any migration.
+3. Run migration dry-run, apply the additive migration, and reconcile legacy/canonical counts.
+4. Push and deploy only the tested commit; verify every Worker identifies that exact SHA.
+5. Record checksummed release and production-smoke evidence outside the source repository, then
+   prepare an isolated restore and compare Guild table counts plus Chronicle sequence.

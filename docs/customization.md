@@ -13,6 +13,37 @@ Use `/admin` for runtime policy that should not require a deployment:
 
 Authentication and authorization are deliberately absent. Sign-in configuration and administrator identities remain deployment-controlled so a compromised admin session cannot redefine the trust boundary.
 
+## Collective Templates and vocabulary
+
+Choose **Guild > Settings > Collective language** to apply Blank, Company, Community, Research,
+Creator, Open Source, or Agent Collective. This changes vocabulary and the offered Memory/Activity
+types; it never changes RLS or bypasses Capabilities. The four primary labels can be overridden for
+the Guild, and every Space can inherit the Guild vocabulary or select another built-in profile.
+
+Roles remain ordinary editable data under Guild Settings. Applying a Template after initialization
+does not silently replace existing Roles, Actors, or data. This prevents a display change from
+becoming an authorization migration. Blank is the initialization default.
+
+Built-in definitions live in `packages/guild-domain/src/templates.ts`; translated display copy
+lives in `packages/guild-gatekeeper/app/collective-language.ts`. To add a purchaser-owned Template:
+
+1. Add a stable key to `COLLECTIVE_TEMPLATE_KEYS` and one definition with labels, Role presets,
+   Memory types, Activity types, decision methods, workflows, dashboard intents, and optional Agent.
+2. Add localized copy without changing the internal key.
+3. Add a forward-only migration that seeds `collective_templates` and `vocabulary_profiles` for
+   existing Guilds. Never edit an applied migration.
+4. Add domain tests for the definition and E2E coverage for navigation, type choices, and one Space
+   override at 1440, 390, and 320 pixels.
+
+To remove a Template, first migrate every `guild_collective_settings.template_key` and
+`spaces.vocabulary_profile_key` reference to Blank or another retained Template. Only then remove
+the registry entry in a later release. Do not encode Template checks inside repositories or policy
+code; add a neutral Capability or data field when behavior is genuinely new.
+
+Custom Memory and Activity types use a namespaced value such as `custom:recipe` or
+`custom:mutual_aid`. Add the type to the selected Template definition so the UI offers it. The
+canonical schema and API accept these names without a Template-specific table.
+
 ### Branding
 
 Set the site name, logo, and accent color from the General tab in `/admin`. Logo uploads accept PNG, JPEG, WebP, and SVG files up to 5 MB. The browser scales the longest edge to 256 pixels without cropping and converts the result to PNG. The server then checks the PNG header and rejects anything over 256 KB or 512 pixels before storing it in the deployment's blueprint-content R2 bucket. Square images work best.

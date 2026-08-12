@@ -42,6 +42,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,
@@ -129,7 +130,7 @@ async function fixture() {
       `INSERT INTO agent_profiles
          (guild_id, identity_id, instructions, model, tool_ids, limits, status)
        VALUES ($1, $2, 'Draft decision plans only.', 'test/model', '{}',
-               '{"currency":"USD","maxBudgetMinor":100,"maxDurationSeconds":60,"maxSteps":5,"maxRetries":1,"maxDelegationDepth":0}',
+               '{"currency":"USD","maxBudgetMinor":100,"maxTokens":100000,"maxDurationSeconds":60,"maxSteps":5,"maxRetries":1,"maxDelegationDepth":0}',
                'active')`,
       [ids.guild, ids.agent],
     );
@@ -174,6 +175,7 @@ integration("Guild Decision repository", () => {
         actorIdentityId: ids.root,
         ownerIdentityId: ids.root,
         spaceId: ids.teamSpace,
+        method: "vote",
         title: "Adopt the incident response policy",
         description: "Choose whether the Guild adopts the proposed response policy.",
         rationale: "The current process does not define escalation ownership.",
@@ -206,6 +208,7 @@ integration("Guild Decision repository", () => {
     const readerPage = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
       new GuildDecisionRepository(connection, ids.guild).listDecisions(ids.reader));
     expect(readerPage.items.map((decision) => decision.id)).toEqual([decisionId]);
+    expect(readerPage.items[0]?.method).toBe("vote");
 
     const preboardingId = randomUUID();
     await withGuildTransaction(connectionString, ids.guild, async (connection) => {
@@ -241,6 +244,7 @@ integration("Guild Decision repository", () => {
         expectedVersion: 1,
         actorIdentityId: ids.root,
         spaceId: ids.teamSpace,
+        method: "consent",
         title: "Adopt the incident escalation policy",
         description: "Choose whether the Guild adopts the proposed escalation policy.",
         rationale: "The current process does not define escalation ownership.",
@@ -276,6 +280,7 @@ integration("Guild Decision repository", () => {
       return { detail, recipients: recipients.rows.map((row) => row.recipient_identity_id) };
     });
     expect(proposedEvidence.detail.decision.status).toBe("proposed");
+    expect(proposedEvidence.detail.decision.method).toBe("consent");
     expect(proposedEvidence.detail.options).toHaveLength(2);
     expect(proposedEvidence.recipients.sort()).toEqual([ids.root, ids.manager1, ids.manager2].sort());
 

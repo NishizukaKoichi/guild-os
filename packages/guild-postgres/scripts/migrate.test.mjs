@@ -35,6 +35,10 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0023_root_ownership_transfer.sql",
     "0024_break_glass_recovery.sql",
     "0025_context_bound_conversations.sql",
+    "0026_actor_collective_core.sql",
+    "0027_memory_activity_core.sql",
+    "0028_collective_compatibility.sql",
+    "0029_agent_token_limits.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -70,4 +74,10 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[23].sql, /NEW\.state = 'superseded'/);
   assert.match(migrations[24].sql, /identity_can_access_conversation_subject/);
   assert.match(migrations[24].sql, /Conversation message mutation requires an atomic Chronicle event/);
+  assert.match(migrations[25].sql, /CREATE TABLE actors/);
+  assert.match(migrations[26].sql, /CREATE TABLE memories/);
+  assert.match(migrations[26].sql, /CREATE TABLE activities/);
+  assert.match(migrations[27].sql, /sync_identity_actor/);
+  assert.match(migrations[28].sql, /agent_usage_within_limits/);
+  assert.match(migrations[28].sql, /maxTokens/);
 });

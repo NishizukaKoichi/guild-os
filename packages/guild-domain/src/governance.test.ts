@@ -115,6 +115,7 @@ describe("Guild governance", () => {
     const profile = makeSnapshot().agents[0]!;
     expect(() => assertRunWithinLimits(profile, {
       budgetMinor: 100,
+      tokens: 0,
       durationSeconds: 60,
       steps: 4,
       retries: 1,
@@ -122,11 +123,20 @@ describe("Guild governance", () => {
     })).not.toThrow();
     expect(() => assertRunWithinLimits(profile, {
       budgetMinor: 100,
+      tokens: 0,
       durationSeconds: 60,
       steps: 11,
       retries: 1,
       delegationDepth: 0,
     })).toThrowError(GuildDomainError);
+    expect(() => assertRunWithinLimits(profile, {
+      budgetMinor: 100,
+      tokens: profile.limits.maxTokens + 1,
+      durationSeconds: 60,
+      steps: 4,
+      retries: 1,
+      delegationDepth: 0,
+    })).toThrowError(expect.objectContaining({ code: "AGENT_LIMIT_EXCEEDED" }));
     expect(() => assertAgentIdentity(makeSnapshot().identities[5]!, {
       ...profile,
       limits: { ...profile.limits, currency: "usd" },

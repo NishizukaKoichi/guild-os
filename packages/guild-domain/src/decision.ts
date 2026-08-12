@@ -1,6 +1,6 @@
-import { DECISION_STATUSES, DECISION_TRANSITIONS } from "./constants.js";
+import { DECISION_METHODS, DECISION_STATUSES, DECISION_TRANSITIONS } from "./constants.js";
 import { GuildDomainError } from "./errors.js";
-import type { DecisionStatus } from "./types.js";
+import type { DecisionMethod, DecisionStatus } from "./types.js";
 import { assertNonBlank } from "./validation.js";
 
 export interface DecisionOptionInput {
@@ -11,6 +11,12 @@ export interface DecisionOptionInput {
 export function assertDecisionStatus(value: string): asserts value is DecisionStatus {
   if (!(DECISION_STATUSES as readonly string[]).includes(value)) {
     throw new GuildDomainError("INVALID_INPUT", "Decision status is invalid.");
+  }
+}
+
+export function assertDecisionMethod(value: string): asserts value is DecisionMethod {
+  if (!(DECISION_METHODS as readonly string[]).includes(value)) {
+    throw new GuildDomainError("INVALID_INPUT", "Decision method is invalid.");
   }
 }
 

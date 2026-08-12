@@ -11,6 +11,7 @@ export * from "./agent-run.js";
 export * from "./governance.js";
 export * from "./recovery.js";
 export * from "./conversation.js";
+export * from "./collective.js";
 export * from "./repository.js";
 export * from "./schema.js";
 export * from "./transaction.js";

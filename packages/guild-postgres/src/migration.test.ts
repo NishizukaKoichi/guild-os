@@ -28,6 +28,10 @@ const constitutionGovernanceMigrationUrl = new URL("../migrations/0022_constitut
 const rootOwnershipTransferMigrationUrl = new URL("../migrations/0023_root_ownership_transfer.sql", import.meta.url);
 const breakGlassRecoveryMigrationUrl = new URL("../migrations/0024_break_glass_recovery.sql", import.meta.url);
 const conversationGovernanceMigrationUrl = new URL("../migrations/0025_context_bound_conversations.sql", import.meta.url);
+const actorCollectiveMigrationUrl = new URL("../migrations/0026_actor_collective_core.sql", import.meta.url);
+const memoryActivityMigrationUrl = new URL("../migrations/0027_memory_activity_core.sql", import.meta.url);
+const collectiveCompatibilityMigrationUrl = new URL("../migrations/0028_collective_compatibility.sql", import.meta.url);
+const agentTokenLimitsMigrationUrl = new URL("../migrations/0029_agent_token_limits.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("keeps the runtime schema marker pinned to the latest migration", async () => {
@@ -42,6 +46,49 @@ describe("Guild PostgreSQL migration", () => {
     expect(CURRENT_GUILD_SCHEMA_CHECKSUM).toBe(
       createHash("sha256").update(currentSql).digest("hex"),
     );
+  });
+
+  it("adds the Actor-neutral substrate with ID-preserving compatibility", async () => {
+    const actorSql = await readFile(fileURLToPath(actorCollectiveMigrationUrl), "utf8");
+    const memorySql = await readFile(fileURLToPath(memoryActivityMigrationUrl), "utf8");
+    const compatibilitySql = await readFile(
+      fileURLToPath(collectiveCompatibilityMigrationUrl),
+      "utf8",
+    );
+    for (const table of [
+      "actors",
+      "actor_memberships",
+      "actor_role_bindings",
+      "collective_templates",
+      "vocabulary_profiles",
+      "guild_collective_settings",
+    ]) {
+      expect(actorSql).toContain(`CREATE TABLE ${table}`);
+    }
+    for (const table of [
+      "memories",
+      "memory_versions",
+      "activities",
+      "activity_dependencies",
+      "activity_memory_links",
+    ]) {
+      expect(memorySql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(actorSql).toContain("CHECK (identity_id = actor_id)");
+    expect(actorSql).toContain("FORCE ROW LEVEL SECURITY");
+    expect(memorySql).toContain("Legacy Work UUID collision");
+    expect(compatibilitySql).toContain("sync_identity_actor");
+    expect(compatibilitySql).toContain("sync_knowledge_memory");
+    expect(compatibilitySql).toContain("sync_goal_activity");
+  });
+
+  it("enforces Agent token limits across profiles, plans, and recorded usage", async () => {
+    const sql = await readFile(fileURLToPath(agentTokenLimitsMigrationUrl), "utf8");
+    expect(sql).toContain("valid_agent_limits");
+    expect(sql).toContain("agent_usage_within_limits");
+    expect(sql).toContain("maxTokens");
+    expect(sql).toContain("'{estimatedUsage,tokens}'");
+    expect(sql).toContain("actor_agent_profiles_limits_valid");
   });
 
   it("covers every v1 aggregate and applies Guild row-level security", async () => {

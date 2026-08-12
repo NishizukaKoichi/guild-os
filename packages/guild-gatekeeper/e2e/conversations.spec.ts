@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { navigateToMore } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -13,7 +14,7 @@ test("posts, mentions, locks, unlocks, and redacts a governed comment", async ({
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await navigateToMore(page, "Canonical memory");
 
   const panel = page.locator(".conversation-panel");
   await expect(panel.getByRole("heading", { name: "Comments", exact: true })).toBeVisible();
@@ -64,7 +65,7 @@ test("keeps comments usable but moderation hidden for a member on mobile", async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=member");
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await navigateToMore(page, "Canonical memory");
 
   const panel = page.locator(".conversation-panel");
   await expect(panel.getByRole("heading", { name: "Comments", exact: true })).toBeVisible();

@@ -108,6 +108,31 @@ describe("guild-gatekeeper", () => {
     await expect(session.searchKnowledge("restricted")).rejects.toThrow("observation denied");
   });
 
+  it("returns permission-filtered Memory through the Actor-neutral session capability", async () => {
+    const calls: string[] = [];
+    const result = [{
+      memoryId: "memory-id",
+      version: 2,
+      type: "research",
+      governed: false,
+      title: "Field observation",
+      summary: "A bounded observation",
+      content: "Only authorized evidence.",
+      spaceId: "space-id",
+    }];
+    const session = new GuildSessionImpl({
+      async authorizeObservation() { calls.push("authorize"); },
+    }, async () => {
+      throw new Error("unused");
+    }, async () => [], undefined, undefined, async (query, locale) => {
+      calls.push(`filter:${query}:${locale}`);
+      return result;
+    });
+
+    await expect(session.searchMemory("observation", "en")).resolves.toEqual(result);
+    expect(calls).toEqual(["filter:observation:en", "authorize"]);
+  });
+
   it("authorizes filtered Agent execution discovery before returning IDs", async () => {
     const calls: string[] = [];
     const context: GuildAgentExecutionContext = {
@@ -120,6 +145,7 @@ describe("guild-gatekeeper", () => {
         limits: {
           currency: "USD",
           maxBudgetMinor: 0,
+          maxTokens: 100_000,
           maxDurationSeconds: 30,
           maxSteps: 3,
           maxRetries: 0,
@@ -229,6 +255,7 @@ describe("guild-gatekeeper", () => {
       effectiveLimits: {
         currency: "USD",
         maxBudgetMinor: 0,
+        maxTokens: 100_000,
         maxDurationSeconds: 30,
         maxSteps: 2,
         maxRetries: 0,

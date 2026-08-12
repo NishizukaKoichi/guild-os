@@ -1,6 +1,13 @@
-import type { AppLocale, Constitution } from "@guild-os/domain";
+import {
+  collectiveTemplate,
+  type AppLocale,
+  type CollectiveOnboardingAnswers,
+  type CollectiveTemplateKey,
+  type Constitution,
+} from "@guild-os/domain";
 import {
   GuildAgentRunRepository,
+  GuildCollectiveRepository,
   GuildPostgresRepository,
   withGuildTransaction,
   type GuildSetupState,
@@ -8,7 +15,7 @@ import {
 } from "@guild-os/postgres";
 import APP_HTML from "./generated/app.txt";
 import { makeChronicleEvent } from "./chronicle.js";
-import { BUILTIN_ROLES, type GuildEnv } from "./config.js";
+import type { GuildEnv } from "./config.js";
 
 function integerSetting(value: string, name: string): number {
   const parsed = Number(value);
@@ -37,6 +44,7 @@ function defaultConstitution(env: GuildEnv, rootIdentityId: string): Constitutio
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1_000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,
@@ -87,6 +95,8 @@ export async function initializeGuildAccount(
   isAdmin: boolean,
   displayName: string,
   preferredLocale: AppLocale,
+  templateKey: CollectiveTemplateKey,
+  onboardingAnswers: CollectiveOnboardingAnswers,
 ): Promise<GuildSetupState> {
   if (!isAdmin) {
     throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
@@ -95,6 +105,7 @@ export async function initializeGuildAccount(
     const repository = new GuildPostgresRepository(connection, env.GUILD_ID);
     let state = await repository.getSetupState(accountId);
     if (!state.initialized) {
+      const template = collectiveTemplate(templateKey);
       await repository.bootstrapGuild({
         guildId: env.GUILD_ID,
         name: env.GUILD_NAME,
@@ -105,7 +116,11 @@ export async function initializeGuildAccount(
         rootSpaceId: crypto.randomUUID(),
         rootSpaceName: env.GUILD_ROOT_SPACE_NAME,
         constitution: defaultConstitution(env, accountId),
-        roles: BUILTIN_ROLES.map((role) => ({ ...role, id: crypto.randomUUID() })),
+        roles: template.roles.map((role) => ({
+          id: crypto.randomUUID(),
+          name: role.name,
+          permissions: role.capabilities,
+        })),
         chronicleEvent: makeChronicleEvent(
           env.GUILD_ID,
           accountId,
@@ -113,6 +128,20 @@ export async function initializeGuildAccount(
           "guild",
           env.GUILD_ID,
           { source: "cloudflare-os-admin" },
+        ),
+      });
+      await new GuildCollectiveRepository(connection, env.GUILD_ID).configure({
+        templateKey,
+        vocabularyOverrides: {},
+        onboardingAnswers,
+        actorId: accountId,
+        chronicleEvent: makeChronicleEvent(
+          env.GUILD_ID,
+          accountId,
+          "collective.configured",
+          "collective",
+          env.GUILD_ID,
+          { templateKey, source: "initialization" },
         ),
       });
       state = await repository.getSetupState(accountId);

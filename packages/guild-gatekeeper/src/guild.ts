@@ -33,7 +33,7 @@ import {
 } from "./config.js";
 import { GuildSessionImpl } from "./session.js";
 import { GuildManagementApiImpl } from "./management-api.js";
-import { searchKnowledgeForSession } from "./knowledge-service.js";
+import { searchKnowledgeForSession, searchMemoryForSession } from "./knowledge-service.js";
 import { GuildAgentService } from "./agent-service.js";
 import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
 import type {
@@ -95,6 +95,12 @@ export class GuildGatekeeper
         this.env,
         this.ctx.props.accountId,
       ).getExecutionContext(),
+      (query, locale) => searchMemoryForSession(
+        this.env,
+        this.ctx.props.accountId,
+        query,
+        locale,
+      ),
     );
   }
 
@@ -218,6 +224,7 @@ export class GuildGatekeeper
       payload: input.payload,
       estimatedUsage: {
         budgetMinor: 0,
+        tokens: 0,
         durationSeconds: input.estimatedDurationSeconds,
         steps: input.steps.length,
         retries: 0,

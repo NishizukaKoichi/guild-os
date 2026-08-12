@@ -43,7 +43,7 @@ test("Root Owner updates the versioned Constitution and cannot delegate its auth
   await expect(roleDialog.getByText("break-glass.use", { exact: true })).toHaveCount(0);
   await roleDialog.getByRole("button", { name: "Close", exact: true }).click();
 
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await expect(page.getByText("constitution.updated", { exact: true })).toBeVisible();
   const constitutionEvent = page.locator(".chronicle-event").filter({
     hasText: "constitution.updated",
@@ -123,7 +123,7 @@ test("current Root proposes and cancels a two-party ownership transfer with Chro
 
   await expect(cancelDialog).toHaveCount(0);
   await expect(page.getByText("There is no pending Root ownership transfer.")).toBeVisible();
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await expect(page.getByText("root_ownership.transfer.proposed", { exact: true })).toBeVisible();
   await expect(page.getByText("root_ownership.transfer.cancelled", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
@@ -159,7 +159,7 @@ test("designated Human accepts Root ownership from a separate mobile session", a
   await expect(page.locator(".recovery-summary")).toContainText("Inactive");
   await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await expect(page.getByText("root_ownership.transfer.accepted", { exact: true })).toBeVisible();
   await expect(page.getByText("break_glass.codes.revoked", { exact: true })).toBeVisible();
   const viewportAfterAccept = await page.evaluate(() => ({
@@ -208,7 +208,7 @@ test("Root rotates, stores, and revokes one-time emergency recovery codes", asyn
   await expect(revokeDialog).toHaveCount(0);
   await expect(page.locator(".recovery-summary")).toContainText("Inactive");
 
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await expect(page.getByText("break_glass.codes.rotated", { exact: true })).toBeVisible();
   await expect(page.getByText("break_glass.codes.revoked", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
@@ -233,7 +233,7 @@ test("an authenticated unknown Human can use audited recovery on mobile", async 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await expect(page.getByText("break_glass.used", { exact: true })).toBeVisible();
   const viewport = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,

@@ -248,6 +248,7 @@ function usageFrom(value: unknown): AgentRunUsage {
   const candidate = value as Record<string, unknown>;
   const usage = {
     budgetMinor: candidate.budgetMinor,
+    tokens: candidate.tokens,
     durationSeconds: candidate.durationSeconds,
     steps: candidate.steps,
     retries: candidate.retries,

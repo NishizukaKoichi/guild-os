@@ -242,6 +242,7 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
                   <h3><CircleDollarSign size={16} />{t("agentRun.limitsAndUsage")}</h3>
                   <div className="agent-run-limit-grid">
                     <div><strong>{detail.usage.budgetMinor}/{detail.limits.maxBudgetMinor} {detail.limits.currency}</strong><span>{t("agentRun.budget")}</span></div>
+                    <div><strong>{detail.usage.tokens}/{detail.limits.maxTokens}</strong><span>{t("agentRun.tokens")}</span></div>
                     <div><strong>{detail.usage.durationSeconds}/{detail.limits.maxDurationSeconds}s</strong><span>{t("agentRun.duration")}</span></div>
                     <div><strong>{detail.usage.steps}/{detail.limits.maxSteps}</strong><span>{t("agentRun.steps")}</span></div>
                     <div><strong>{detail.usage.retries}/{detail.limits.maxRetries}</strong><span>{t("agentRun.retries")}</span></div>

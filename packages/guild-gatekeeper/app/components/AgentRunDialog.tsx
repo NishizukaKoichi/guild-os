@@ -80,6 +80,7 @@ export function AgentRunDialog({
         payload: parsePayload(payload, t("agentRun.invalidPayload")),
         estimatedUsage: {
           budgetMinor,
+          tokens: 0,
           durationSeconds,
           steps: planSteps.length,
           retries: 0,

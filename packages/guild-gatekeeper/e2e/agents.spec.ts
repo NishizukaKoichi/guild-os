@@ -14,7 +14,7 @@ test("approves one external Agent action and kills another run", async ({ page }
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await navigateToMore(page, "AI agents");
+  await navigateToMore(page, "Agent runs");
 
   await expect(page.getByRole("heading", { name: "Execution runs", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", {
@@ -42,17 +42,17 @@ test("approves one external Agent action and kills another run", async ({ page }
   await expect(page.getByText("Killed", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("The Agent run was killed and pending execution was cancelled.")).toBeVisible();
 
-  const agentRow = page.locator(".agent-row").filter({ hasText: "Research Synthesizer" });
+  const agentRow = page.locator(".identity-table .data-row").filter({ hasText: "Research Synthesizer" });
   page.once("dialog", (confirmation) => confirmation.accept());
-  await agentRow.getByRole("button", { name: "Stop", exact: true }).click();
-  await expect(agentRow.getByText("Suspended", { exact: true })).toBeVisible();
+  await agentRow.getByRole("button", { name: "Suspend", exact: true }).click();
+  await expect(agentRow.getByText("Paused", { exact: true })).toBeVisible();
   await expect(page.getByText(
     "No runnable Agent, Space, and active connector are available in your scope.",
     { exact: true },
   )).toBeVisible();
   await expect(page.getByRole("button", { name: "Plan action", exact: true })).toHaveCount(0);
 
-  await agentRow.getByRole("button", { name: "Restart", exact: true }).click();
+  await agentRow.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(agentRow.getByText("Active", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Plan action", exact: true })).toBeVisible();
 
@@ -65,7 +65,7 @@ test("keeps Agent controls operable in a mobile viewport", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
-  await navigateToMore(page, "AI agents");
+  await navigateToMore(page, "Agent runs");
   await expect(page.locator(".sidebar-scrim")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Execution runs", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Review", exact: true })).toBeVisible();

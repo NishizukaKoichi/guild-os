@@ -1,5 +1,15 @@
-export const IDENTITY_KINDS = ["human", "agent", "service"] as const;
+export const ACTOR_KINDS = ["human", "agent", "service", "guild"] as const;
+/** @deprecated Use ACTOR_KINDS. Kept for the v1 compatibility API. */
+export const IDENTITY_KINDS = ACTOR_KINDS;
 export const IDENTITY_STATUSES = ["active", "disabled"] as const;
+export const ACTOR_MEMBERSHIP_STATES = [
+  "invited",
+  "joined",
+  "active",
+  "paused",
+  "left",
+  "blocked",
+] as const;
 export const MEMBERSHIP_STATES = [
   "invited",
   "preboarding",
@@ -14,6 +24,26 @@ export const KNOWLEDGE_STATES = [
   "deprecated",
   "archived",
 ] as const;
+export const MEMORY_STATUSES = ["active", "archived"] as const;
+export const MEMORY_WORKFLOWS = ["canonical"] as const;
+export const MEMORY_TYPES = [
+  "fact",
+  "document",
+  "conversation",
+  "event",
+  "experience",
+  "rule",
+  "decision",
+  "artifact",
+  "research",
+  "data",
+  "manual",
+  "failure",
+  "learning",
+  "external",
+  "agent_output",
+  "knowledge",
+] as const;
 export const VISIBILITIES = ["guild", "space", "restricted", "private"] as const;
 export const CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"] as const;
 export const SUPPORTED_LOCALES = ["en", "ja", "zh-CN"] as const;
@@ -21,7 +51,53 @@ export const GOAL_STATUSES = ["draft", "active", "completed", "cancelled"] as co
 export const PROJECT_STATUSES = ["planned", "active", "blocked", "completed", "cancelled"] as const;
 export const QUEST_STATUSES = ["backlog", "ready", "in_progress", "blocked", "completed", "cancelled"] as const;
 export const STEP_STATUSES = ["pending", "in_progress", "completed", "skipped"] as const;
+export const ACTIVITY_STATUSES = [
+  "proposed",
+  "planned",
+  "ready",
+  "active",
+  "paused",
+  "blocked",
+  "completed",
+  "cancelled",
+  "archived",
+] as const;
+export const ACTIVITY_TYPES = [
+  "task",
+  "project",
+  "quest",
+  "event",
+  "discussion",
+  "experiment",
+  "study",
+  "campaign",
+  "ritual",
+  "session",
+  "creation",
+  "maintenance",
+  "investigation",
+  "goal",
+  "step",
+] as const;
+export const COLLECTIVE_TEMPLATE_KEYS = [
+  "blank",
+  "company",
+  "community",
+  "research",
+  "creator",
+  "open-source",
+  "agent-collective",
+] as const;
 export const DECISION_STATUSES = ["draft", "proposed", "approved", "rejected", "superseded"] as const;
+export const DECISION_METHODS = [
+  "custodian",
+  "consent",
+  "vote",
+  "review",
+  "editorial",
+  "policy",
+  "hybrid",
+] as const;
 export const ANNOUNCEMENT_STATUSES = ["draft", "published", "archived"] as const;
 export const AGENT_RUN_STATUSES = [
   "planning",
@@ -41,6 +117,26 @@ export const APPROVAL_STATUSES = [
 export const CONNECTOR_STATUSES = ["active", "disabled", "revoked"] as const;
 
 export const PERMISSIONS = [
+  "actor.read",
+  "actor.manage",
+  "memory.read",
+  "memory.create",
+  "memory.govern",
+  "activity.read",
+  "activity.create",
+  "activity.assign",
+  "connection.read",
+  "connection.execute",
+  "connection.manage",
+  "run.read",
+  "run.create",
+  "run.approve",
+  "run.stop",
+  "event.read",
+  "template.read",
+  "template.manage",
+  "stewardship.manage",
+  "stewardship.recover",
   "guild.read",
   "guild.manage",
   "constitution.read",
@@ -85,6 +181,13 @@ export const PERMISSIONS = [
 ] as const;
 
 export const PREBOARDING_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
+  "actor.read",
+  "memory.read",
+  "activity.read",
+  "connection.read",
+  "run.read",
+  "event.read",
+  "template.read",
   "guild.read",
   "constitution.read",
   "space.read",
@@ -98,6 +201,14 @@ export const PREBOARDING_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
 ]);
 
 export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
+  "actor.manage",
+  "memory.govern",
+  "connection.manage",
+  "run.approve",
+  "run.stop",
+  "template.manage",
+  "stewardship.manage",
+  "stewardship.recover",
   "guild.manage",
   "constitution.update",
   "space.manage",
@@ -130,9 +241,38 @@ export const CONVERSATION_STATUSES = ["open", "locked"] as const;
 export const CONVERSATION_MESSAGE_STATES = ["active", "redacted"] as const;
 
 export const ROOT_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
+  "stewardship.manage",
+  "stewardship.recover",
   "constitution.update",
   "break-glass.use",
 ]);
+
+export const ACTOR_MEMBERSHIP_TRANSITIONS = {
+  invited: ["joined", "active", "left", "blocked"],
+  joined: ["active", "paused", "left", "blocked"],
+  active: ["paused", "left", "blocked"],
+  paused: ["active", "left", "blocked"],
+  left: [],
+  blocked: ["paused"],
+} as const satisfies Record<
+  (typeof ACTOR_MEMBERSHIP_STATES)[number],
+  readonly (typeof ACTOR_MEMBERSHIP_STATES)[number][]
+>;
+
+export const ACTIVITY_TRANSITIONS = {
+  proposed: ["planned", "ready", "active", "cancelled", "archived"],
+  planned: ["ready", "active", "paused", "cancelled", "archived"],
+  ready: ["active", "paused", "blocked", "cancelled", "archived"],
+  active: ["paused", "blocked", "completed", "cancelled", "archived"],
+  paused: ["ready", "active", "blocked", "cancelled", "archived"],
+  blocked: ["ready", "active", "paused", "cancelled", "archived"],
+  completed: ["active", "archived"],
+  cancelled: ["planned", "archived"],
+  archived: [],
+} as const satisfies Record<
+  (typeof ACTIVITY_STATUSES)[number],
+  readonly (typeof ACTIVITY_STATUSES)[number][]
+>;
 
 export const MEMBERSHIP_TRANSITIONS = {
   invited: ["preboarding", "active", "departed"],

@@ -13,9 +13,12 @@ Neither layer replaces the other:
 - A Guild Role does not give an Agent a connector capability.
 - A connector capability does not bypass Guild, Space, requester, or workflow restrictions.
 
-## Identity
+## Actor identity
 
-Guild identities are Human, Agent, or Service. Root Owner must be an active Human. The current
+Guild Actors are Human, Agent, Service, or another Guild. One Actor can hold a different
+Guild-scoped Membership, Role, Capability, Space scope, and clearance in each Guild. Kind-specific
+profiles extend that Actor rather than creating separate member systems. Root Custodianship must
+remain attached to an active Human and is not a Company Owner Role. The current
 Gatekeeper uses a per-Workshop-account capability UUID for its Human identity because upstream
 Cloudflare OS does not pass the verified Access identity into auto-provisioned `createAccount()`.
 
@@ -80,7 +83,7 @@ commit in one transaction. Deferred PostgreSQL constraints reject a forged Root 
 completion, history mutation, or missing audit event. The Chronicle records what classes of
 information were viewed and what changed, but never records a plaintext code or its hash.
 
-An administrator may invite an Identity or assign a Role only when the administrator holds every
+An administrator may invite an Actor or assign a Role only when the administrator holds every
 permission in that Role globally. Creating or editing a custom Role applies the same rule. This
 prevents a Space-scoped manager from manufacturing or delegating Guild-wide authority. Roles must
 remain nonempty, built-in Roles are immutable, and machine identities cannot receive permissions
@@ -94,6 +97,12 @@ intersection requester grants
 intersection workflow grants
 intersection connector capability
 ```
+
+The requester may be a Human or another active Agent. An Agent requester must have an active Agent
+profile and independently pass the same resource authorization. Service and Guild Actors cannot
+impersonate a requester. Run construction and execution apply delegation-depth, time, Step, budget,
+Workflow, and Connector limits; no delegated Agent can expand its own Role, Capability, Tool, or
+budget. High-risk approval remains Human-only.
 
 Constitution, Guild, Space, Identity, Membership, Role, Agent configuration, Connector management,
 Agent stopping/approval, and Break Glass remain human-only even if an Agent is accidentally assigned
@@ -120,10 +129,12 @@ inactive, machine, wrong-Space, insufficient-clearance, or unauthorized reviewer
 enter `running` only from a current `approved` request, and the execution claim is atomic. A second
 claim is rejected rather than delivering twice.
 
-Every run stores immutable Agent, requester, Workflow, and Connector permission snapshots plus hard
-limits. Immediately before delivery, Guild OS reloads both Identities, Memberships, Roles, Space,
-Agent profile, current Constitution limits, and Connector status. The effective authority and
-limits are the stricter intersection of the snapshot and current state.
+Every run stores immutable Agent, requester, Workflow, and Connector permission snapshots plus
+budget, model-token, duration, Step, retry, and delegation hard limits. Immediately before delivery,
+Guild OS reloads both Identities, Memberships, Roles, Space, Agent profile, current Constitution
+limits, and Connector status. The effective authority and limits are the stricter intersection of
+the snapshot and current state. PostgreSQL independently validates planned and recorded usage
+against the same limits, including model tokens.
 
 Webhook delivery uses HMAC-SHA256 over the timestamp and exact body, an immutable idempotency key,
 and no automatic outbound retry. The receiver is responsible for durable idempotency. Kill changes
@@ -133,14 +144,16 @@ without changing the run from `killed`.
 
 ## Model context
 
-Ask Guild queries only Canonical Knowledge. PostgreSQL first applies active Membership, Role,
-hierarchical Space, classification, visibility, owner, and explicit-share predicates. The domain
-policy engine then repeats authorization on each returned candidate before its text can enter model
-context. Filtering a fixed top-N result after retrieval is prohibited because denied rows could
-crowd out permitted evidence even when their text is later removed.
+Ask Guild queries the broad Memory substrate. PostgreSQL first applies active Membership, Role,
+hierarchical Space, classification, visibility, owner, and explicit-share predicates before it
+ranks results. Direct Memory contributes its current active version. Memory using the Canonical
+workflow contributes only an approved Canonical version; a draft without any approved version is
+excluded. The domain policy engine then repeats authorization on each returned candidate before its
+text can enter model context. Filtering a fixed top-N result after retrieval is prohibited because
+denied rows could crowd out permitted evidence even when their text is later removed.
 
 The Workers AI call disables AI Gateway prompt logging and cache collection. Chronicle stores only
-the question SHA-256 and citation count. A per-Identity rate-limit binding is checked after evidence
+the question SHA-256 and citation count. A per-Actor rate-limit binding is checked after evidence
 authorization and before model invocation. Citations identify the exact Knowledge version supplied
 to the model; a no-evidence response does not call the model.
 
@@ -219,10 +232,12 @@ classification.
 Chronicle has a database trigger rejecting updates and deletes. Material mutations, Chronicle
 events, and outbox records must commit in one transaction. Deferred database constraint triggers
 also reject a final state where the Root Owner is not an active Human with an active Membership.
-Additional triggers enforce one root Space, acyclic Space ancestry, immutable Identity kinds,
+Additional triggers enforce one root Space, acyclic Space ancestry, immutable Actor kinds,
 nonempty Roles, valid Agent limits and tools, and the pairing between an active Agent profile, its
-Agent Identity, and active Membership. These checks repeat domain validation so direct SQL cannot
-create an authorization state that the application refuses.
+Agent Actor, and active Membership. Canonical Actor/Membership, Memory, Activity, Template, and
+Vocabulary tables use forced Guild RLS. Compatibility triggers mirror legacy writes and reject an
+Identity/Actor, Role binding, Knowledge/Memory, or Work/Activity mismatch. These checks repeat
+domain validation so direct SQL cannot create an authorization state that the application refuses.
 
 Decision triggers independently enforce draft-only edits, human reviewer eligibility, append-only
 reviews, same-option quorum, immutable terminal results, and exact-boundary supersession. This keeps
@@ -255,7 +270,7 @@ does not make deleted files visible or lose the cleanup obligation.
 | Forged Human or Agent ID | IDs come from account capability or permission-filtered discovery; PostgreSQL reloads active Identity and Membership | Rehearse Access and account-capability recovery in production |
 | Accidental or racing first-owner claim | Initialization requires trusted Workshop admin context, exact Guild-name confirmation, and a Guild-scoped PostgreSQL advisory transaction lock | A wrongly configured Workshop admin list can still authorize the wrong human; keep Access and admin policy single-person until acceptance |
 | Governance metadata enumeration by a nonmember | Discriminated bootstrap responses omit Root, Constitution, transfer, and Agent data before usable Membership | Configured Guild name and purpose remain visible to authenticated Workshop accounts by design |
-| Requester-to-Agent privilege escalation | Agent, requester, Workflow, and Connector permission intersection at plan and execution | Incorrect Role design can still grant intended but excessive authority; audit Roles |
+| Requester-to-Agent or Agent-to-Agent privilege escalation | Every active Agent and requester plus Workflow and Connector permission intersection at plan and execution | Incorrect Role design can still grant intended but excessive authority; audit Roles and delegation limits |
 | Unauthorized context leakage | SQL filters Role, Space, clearance, visibility, and sharing before model context | External model/provider policy remains purchaser-owned |
 | Agent-selected URL / SSRF | Fixed immutable HTTPS URL, strict-public fetch, credential/query/hash rejection, and manual redirect handling that rejects every 3xx response | DNS ownership and receiver security remain purchaser responsibilities |
 | Duplicate external effect | Atomic run claim, one outbound attempt, immutable idempotency key, receiver-side durable deduplication | Lost responses are ambiguous; use receiver audit and an explicit compensating run |
@@ -263,7 +278,7 @@ does not make deleted files visible or lose the cleanup obligation.
 | Workflow or API outage | Transactional outbox, bounded backoff, exhausted-attempt terminal failure and Chronicle event | Operators must restore Cloudflare service and create a new approved run |
 | Kill/offboarding race | Database-first Kill, outbox cancellation, Workflow termination, late-delivery Chronicle event | In-flight network bytes may win; execute the receiver's compensating operation |
 | Secret disclosure | Wrangler secret, no config/log/prompt storage, HMAC verification | Rotate receiver and Worker secret, provision a new Connector ID, kill old runs |
-| Prompt injection in Knowledge | Canonical-only, permission-filtered context; model output cannot bypass policy or approval | Humans must inspect Level 2 action payloads before approval |
+| Prompt injection in Memory | SQL-prefiltered Memory, Canonical-version enforcement where governed, and instruction isolation; model output cannot bypass policy or approval | Humans must inspect Level 2 action payloads before approval |
 | Stolen Root session attempts silent handover | Immutable expiring proposal plus acceptance by the named active Human in a separate account session | A compromise of both Human accounts still requires incident recovery and credential rotation |
 | Lost Root and administrator access | Offline 192-bit one-time codes, purchaser custody, rate limit, exact confirmation, atomic generation invalidation, and mandatory Chronicle | Loss of every offline code requires purchaser-controlled infrastructure recovery; the seller has no bypass |
 | Stolen or replayed recovery code | SHA-256-only storage, current-generation pointer, one-time consumption, whole-generation invalidation, expiry, and generic failures | A thief with both a current code and an allowed Cloudflare OS account can recover; use split offline custody and short Access policy scope |

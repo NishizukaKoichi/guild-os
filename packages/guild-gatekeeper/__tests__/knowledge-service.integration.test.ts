@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { ChronicleEvent, Constitution } from "@guild-os/domain";
 import {
+  GuildCollectiveRepository,
   GuildKnowledgeRepository,
   GuildPostgresRepository,
   withGuildTransaction,
@@ -51,6 +52,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,
@@ -76,6 +78,7 @@ integration("Guild Knowledge service authorization boundary", () => {
       wrongSpace: randomUUID(),
       restricted: randomUUID(),
       overClearance: randomUUID(),
+      directMemory: randomUUID(),
     };
 
     await withGuildTransaction(connectionString, ids.guild, async (connection) => {
@@ -174,6 +177,23 @@ integration("Guild Knowledge service authorization boundary", () => {
         "confidential",
         "space",
       );
+      await new GuildCollectiveRepository(connection, ids.guild).createMemory({
+        id: ids.directMemory,
+        actorId: ids.root,
+        ownerActorId: ids.root,
+        spaceId: ids.allowedSpace,
+        type: "research",
+        visibility: "space",
+        classification: "internal",
+        allowedActorIds: [],
+        confidence: 0.8,
+        changeNote: "Record direct Memory evidence.",
+        title: { en: "Collective observation" },
+        summary: { en: "A direct Memory without a publication workflow." },
+        body: { en: "Collective observation DIRECT_MEMORY_MARKER." },
+        sourceIds: [],
+        chronicleEvent: event(ids.guild, ids.root, "memory.created", "memory", ids.directMemory),
+      });
     });
 
     let modelInput: unknown = null;
@@ -242,12 +262,23 @@ integration("Guild Knowledge service authorization boundary", () => {
       question: "phoenix containment",
       locale: "en",
     });
-    expect(response.citations.map((citation) => citation.knowledgeId)).toEqual([ids.allowed]);
+    expect(response.citations.map((citation) => citation.memoryId)).toEqual([ids.allowed]);
     const serializedInput = JSON.stringify(modelInput);
     expect(serializedInput).toContain("VISIBLE_MARKER");
     expect(serializedInput).not.toContain("WRONG_SPACE_SECRET");
     expect(serializedInput).not.toContain("UNSHARED_SECRET");
     expect(serializedInput).not.toContain("CONFIDENTIAL_SECRET");
+
+    const directResponse = await new GuildKnowledgeService(env, ids.member).ask({
+      question: "collective observation",
+      locale: "en",
+    });
+    expect(directResponse.citations).toEqual([expect.objectContaining({
+      memoryId: ids.directMemory,
+      knowledgeId: null,
+      governed: false,
+    })]);
+    expect(JSON.stringify(modelInput)).toContain("DIRECT_MEMORY_MARKER");
 
     let rejectedModelCalls = 0;
     const rateLimitedEnv = {

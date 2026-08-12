@@ -1,5 +1,5 @@
 import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppLocale } from "@guild-os/domain";
 import type {
   AssignRoleRequest,
@@ -16,13 +16,14 @@ import type {
   ResolveRootOwnershipTransferRequest,
   RotateBreakGlassCodesRequest,
   UiBootstrapState,
+  UiCollectiveContext,
   UiDirectory,
   UpdateConstitutionRequest,
   UpdateRoleRequest,
 } from "../src/management-types";
 import { AppShell, type AppPage } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
-import { AgentsPage } from "./pages/AgentsPage";
+import { ActivityPage } from "./pages/ActivityPage";
 import { AskGuildPage } from "./pages/AskGuildPage";
 import { ChroniclePage } from "./pages/ChroniclePage";
 import { DecisionsPage } from "./pages/DecisionsPage";
@@ -30,36 +31,48 @@ import { HomePage } from "./pages/HomePage";
 import { InboxPage } from "./pages/InboxPage";
 import { InitializationPage } from "./pages/InitializationPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
+import { MemoryPage } from "./pages/MemoryPage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkPage } from "./pages/WorkPage";
 import { useI18n } from "./i18n";
+import { localizeCollectiveContext } from "./collective-language";
 
 function messageFrom(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
 export function App({ api }: { api: GuildUiApi }) {
-  const { setLocale, t } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const translateRef = useRef(t);
   translateRef.current = t;
   const [bootstrap, setBootstrap] = useState<UiBootstrapState | null>(null);
   const [directory, setDirectory] = useState<UiDirectory | null>(null);
+  const [collectiveSource, setCollectiveSource] = useState<UiCollectiveContext | null>(null);
+  const collective = useMemo(() => collectiveSource
+    ? localizeCollectiveContext(collectiveSource, locale)
+    : null, [collectiveSource, locale]);
   const [page, setPage] = useState<AppPage>("home");
   const [knowledgeTarget, setKnowledgeTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDirectory = useCallback(async (state: UiBootstrapState) => {
+  const loadMemberData = useCallback(async (state: UiBootstrapState) => {
     if (state.screen !== "member") {
       setDirectory(null);
+      setCollectiveSource(null);
       return;
     }
-    try {
-      setDirectory(await api.getDirectory());
-    } catch (cause) {
+    const [contextResult, directoryResult] = await Promise.allSettled([
+      api.getCollectiveContext(),
+      api.getDirectory(),
+    ]);
+    if (contextResult.status === "rejected") throw contextResult.reason;
+    setCollectiveSource(contextResult.value);
+    if (directoryResult.status === "fulfilled") setDirectory(directoryResult.value);
+    else {
       setDirectory(null);
-      if (state.rootOwner) throw cause;
+      if (state.rootOwner) throw directoryResult.reason;
     }
   }, [api]);
 
@@ -71,13 +84,13 @@ export function App({ api }: { api: GuildUiApi }) {
       setBootstrap(state);
       setLocale(state.preferredLocale);
       document.title = `${state.guildName} - Guild OS`;
-      await loadDirectory(state);
+      await loadMemberData(state);
     } catch (cause) {
       setError(messageFrom(cause, translateRef.current("error.generic")));
     } finally {
       setLoading(false);
     }
-  }, [api, loadDirectory, setLocale]);
+  }, [api, loadMemberData, setLocale]);
 
   useEffect(() => {
     void load();
@@ -107,7 +120,7 @@ export function App({ api }: { api: GuildUiApi }) {
         onInitialize={async (input: InitializeGuildRequest) => {
           const state = await api.initializeGuild(input);
           setBootstrap(state);
-          await loadDirectory(state);
+          await loadMemberData(state);
         }}
       />
     );
@@ -120,25 +133,29 @@ export function App({ api }: { api: GuildUiApi }) {
         onClaim={async (input) => {
           const state = await api.claimInvitation(input);
           setBootstrap(state);
-          await loadDirectory(state);
+          await loadMemberData(state);
         }}
         onRecover={async (input: RecoverRootOwnershipRequest) => {
           const state = await api.recoverRootOwnership(input);
           setBootstrap(state);
-          await loadDirectory(state);
+          await loadMemberData(state);
         }}
       />
     );
   }
 
+  if (!collective) {
+    return <main className="center-state"><LoaderCircle className="spin" size={26} /><strong>{t("common.loading")}</strong></main>;
+  }
+
   const visiblePage = (
-    ((page === "people" || page === "agents") && !directory) ||
+    (page === "members" && !directory) ||
     (page === "chronicle" && bootstrap.membershipState !== "active")
   ) ? "home" : page;
   const activeBootstrap = bootstrap;
 
   async function refreshDirectory() {
-    await loadDirectory(activeBootstrap);
+    await loadMemberData(activeBootstrap);
   }
 
   function navigate(nextPage: AppPage) {
@@ -149,9 +166,9 @@ export function App({ api }: { api: GuildUiApi }) {
   return (
     <AppShell
       bootstrap={bootstrap}
+      collective={collective}
       page={visiblePage}
-      peopleAvailable={directory !== null}
-      agentsAvailable={directory !== null}
+      membersAvailable={directory !== null}
       onPageChange={navigate}
       onLocaleChange={async (locale) => {
         await api.setPreferredLocale(locale);
@@ -159,17 +176,32 @@ export function App({ api }: { api: GuildUiApi }) {
       }}
     >
       {visiblePage === "home" ? (
-        <HomePage api={api} bootstrap={bootstrap} directory={directory} onNavigate={navigate} />
+        <HomePage api={api} bootstrap={bootstrap} collective={collective} directory={directory} onNavigate={navigate} />
       ) : null}
       {visiblePage === "inbox" ? <InboxPage api={api} directory={directory} /> : null}
       {visiblePage === "ask" ? (
         <AskGuildPage
           api={api}
-          onOpenKnowledge={(knowledgeId) => {
-            setKnowledgeTarget(knowledgeId);
+          onNavigate={navigate}
+          onOpenCitation={(memoryId, governed) => {
+            if (governed) setKnowledgeTarget(memoryId);
+            setPage(governed ? "knowledge" : "memory");
+          }}
+        />
+      ) : null}
+      {visiblePage === "memory" ? (
+        <MemoryPage
+          api={api}
+          collective={collective}
+          directory={directory}
+          onOpenGoverned={(memoryId) => {
+            setKnowledgeTarget(memoryId);
             setPage("knowledge");
           }}
         />
+      ) : null}
+      {visiblePage === "activity" ? (
+        <ActivityPage api={api} collective={collective} directory={directory} onOpenStructured={() => setPage("work")} />
       ) : null}
       {visiblePage === "knowledge" ? (
         <KnowledgePage api={api} directory={directory} requestedKnowledgeId={knowledgeTarget} />
@@ -187,6 +219,7 @@ export function App({ api }: { api: GuildUiApi }) {
       {visiblePage === "decisions" ? (
         <DecisionsPage
           api={api}
+          collective={collective}
           directory={directory}
           onOpenKnowledge={(knowledgeId) => {
             setKnowledgeTarget(knowledgeId);
@@ -194,18 +227,20 @@ export function App({ api }: { api: GuildUiApi }) {
           }}
         />
       ) : null}
-      {visiblePage === "people" && directory ? (
+      {visiblePage === "members" && directory ? (
         <PeoplePage
+          api={api}
           bootstrap={bootstrap}
+          collective={collective}
           directory={directory}
           onIssue={async (input: IssueInvitationInput) => {
             const result = await api.issueInvitation(input);
-            await loadDirectory(bootstrap);
+            await loadMemberData(bootstrap);
             return result;
           }}
           onRevoke={async (invitationId) => {
             await api.revokeInvitation(invitationId);
-            await loadDirectory(bootstrap);
+            await loadMemberData(bootstrap);
           }}
           onMembershipChange={async (identityId, nextState) => {
             await api.changeMembership(identityId, nextState);
@@ -225,6 +260,10 @@ export function App({ api }: { api: GuildUiApi }) {
           }}
           onCreateService={async (input: CreateServiceRequest) => {
             await api.createService(input);
+            await refreshDirectory();
+          }}
+          onCreateAgent={async (input: CreateAgentRequest) => {
+            await api.createAgent(input);
             await refreshDirectory();
           }}
           onLoadMoreIdentities={directory.nextIdentityCursor ? async () => {
@@ -253,33 +292,11 @@ export function App({ api }: { api: GuildUiApi }) {
           } : null}
         />
       ) : null}
-      {visiblePage === "agents" && directory ? (
-        <AgentsPage
-          api={api}
-          bootstrap={bootstrap}
-          directory={directory}
-          onCreate={async (input: CreateAgentRequest) => {
-            await api.createAgent(input);
-            await refreshDirectory();
-          }}
-          onMembershipChange={async (identityId, nextState) => {
-            await api.changeMachineMembership(identityId, nextState);
-            await refreshDirectory();
-          }}
-          onAssignRole={async (input: AssignRoleRequest) => {
-            await api.assignRole(input);
-            await refreshDirectory();
-          }}
-          onRemoveRole={async (bindingId) => {
-            await api.removeRoleBinding(bindingId);
-            await refreshDirectory();
-          }}
-        />
-      ) : null}
       {visiblePage === "chronicle" ? <ChroniclePage api={api} directory={directory} /> : null}
       {visiblePage === "settings" ? (
         <SettingsPage
           bootstrap={bootstrap}
+          collective={collective}
           directory={directory}
           onLocaleChange={async (locale: AppLocale) => api.setPreferredLocale(locale)}
           onUpdateConstitution={async (input: UpdateConstitutionRequest) => {
@@ -301,7 +318,7 @@ export function App({ api }: { api: GuildUiApi }) {
           onAcceptRootOwnershipTransfer={async (input: ResolveRootOwnershipTransferRequest) => {
             const state = await api.acceptRootOwnershipTransfer(input);
             setBootstrap(state);
-            await loadDirectory(state);
+            await loadMemberData(state);
           }}
           onSearchRootOwnershipCandidates={(search) => api.searchRootOwnershipCandidates(search)}
           onRotateBreakGlassCodes={async (input: RotateBreakGlassCodesRequest) => {
@@ -320,7 +337,7 @@ export function App({ api }: { api: GuildUiApi }) {
           onRecoverRootOwnership={async (input: RecoverRootOwnershipRequest) => {
             const state = await api.recoverRootOwnership(input);
             setBootstrap(state);
-            await loadDirectory(state);
+            await loadMemberData(state);
           }}
           onCreateRole={async (input: CreateRoleRequest) => {
             await api.createRole(input);
@@ -345,6 +362,12 @@ export function App({ api }: { api: GuildUiApi }) {
           onArchiveSpace={async (spaceId) => {
             await api.archiveSpace(spaceId);
             await refreshDirectory();
+          }}
+          onConfigureCollective={async (input) => {
+            setCollectiveSource(await api.configureCollective(input));
+          }}
+          onSetSpaceVocabulary={async (input) => {
+            setCollectiveSource(await api.setSpaceVocabulary(input));
           }}
         />
       ) : null}

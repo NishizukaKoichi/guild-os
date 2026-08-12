@@ -65,6 +65,7 @@ export interface CreateAgentInput {
 
 export interface CreateServiceInput {
   identityId: string;
+  kind?: "service" | "guild";
   displayName: string;
   clearance: Classification;
   roleId: string;
@@ -345,7 +346,7 @@ export class GuildAdministrationRepository {
     const identity: Identity = {
       id: input.identityId,
       guildId: this.#guildId,
-      kind: "service",
+      kind: input.kind ?? "service",
       displayName: input.displayName,
       status: "active",
     };

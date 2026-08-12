@@ -28,6 +28,7 @@ export function assertAgentLimits(limits: AgentLimits): void {
     throw new GuildDomainError("INVALID_INPUT", "Agent currency must be a three-letter ISO code.");
   }
   assertNonNegativeInteger(limits.maxBudgetMinor, "Agent budget");
+  assertPositiveInteger(limits.maxTokens, "Agent token limit");
   assertPositiveInteger(limits.maxDurationSeconds, "Agent duration");
   assertPositiveInteger(limits.maxSteps, "Agent step limit");
   assertNonNegativeInteger(limits.maxRetries, "Agent retry limit");

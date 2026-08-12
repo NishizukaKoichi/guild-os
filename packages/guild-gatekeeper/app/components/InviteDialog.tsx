@@ -2,17 +2,20 @@ import { Send, X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import type {
   IssueInvitationInput,
+  UiCollectiveContext,
   UiDirectory,
 } from "../../src/management-types";
 import { Notice } from "./Notice";
+import { membershipStateLabel } from "../collective-language";
 import { useI18n } from "../i18n";
 
-export function InviteDialog({ directory, onClose, onIssue }: {
+export function InviteDialog({ collective, directory, onClose, onIssue }: {
+  collective: UiCollectiveContext;
   directory: UiDirectory;
   onClose(): void;
   onIssue(input: IssueInvitationInput): Promise<void>;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const firstRole = directory.roles[0]?.id ?? "";
   const [inviteeLabel, setInviteeLabel] = useState("");
   const [roleId, setRoleId] = useState(firstRole);
@@ -94,7 +97,7 @@ export function InviteDialog({ directory, onClose, onIssue }: {
                     checked={initialMembershipState === state}
                     onChange={() => setInitialMembershipState(state)}
                   />
-                  <span>{t(state === "preboarding" ? "membership.preboarding" : "membership.active")}</span>
+                  <span>{membershipStateLabel(state, collective.template.key, locale)}</span>
                 </label>
               ))}
             </div>

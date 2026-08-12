@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { navigateToMore } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -13,7 +14,7 @@ test("runs the governed Knowledge and Ask Guild path", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await navigateToMore(page, "Canonical memory");
   await page.getByRole("button", { name: "Create Knowledge", exact: true }).click();
 
   let dialog = page.getByRole("dialog");
@@ -80,7 +81,7 @@ test("keeps the Knowledge workflow inside a mobile viewport", async ({ page }) =
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await navigateToMore(page, "Canonical memory");
   await expect(page.locator(".sidebar-scrim")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Research intake procedure" })).toBeVisible();
   const viewport = await page.evaluate(() => ({

@@ -10,3 +10,5 @@ export * from "./decision.js";
 export * from "./announcement.js";
 export * from "./agent.js";
 export * from "./conversation.js";
+export * from "./collective.js";
+export * from "./templates.js";

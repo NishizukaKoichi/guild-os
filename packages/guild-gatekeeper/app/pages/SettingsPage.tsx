@@ -4,6 +4,7 @@ import { useState } from "react";
 import type {
   CreateRoleRequest,
   CreateSpaceRequest,
+  ConfigureCollectiveRequest,
   ProposeRootOwnershipTransferRequest,
   RecoverRootOwnershipRequest,
   RevokeBreakGlassCodesRequest,
@@ -11,11 +12,14 @@ import type {
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
   UiMemberBootstrapState,
+  UiCollectiveContext,
   UiDirectory,
   UiRootOwnershipCandidate,
   UpdateConstitutionRequest,
   UpdateRoleRequest,
+  SetSpaceVocabularyRequest,
 } from "../../src/management-types";
+import { CollectiveSettings } from "../components/CollectiveSettings";
 import { ConstitutionManager } from "../components/ConstitutionManager";
 import { OwnershipManager } from "../components/OwnershipManager";
 import { RecoveryManager } from "../components/RecoveryManager";
@@ -27,6 +31,7 @@ import { useI18n } from "../i18n";
 
 export function SettingsPage({
   bootstrap,
+  collective,
   directory,
   onLocaleChange,
   onUpdateConstitution,
@@ -43,8 +48,11 @@ export function SettingsPage({
   onCreateSpace,
   onRenameSpace,
   onArchiveSpace,
+  onConfigureCollective,
+  onSetSpaceVocabulary,
 }: {
   bootstrap: UiMemberBootstrapState;
+  collective: UiCollectiveContext;
   directory: UiDirectory | null;
   onLocaleChange(locale: AppLocale): Promise<void>;
   onUpdateConstitution(input: UpdateConstitutionRequest): Promise<void>;
@@ -61,6 +69,8 @@ export function SettingsPage({
   onCreateSpace(input: CreateSpaceRequest): Promise<void>;
   onRenameSpace(spaceId: string, name: string): Promise<void>;
   onArchiveSpace(spaceId: string): Promise<void>;
+  onConfigureCollective(input: ConfigureCollectiveRequest): Promise<void>;
+  onSetSpaceVocabulary(input: SetSpaceVocabularyRequest): Promise<void>;
 }) {
   const { locale, setLocale, t } = useI18n();
   const [saved, setSaved] = useState(false);
@@ -81,6 +91,7 @@ export function SettingsPage({
   return (
     <>
       <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
+      <CollectiveSettings collective={collective} onConfigure={onConfigureCollective} onSetSpaceVocabulary={onSetSpaceVocabulary} />
       <section className="content-section settings-section">
         <div className="section-heading-row">
           <Languages size={19} />

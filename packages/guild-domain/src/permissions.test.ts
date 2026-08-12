@@ -105,6 +105,63 @@ describe("Guild authorization", () => {
     }, records).map((record) => record.id)).toEqual(["allowed"]);
   });
 
+  it("allows bounded agent delegation without granting machine ownership authority", () => {
+    const base = makeSnapshot();
+    const snapshot = {
+      ...base,
+      identities: [...base.identities,
+        { id: "delegating-agent", guildId: "guild-1", kind: "agent" as const, displayName: "Delegating Agent", status: "active" as const },
+        { id: "automation-service", guildId: "guild-1", kind: "service" as const, displayName: "Automation Service", status: "active" as const },
+      ],
+      memberships: [...base.memberships,
+        { guildId: "guild-1", identityId: "delegating-agent", state: "active" as const, clearance: "internal" as const, joinedAt: "2026-08-12T00:00:00.000Z", departedAt: null },
+        { guildId: "guild-1", identityId: "automation-service", state: "active" as const, clearance: "internal" as const, joinedAt: "2026-08-12T00:00:00.000Z", departedAt: null },
+      ],
+      roleBindings: [...base.roleBindings,
+        { guildId: "guild-1", identityId: "delegating-agent", roleId: "agent-role", spaceId: "research" },
+        { guildId: "guild-1", identityId: "automation-service", roleId: "agent-role", spaceId: "research" },
+      ],
+      agents: [...base.agents, {
+        identityId: "delegating-agent",
+        guildId: "guild-1",
+        instructions: "Delegate only within the assigned Space.",
+        model: "provider/model",
+        toolIds: ["knowledge"],
+        limits: {
+          currency: "AUD",
+          maxBudgetMinor: 300,
+          maxTokens: 100_000,
+          maxDurationSeconds: 300,
+          maxSteps: 5,
+          maxRetries: 0,
+          maxDelegationDepth: 1,
+        },
+        status: "active" as const,
+      }],
+    };
+    const allowed = new Set(["knowledge.read"] as const);
+    const request = {
+      agentIdentityId: "research-agent",
+      requesterIdentityId: "delegating-agent",
+      permission: "knowledge.read" as const,
+      workflowPermissions: allowed,
+      connectorPermissions: allowed,
+      resource: makeResource(),
+    };
+
+    expect(() => authorizeAgent(snapshot, request)).not.toThrow();
+    expect(() => authorizeAgent(snapshot, {
+      ...request,
+      requesterIdentityId: "automation-service",
+    })).toThrowError(expect.objectContaining({ code: "PERMISSION_DENIED" }));
+    expect(() => authorizeAgent({
+      ...snapshot,
+      agents: snapshot.agents.map((profile) => profile.identityId === "delegating-agent"
+        ? { ...profile, status: "stopped" as const }
+        : profile),
+    }, request)).toThrowError(expect.objectContaining({ code: "AGENT_STOPPED" }));
+  });
+
   it("keeps constitutional and permission operations human-only", () => {
     const base = makeSnapshot();
     const snapshot = {

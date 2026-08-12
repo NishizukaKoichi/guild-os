@@ -14,7 +14,7 @@ test("publishes a governed announcement and records delivery in Inbox and Chroni
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Inbox", exact: true }).click();
+  await navigateToMore(page, "Inbox");
   await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
   await expect(page.getByText("Adopt a citation requirement for Agent research", { exact: true })).toBeVisible();
 
@@ -38,7 +38,7 @@ test("publishes a governed announcement and records delivery in Inbox and Chroni
   await page.getByRole("tab", { name: /^Notifications/ }).click();
   await expect(page.getByText("Research intake procedure", { exact: true })).toBeVisible();
 
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await page.getByLabel("Search actions", { exact: true }).fill("published");
   await page.getByRole("button", { name: "Apply filters", exact: true }).click();
   await expect(page.getByText("announcement.published", { exact: true })).toBeVisible();
@@ -49,8 +49,7 @@ test("keeps Inbox, announcement editing, and Chronicle usable on mobile", async 
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Inbox", exact: true }).click();
+  await navigateToMore(page, "Inbox");
   await page.getByRole("tab", { name: "Announcements", exact: true }).click();
   await page.getByRole("button", { name: "Create announcement", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -62,7 +61,7 @@ test("keeps Inbox, announcement editing, and Chronicle usable on mobile", async 
   expect(viewport.scrollWidth).toBe(viewport.clientWidth);
 
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await navigateToMore(page, "Activity");
+  await navigateToMore(page, "History");
   await expect(page.getByText("decision.proposed", { exact: true })).toBeVisible();
   viewport = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,

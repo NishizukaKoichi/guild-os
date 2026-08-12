@@ -17,6 +17,7 @@ export function ServiceDialog({
   const { t } = useI18n();
   const roles = useMemo(() => directory.roles.filter((role) =>
     !role.permissions.some((permission) => HUMAN_ONLY_PERMISSIONS.has(permission))), [directory.roles]);
+  const [kind, setKind] = useState<"service" | "guild">("service");
   const [displayName, setDisplayName] = useState("");
   const [clearance, setClearance] = useState<Classification>("internal");
   const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
@@ -29,7 +30,7 @@ export function ServiceDialog({
     setBusy(true);
     setError(null);
     try {
-      await onCreate({ displayName, clearance, roleId, spaceId: spaceId || null });
+      await onCreate({ kind, displayName, clearance, roleId, spaceId: spaceId || null });
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("error.generic"));
@@ -42,17 +43,17 @@ export function ServiceDialog({
     <div className="dialog-backdrop" role="presentation">
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="service-dialog-title">
         <header className="dialog-header">
-          <h2 id="service-dialog-title">{t("people.serviceTitle")}</h2>
+          <h2 id="service-dialog-title">{t("members.addMachine")}</h2>
           <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}>
             <X size={19} />
           </button>
         </header>
         <form className="stack-form" onSubmit={(event) => void submit(event)}>
           {error ? <Notice kind="error">{error}</Notice> : null}
-          <label>
-            <span>{t("people.serviceName")}</span>
-            <input required maxLength={200} value={displayName} placeholder={t("people.serviceNamePlaceholder")} onChange={(event) => setDisplayName(event.target.value)} />
-          </label>
+          <div className="form-grid">
+            <label><span>{t("members.machineType")}</span><select value={kind} onChange={(event) => setKind(event.target.value as "service" | "guild")}><option value="service">{t("identity.service")}</option><option value="guild">{t("identity.guild")}</option></select></label>
+            <label><span>{t("members.machineName")}</span><input required maxLength={200} value={displayName} placeholder={t("members.machineNamePlaceholder")} onChange={(event) => setDisplayName(event.target.value)} /></label>
+          </div>
           <div className="form-grid">
             <label>
               <span>{t("people.clearance")}</span>
@@ -79,7 +80,7 @@ export function ServiceDialog({
           <footer className="dialog-actions">
             <button className="secondary-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
             <button className="primary-button" type="submit" disabled={busy || !roleId}>
-              <ServerCog size={17} />{t("people.createService")}
+              <ServerCog size={17} />{t("members.createMachine")}
             </button>
           </footer>
         </form>

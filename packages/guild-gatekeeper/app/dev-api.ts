@@ -14,11 +14,14 @@ import type {
   UiConversation,
   UiConversationMessage,
   UiConversationSubject,
+  UiCollectiveContext,
   UiDirectory,
   UiDecisionDetail,
+  UiActivity,
   UiKnowledgeDetail,
   UiKnowledgeFile,
   UiInboxNotification,
+  UiMemory,
   UiGoal,
   UiProject,
   UiQuest,
@@ -36,11 +39,17 @@ import {
   assertStepStatus,
   assertStepTransition,
   assertDecisionContent,
+  assertDecisionMethod,
   assertDecisionOptions,
   assertDecisionReview,
   assertDecisionTransition,
   assertAnnouncementContent,
   assertAnnouncementTransition,
+  assertActivityText,
+  assertActivityTransition,
+  assertMemoryContent,
+  collectiveTemplate,
+  COLLECTIVE_TEMPLATES,
   validateConstitution,
 } from "@guild-os/domain";
 
@@ -48,6 +57,8 @@ const guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a";
 const rootId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b";
 const memberId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9c";
 const agentId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9d";
+const serviceId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a7d";
+const guildActorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a7e";
 const successorId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a8d";
 const unknownId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a8c";
 const adminRoleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9e";
@@ -73,6 +84,8 @@ const recoveryCodeSetId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555ad6";
 const knowledgeConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b01";
 const questConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b02";
 const decisionConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b03";
+const directMemoryId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b10";
+const directActivityId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b11";
 
 async function sha256Text(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
@@ -108,6 +121,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       agentDefaults: {
         currency: "USD",
         maxBudgetMinor: 1000,
+        maxTokens: 100_000,
         maxDurationSeconds: 900,
         maxSteps: 20,
         maxRetries: 2,
@@ -119,6 +133,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,
@@ -259,6 +274,28 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         departedAt: null,
       },
       {
+        id: serviceId,
+        kind: "service",
+        displayName: "Open Archive Bridge",
+        status: "active",
+        preferredLocale: "en",
+        membershipState: "active",
+        clearance: "internal",
+        joinedAt: "2026-08-11T05:00:00.000Z",
+        departedAt: null,
+      },
+      {
+        id: guildActorId,
+        kind: "guild",
+        displayName: "Fictional Coastal Observatory",
+        status: "active",
+        preferredLocale: "en",
+        membershipState: "active",
+        clearance: "internal",
+        joinedAt: "2026-08-11T05:30:00.000Z",
+        departedAt: null,
+      },
+      {
         id: successorId,
         kind: "human",
         displayName: "Noah Chen",
@@ -288,6 +325,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       { id: "binding-root", identityId: rootId, roleId: adminRoleId, spaceId: null },
       { id: "binding-member", identityId: memberId, roleId: memberRoleId, spaceId: researchSpaceId },
       { id: "binding-agent", identityId: agentId, roleId: memberRoleId, spaceId: researchSpaceId },
+      { id: "binding-service", identityId: serviceId, roleId: memberRoleId, spaceId: researchSpaceId },
+      { id: "binding-guild", identityId: guildActorId, roleId: memberRoleId, spaceId: researchSpaceId },
       { id: "binding-successor", identityId: successorId, roleId: memberRoleId, spaceId: null },
     ],
     agentProfiles: [{
@@ -328,6 +367,32 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       : [],
     nextIdentityCursor: null,
     nextInvitationCursor: null,
+  };
+
+  const initialTemplate = collectiveTemplate("research");
+  let collective: UiCollectiveContext = {
+    template: initialTemplate,
+    templates: COLLECTIVE_TEMPLATES,
+    labels: initialTemplate.labels,
+    vocabularyOverrides: {},
+    onboardingAnswers: {
+      purpose: "Preserve evidence and turn inquiry into shared, reviewable memory.",
+      participants: "Researchers, research agents, and external research services.",
+      memoryIntent: "Research notes, data, decisions, failures, and reusable methods.",
+      activityIntent: "Studies, experiments, investigations, and peer review.",
+      decisionStyle: "Evidence review followed by accountable human approval.",
+    },
+    templateVersion: 1,
+    spaces: directory.spaces.map((space) => ({
+      id: space.id,
+      parentSpaceId: space.parentSpaceId,
+      name: space.name,
+      vocabularyProfileKey: space.id === researchSpaceId ? "research" : null,
+      labels: initialTemplate.labels,
+      canConfigure: mode === "root",
+    })),
+    canConfigure: mode === "root",
+    canConfigureSpaces: mode === "root",
   };
 
   const fullKnowledgeCapabilities = {
@@ -396,6 +461,44 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       createdAt: "2026-08-12T01:30:00.000Z",
     }],
     files: [],
+  }];
+  let directMemories: UiMemory[] = [{
+    id: directMemoryId,
+    spaceId: researchSpaceId,
+    ownerActorId: rootId,
+    createdByActorId: memberId,
+    type: "research",
+    status: "active",
+    workflow: null,
+    governanceState: null,
+    visibility: "space",
+    classification: "internal",
+    allowedActorIds: [],
+    currentVersion: 1,
+    confidence: 0.82,
+    sourceIds: [],
+    title: {
+      en: "Signals from the fictional coastal habitat study",
+      ja: "架空の沿岸生息地調査から得た兆候",
+      "zh-CN": "虚构沿海栖息地研究的初步信号",
+    },
+    summary: {
+      en: "A working observation awaiting peer review and promotion into Canonical Memory.",
+      ja: "査読とCanonical Memoryへの昇格を待つ作業中の観察記録です。",
+      "zh-CN": "等待同行评审并晋升为规范记忆的工作观察记录。",
+    },
+    body: {
+      en: "The fictional sample suggests seasonal variation. The team must validate the method and source set before treating the observation as established knowledge.",
+      ja: "架空のサンプルは季節変動を示唆しています。確立した知識として扱う前に、調査方法と出典一式を検証する必要があります。",
+      "zh-CN": "虚构样本显示可能存在季节变化。在将其视为既定知识前，团队必须验证研究方法和来源。",
+    },
+    createdAt: "2026-08-11T08:00:00.000Z",
+    updatedAt: "2026-08-12T01:15:00.000Z",
+    capabilities: {
+      edit: mode === "root",
+      archive: mode === "root",
+      governed: false,
+    },
   }];
   const fileBodies = new Map<string, Blob>();
   const workCapabilities = {
@@ -487,6 +590,53 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     updatedAt: "2026-08-11T01:06:00.000Z",
     capabilities: workCapabilities,
   }];
+  let directActivities: UiActivity[] = [{
+    id: directActivityId,
+    parentActivityId: null,
+    spaceId: researchSpaceId,
+    ownerActorId: rootId,
+    creatorActorId: memberId,
+    assigneeActorId: agentId,
+    type: "study",
+    title: "Map evidence gaps in the fictional habitat study",
+    description: "Collect unanswered questions and connect each one to a visible source or an explicit inference.",
+    status: "active",
+    visibility: "space",
+    classification: "internal",
+    allowedActorIds: [],
+    sourceIds: [directMemoryId],
+    startsAt: "2026-08-12T03:00:00.000Z",
+    dueAt: "2026-08-22T03:00:00.000Z",
+    position: 0,
+    version: 1,
+    compatibilitySourceType: null,
+    createdAt: "2026-08-12T02:50:00.000Z",
+    updatedAt: "2026-08-12T03:00:00.000Z",
+    capabilities: workCapabilities,
+  }, {
+    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b12",
+    parentActivityId: directActivityId,
+    spaceId: researchSpaceId,
+    ownerActorId: rootId,
+    creatorActorId: rootId,
+    assigneeActorId: memberId,
+    type: "experiment",
+    title: "Validate the fictional sampling method",
+    description: "Run a repeatability check before promoting the observation into governed knowledge.",
+    status: "planned",
+    visibility: "space",
+    classification: "internal",
+    allowedActorIds: [],
+    sourceIds: [directMemoryId],
+    startsAt: null,
+    dueAt: "2026-08-19T03:00:00.000Z",
+    position: 0,
+    version: 1,
+    compatibilitySourceType: null,
+    createdAt: "2026-08-12T03:05:00.000Z",
+    updatedAt: "2026-08-12T03:05:00.000Z",
+    capabilities: workCapabilities,
+  }];
   const decisionCapabilities = (status: UiDecisionDetail["decision"]["status"], reviewed = false) => ({
     edit: mode === "root" && status === "draft",
     propose: mode === "root" && status === "draft",
@@ -499,6 +649,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       spaceId: researchSpaceId,
       proposerIdentityId: memberId,
       ownerIdentityId: memberId,
+      method: "review",
       title: "Adopt a citation requirement for Agent research",
       description: "Decide whether every Agent research result must cite Canonical Knowledge.",
       rationale: "Citations let reviewers distinguish sourced findings from inference.",
@@ -669,6 +820,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       },
       estimatedUsage: {
         budgetMinor: 0,
+        tokens: 0,
         durationSeconds: 15,
         steps: 2,
         retries: 0,
@@ -680,6 +832,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     limits: bootstrap.agentDefaults,
     usage: {
       budgetMinor: 0,
+      tokens: 0,
       durationSeconds: 0,
       steps: 0,
       retries: 0,
@@ -931,10 +1084,148 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
   function assertAssignable(identityId: string | null): void {
     if (identityId === null) return;
     const identity = directory.identities.find((candidate) => candidate.id === identityId);
-    if (!identity || identity.kind === "service" || identity.status !== "active" ||
-        identity.membershipState !== "active") {
-      throw new Error("Work can be assigned only to an active Human or Agent.");
+    if (!identity || identity.status !== "active" ||
+        !["preboarding", "active"].includes(identity.membershipState)) {
+      throw new Error("Activity can be assigned only to an active Guild Actor.");
     }
+  }
+
+  function governedMemories(): UiMemory[] {
+    return knowledge.map((item) => {
+      const version = item.versions.find((candidate) => candidate.version === item.currentVersion) ??
+        item.versions[0];
+      if (!version) throw new Error("Knowledge version is missing.");
+      return {
+        id: item.id,
+        spaceId: item.spaceId,
+        ownerActorId: item.ownerIdentityId,
+        createdByActorId: item.createdByIdentityId,
+        type: "knowledge",
+        status: item.state === "archived" ? "archived" : "active",
+        workflow: "canonical",
+        governanceState: item.state,
+        visibility: item.visibility,
+        classification: item.classification,
+        allowedActorIds: item.allowedIdentityIds,
+        currentVersion: item.currentVersion,
+        confidence: null,
+        sourceIds: item.sourceIds,
+        title: version.title,
+        summary: version.summary,
+        body: version.body,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        capabilities: { edit: false, archive: false, governed: true },
+      };
+    });
+  }
+
+  function legacyActivities(): UiActivity[] {
+    const readOnly = { changeStatus: false, assign: false, addChild: false };
+    const goalItems: UiActivity[] = goals.map((goal) => ({
+      id: goal.id,
+      parentActivityId: null,
+      spaceId: goal.spaceId,
+      ownerActorId: goal.ownerIdentityId,
+      creatorActorId: goal.creatorIdentityId,
+      assigneeActorId: null,
+      type: "goal",
+      title: goal.title,
+      description: goal.description,
+      status: goal.status === "draft" ? "proposed" : goal.status,
+      visibility: goal.visibility,
+      classification: goal.classification,
+      allowedActorIds: goal.allowedIdentityIds ?? [],
+      sourceIds: goal.sourceIds ?? [],
+      startsAt: null,
+      dueAt: goal.targetAt,
+      position: 0,
+      version: goal.version,
+      compatibilitySourceType: "goal",
+      createdAt: goal.createdAt,
+      updatedAt: goal.updatedAt,
+      capabilities: readOnly,
+    }));
+    const projectItems: UiActivity[] = projects.map((project) => ({
+      id: project.id,
+      parentActivityId: project.goalId,
+      spaceId: project.spaceId,
+      ownerActorId: project.ownerIdentityId,
+      creatorActorId: project.creatorIdentityId,
+      assigneeActorId: null,
+      type: "project",
+      title: project.title,
+      description: project.description,
+      status: project.status,
+      visibility: project.visibility,
+      classification: project.classification,
+      allowedActorIds: project.allowedIdentityIds ?? [],
+      sourceIds: project.sourceIds ?? [],
+      startsAt: null,
+      dueAt: project.dueAt,
+      position: 0,
+      version: project.version,
+      compatibilitySourceType: "project",
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      capabilities: readOnly,
+    }));
+    const questItems: UiActivity[] = quests.map((quest) => ({
+      id: quest.id,
+      parentActivityId: quest.projectId,
+      spaceId: quest.spaceId,
+      ownerActorId: quest.ownerIdentityId,
+      creatorActorId: quest.creatorIdentityId,
+      assigneeActorId: quest.assigneeIdentityId,
+      type: "quest",
+      title: quest.title,
+      description: quest.description,
+      status: quest.status === "backlog" ? "proposed" :
+        quest.status === "in_progress" ? "active" : quest.status,
+      visibility: quest.visibility,
+      classification: quest.classification,
+      allowedActorIds: quest.allowedIdentityIds ?? [],
+      sourceIds: quest.sourceIds ?? [],
+      startsAt: null,
+      dueAt: quest.dueAt,
+      position: 0,
+      version: quest.version,
+      compatibilitySourceType: "quest",
+      createdAt: quest.createdAt,
+      updatedAt: quest.updatedAt,
+      capabilities: readOnly,
+    }));
+    const stepItems: UiActivity[] = steps.flatMap((step) => {
+      const quest = quests.find((candidate) => candidate.id === step.questId);
+      if (!quest) return [];
+      return [{
+        id: step.id,
+        parentActivityId: step.questId,
+        spaceId: quest.spaceId,
+        ownerActorId: quest.ownerIdentityId,
+        creatorActorId: step.creatorIdentityId,
+        assigneeActorId: step.assigneeIdentityId,
+        type: "step",
+        title: step.title,
+        description: step.description,
+        status: step.status === "pending" ? "planned" :
+          step.status === "in_progress" ? "active" :
+            step.status === "skipped" ? "cancelled" : step.status,
+        visibility: quest.visibility,
+        classification: quest.classification,
+        allowedActorIds: quest.allowedIdentityIds ?? [],
+        sourceIds: quest.sourceIds ?? [],
+        startsAt: null,
+        dueAt: quest.dueAt,
+        position: step.position,
+        version: step.version,
+        compatibilitySourceType: "step" as const,
+        createdAt: step.createdAt,
+        updatedAt: step.updatedAt,
+        capabilities: readOnly,
+      }];
+    });
+    return [...goalItems, ...projectItems, ...questItems, ...stepItems];
   }
 
   function now(): string {
@@ -948,28 +1239,139 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     async initializeGuild(input) {
       if (restrictedBootstrap?.screen !== "initialize" ||
           !restrictedBootstrap.canInitialize || input.confirmation !== bootstrap.guildName ||
-          !input.displayName.trim()) {
+          !input.displayName.trim() || [
+            input.purpose,
+            input.participants,
+            input.memoryIntent,
+            input.activityIntent,
+            input.decisionStyle,
+          ].some((answer) => !answer.trim())) {
         throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
       }
+      const rootAccountId = restrictedBootstrap.accountId;
+      const template = collectiveTemplate(input.templateKey);
       bootstrap = {
         ...bootstrap,
-        accountId: restrictedBootstrap.accountId,
+        accountId: rootAccountId,
         rootOwner: true,
-        rootOwnerIdentityId: restrictedBootstrap.accountId,
+        rootOwnerIdentityId: rootAccountId,
         rootOwnerDisplayName: input.displayName.trim(),
         preferredLocale: input.preferredLocale,
+        breakGlass: {
+          ...bootstrap.breakGlass,
+          available: false,
+          currentCodeSetId: null,
+          generation: null,
+          outgoingRoleId: null,
+          outgoingRoleName: null,
+          reason: null,
+          expiresAt: null,
+          createdAt: null,
+          remainingCodeCount: null,
+        },
       };
+      const roles = template.roles.map((role) => ({
+        id: crypto.randomUUID(),
+        name: role.name,
+        system: true,
+        permissions: role.capabilities,
+      }));
       directory = {
         ...directory,
-        identities: directory.identities.map((identity) => identity.id === rootId ? {
-          ...identity,
-          id: restrictedBootstrap?.accountId ?? rootId,
+        identities: [{
+          id: rootAccountId,
+          kind: "human",
           displayName: input.displayName.trim(),
+          status: "active",
           preferredLocale: input.preferredLocale,
-        } : identity),
+          membershipState: "active",
+          clearance: "restricted",
+          joinedAt: now(),
+          departedAt: null,
+        }],
+        roles,
+        roleBindings: roles[0] ? [{
+          id: crypto.randomUUID(),
+          identityId: rootAccountId,
+          roleId: roles[0].id,
+          spaceId: null,
+        }] : [],
+        agentProfiles: [],
+        spaces: [{ id: rootSpaceId, parentSpaceId: null, name: "Guild", status: "active" }],
+        invitations: [],
+      };
+      collective = {
+        ...collective,
+        template,
+        labels: template.labels,
+        vocabularyOverrides: {},
+        onboardingAnswers: {
+          purpose: input.purpose.trim(),
+          participants: input.participants.trim(),
+          memoryIntent: input.memoryIntent.trim(),
+          activityIntent: input.activityIntent.trim(),
+          decisionStyle: input.decisionStyle.trim(),
+        },
+        templateVersion: collective.templateVersion + 1,
+        spaces: directory.spaces.map((space) => ({
+          id: space.id,
+          parentSpaceId: space.parentSpaceId,
+          name: space.name,
+          vocabularyProfileKey: null,
+          labels: template.labels,
+          canConfigure: true,
+        })),
+        canConfigure: true,
+        canConfigureSpaces: true,
       };
       restrictedBootstrap = null;
       return bootstrap;
+    },
+    async getCollectiveContext() {
+      return collective;
+    },
+    async configureCollective(input) {
+      if (!collective.canConfigure) {
+        throw new Error("Only a Guild steward can configure the collective template.");
+      }
+      const template = collectiveTemplate(input.templateKey);
+      const labels = { ...template.labels, ...input.vocabularyOverrides };
+      collective = {
+        ...collective,
+        template,
+        labels,
+        vocabularyOverrides: input.vocabularyOverrides,
+        onboardingAnswers: input.onboardingAnswers,
+        templateVersion: collective.templateVersion + 1,
+        spaces: collective.spaces.map((space) => {
+          if (space.vocabularyProfileKey) {
+            return { ...space, labels: collectiveTemplate(space.vocabularyProfileKey).labels };
+          }
+          return { ...space, labels };
+        }),
+      };
+      return collective;
+    },
+    async setSpaceVocabulary(input) {
+      if (!collective.canConfigureSpaces) {
+        throw new Error("Only a Guild steward can configure Space vocabulary.");
+      }
+      if (!collective.spaces.some((space) => space.id === input.spaceId)) {
+        throw new Error("Space was not found.");
+      }
+      const labels = input.templateKey
+        ? collectiveTemplate(input.templateKey).labels
+        : collective.labels;
+      collective = {
+        ...collective,
+        templateVersion: collective.templateVersion + 1,
+        spaces: collective.spaces.map((space) => space.id === input.spaceId ? {
+          ...space,
+          vocabularyProfileKey: input.templateKey,
+          labels,
+        } : space),
+      };
+      return collective;
     },
     async claimInvitation(input: ClaimInvitationInput) {
       bootstrap = {
@@ -1202,12 +1604,27 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           status: "active",
         }],
       };
+      collective = {
+        ...collective,
+        spaces: [...collective.spaces, {
+          id,
+          parentSpaceId: input.parentSpaceId,
+          name: input.name,
+          vocabularyProfileKey: null,
+          labels: collective.labels,
+          canConfigure: true,
+        }],
+      };
       return id;
     },
     async renameSpace(spaceId, name) {
       directory = {
         ...directory,
         spaces: directory.spaces.map((space) => space.id === spaceId ? { ...space, name } : space),
+      };
+      collective = {
+        ...collective,
+        spaces: collective.spaces.map((space) => space.id === spaceId ? { ...space, name } : space),
       };
     },
     async archiveSpace(spaceId) {
@@ -1216,6 +1633,10 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         spaces: directory.spaces.map((space) => space.id === spaceId
           ? { ...space, status: "archived" }
           : space),
+      };
+      collective = {
+        ...collective,
+        spaces: collective.spaces.filter((space) => space.id !== spaceId),
       };
     },
     async assignRole(input) {
@@ -1271,7 +1692,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         ...directory,
         identities: [...directory.identities, {
           id,
-          kind: "service",
+          kind: input.kind ?? "service",
           displayName: input.displayName,
           status: "active",
           preferredLocale: "en",
@@ -1301,6 +1722,222 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           ? { ...profile, status: nextState === "active" ? "active" : "stopped" }
           : profile),
       };
+    },
+    async getMemoryPage(request = {}) {
+      const search = request.search?.trim().toLocaleLowerCase() ?? "";
+      const items = [...directMemories, ...governedMemories()].filter((memory) => {
+        if (!request.includeArchived && memory.status === "archived") return false;
+        if (request.type && memory.type !== request.type) return false;
+        if (!search) return true;
+        return [memory.title, memory.summary, memory.body]
+          .some((value) => Object.values(value)
+            .some((text) => text.toLocaleLowerCase().includes(search)));
+      });
+      return {
+        items,
+        nextCursor: null,
+        creatableSpaceIds: mode === "root" ? collective.spaces.map((space) => space.id) : [],
+      };
+    },
+    async createMemory(input) {
+      if (mode !== "root") throw new Error("This Actor cannot add Memory.");
+      assertMemoryContent(input.title, input.summary, input.body);
+      if (input.confidence !== null &&
+          (!Number.isFinite(input.confidence) || input.confidence < 0 || input.confidence > 1)) {
+        throw new Error("Confidence must be between 0 and 1.");
+      }
+      if (input.spaceId !== null && !collective.spaces.some((space) => space.id === input.spaceId)) {
+        throw new Error("Space was not found.");
+      }
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      const memory: UiMemory = {
+        id,
+        spaceId: input.spaceId,
+        ownerActorId: bootstrap.accountId,
+        createdByActorId: bootstrap.accountId,
+        type: input.type,
+        status: "active",
+        workflow: null,
+        governanceState: null,
+        visibility: input.visibility,
+        classification: input.classification,
+        allowedActorIds: input.allowedActorIds,
+        currentVersion: 1,
+        confidence: input.confidence,
+        sourceIds: input.sourceIds,
+        title: input.title,
+        summary: input.summary,
+        body: input.body,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: { edit: true, archive: true, governed: false },
+      };
+      directMemories = [memory, ...directMemories];
+      appendDemoChronicle(
+        "memory.created",
+        "memory",
+        id,
+        {
+          spaceId: memory.spaceId,
+          ownerIdentityId: memory.ownerActorId,
+          visibility: memory.visibility,
+          classification: memory.classification,
+          allowedIdentityIds: memory.allowedActorIds,
+        },
+        { type: memory.type, changeNote: input.changeNote, source: "guild-ui" },
+      );
+      return id;
+    },
+    async saveMemory(input) {
+      const memory = directMemories.find((candidate) => candidate.id === input.memoryId);
+      if (!memory || memory.workflow !== null) {
+        throw new Error("Governed Memory must be changed through its approval workflow.");
+      }
+      if (!memory.capabilities.edit || memory.currentVersion !== input.expectedVersion) {
+        throw new Error("Memory changed since it was loaded.");
+      }
+      assertMemoryContent(input.title, input.summary, input.body);
+      const nextVersion = memory.currentVersion + 1;
+      directMemories = directMemories.map((candidate) => candidate.id === input.memoryId ? {
+        ...candidate,
+        title: input.title,
+        summary: input.summary,
+        body: input.body,
+        sourceIds: input.sourceIds,
+        currentVersion: nextVersion,
+        updatedAt: now(),
+      } : candidate);
+      appendDemoChronicle(
+        "memory.version.created",
+        "memory",
+        memory.id,
+        {
+          spaceId: memory.spaceId,
+          ownerIdentityId: memory.ownerActorId,
+          visibility: memory.visibility,
+          classification: memory.classification,
+          allowedIdentityIds: memory.allowedActorIds,
+        },
+        { version: nextVersion, changeNote: input.changeNote, source: "guild-ui" },
+      );
+      return nextVersion;
+    },
+    async archiveMemory(input) {
+      const memory = directMemories.find((candidate) => candidate.id === input.memoryId);
+      if (!memory || memory.workflow !== null) {
+        throw new Error("Governed Memory must be changed through its approval workflow.");
+      }
+      if (!memory.capabilities.archive || memory.currentVersion !== input.expectedVersion) {
+        throw new Error("Memory changed since it was loaded.");
+      }
+      const nextVersion = memory.currentVersion + 1;
+      directMemories = directMemories.map((candidate) => candidate.id === input.memoryId ? {
+        ...candidate,
+        status: "archived",
+        currentVersion: nextVersion,
+        updatedAt: now(),
+        capabilities: { ...candidate.capabilities, edit: false, archive: false },
+      } : candidate);
+      return nextVersion;
+    },
+    async getActivityPage(request = {}) {
+      const requestedTypes = request.types ? new Set(request.types) : null;
+      const requestedStatuses = request.statuses ? new Set(request.statuses) : null;
+      const search = request.search?.trim().toLocaleLowerCase() ?? "";
+      const items = [...directActivities, ...legacyActivities()].filter((activity) => {
+        if (request.parentActivityId !== undefined &&
+            activity.parentActivityId !== request.parentActivityId) return false;
+        if (request.assigneeActorId && activity.assigneeActorId !== request.assigneeActorId) return false;
+        if (requestedTypes && !requestedTypes.has(activity.type)) return false;
+        if (requestedStatuses && !requestedStatuses.has(activity.status)) return false;
+        if (search && !`${activity.title} ${activity.description}`.toLocaleLowerCase().includes(search)) {
+          return false;
+        }
+        return true;
+      });
+      return {
+        items,
+        nextCursor: null,
+        creatableSpaceIds: mode === "root" ? collective.spaces.map((space) => space.id) : [],
+      };
+    },
+    async createActivity(input) {
+      if (mode !== "root") throw new Error("This Actor cannot start Activity.");
+      assertActivityText(input.title, input.description);
+      assertAssignable(input.assigneeActorId);
+      const parent = input.parentActivityId === null
+        ? null
+        : directActivities.find((activity) => activity.id === input.parentActivityId);
+      if (input.parentActivityId !== null && !parent) {
+        throw new Error("Structured legacy Work cannot accept direct Activity children.");
+      }
+      if (parent && parent.spaceId !== input.spaceId) {
+        throw new Error("A child Activity must remain in its parent Space.");
+      }
+      if (input.spaceId !== null && !collective.spaces.some((space) => space.id === input.spaceId)) {
+        throw new Error("Space was not found.");
+      }
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      const activity: UiActivity = {
+        ...input,
+        id,
+        ownerActorId: bootstrap.accountId,
+        creatorActorId: bootstrap.accountId,
+        version: 1,
+        compatibilitySourceType: null,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        capabilities: workCapabilities,
+      };
+      directActivities = [activity, ...directActivities];
+      appendDemoChronicle(
+        "activity.created",
+        "activity",
+        id,
+        {
+          spaceId: activity.spaceId,
+          ownerIdentityId: activity.ownerActorId,
+          visibility: activity.visibility,
+          classification: activity.classification,
+          allowedIdentityIds: activity.allowedActorIds,
+        },
+        { type: activity.type, status: activity.status, source: "guild-ui" },
+      );
+      return id;
+    },
+    async changeActivityStatus(input) {
+      const activity = directActivities.find((candidate) => candidate.id === input.activityId);
+      if (!activity || activity.compatibilitySourceType !== null) {
+        throw new Error("Structured legacy Work must be changed through its original workflow.");
+      }
+      assertCurrentVersion(activity.version, input.expectedVersion);
+      assertActivityTransition(activity.status, input.status);
+      const nextVersion = activity.version + 1;
+      directActivities = directActivities.map((candidate) => candidate.id === input.activityId ? {
+        ...candidate,
+        status: input.status,
+        version: nextVersion,
+        updatedAt: now(),
+      } : candidate);
+      return nextVersion;
+    },
+    async assignActivity(input) {
+      const activity = directActivities.find((candidate) => candidate.id === input.activityId);
+      if (!activity || activity.compatibilitySourceType !== null) {
+        throw new Error("Structured legacy Work must be changed through its original workflow.");
+      }
+      assertCurrentVersion(activity.version, input.expectedVersion);
+      assertAssignable(input.assigneeActorId);
+      const nextVersion = activity.version + 1;
+      directActivities = directActivities.map((candidate) => candidate.id === input.activityId ? {
+        ...candidate,
+        assigneeActorId: input.assigneeActorId,
+        version: nextVersion,
+        updatedAt: now(),
+      } : candidate);
+      return nextVersion;
     },
     async getKnowledgePage() {
       return {
@@ -1514,11 +2151,13 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       const summary = source.summary[input.locale] ?? source.summary.ja ?? source.summary.en ?? "";
       return {
         answer: input.locale === "ja"
-          ? `調査依頼はResearch Spaceへ記録し、責任者・成果・機密区分・出典を確認してから割り当てます。[K1]`
-          : `Record the request in the Research Space, then verify its owner, outcome, classification, and source before assignment. [K1]`,
+          ? `調査依頼はResearch Spaceへ記録し、責任者・成果・機密区分・出典を確認してから割り当てます。[M1]`
+          : `Record the request in the Research Space, then verify its owner, outcome, classification, and source before assignment. [M1]`,
         inferred: true,
         citations: [{
+          memoryId: source.id,
           knowledgeId: source.id,
+          governed: true,
           version: source.canonicalVersion ?? source.currentVersion,
           title,
           summary,
@@ -1752,6 +2391,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     },
     async createDecision(input) {
       if (mode !== "root") throw new Error("This identity cannot create Decisions.");
+      if (input.method !== undefined) assertDecisionMethod(input.method);
       assertDecisionContent(input.title, input.description, input.rationale);
       assertDecisionOptions(input.options);
       const id = crypto.randomUUID();
@@ -1760,6 +2400,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       const detail: UiDecisionDetail = {
         decision: {
           ...resource,
+          method: resource.method ?? "custodian",
           id,
           proposerIdentityId: bootstrap.accountId,
           ownerIdentityId: bootstrap.accountId,
@@ -1787,6 +2428,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     },
     async saveDecisionDraft(input) {
       if (mode !== "root") throw new Error("This identity cannot edit Decisions.");
+      if (input.method !== undefined) assertDecisionMethod(input.method);
       assertDecisionContent(input.title, input.description, input.rationale);
       assertDecisionOptions(input.options);
       const detail = decisions.find((candidate) => candidate.decision.id === input.decisionId);
@@ -1798,6 +2440,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       decisions = decisions.map((candidate) => candidate.decision.id === input.decisionId ? {
         decision: {
           ...candidate.decision,
+          method: input.method ?? candidate.decision.method,
           spaceId: input.spaceId,
           title: input.title,
           description: input.description,
@@ -2340,7 +2983,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         errorMessage: null,
         limits: bootstrap.agentDefaults,
         usage: {
-          budgetMinor: 0, durationSeconds: 0, steps: 0, retries: 0, delegationDepth: 0,
+          budgetMinor: 0, tokens: 0, durationSeconds: 0, steps: 0, retries: 0, delegationDepth: 0,
         },
         workflowInstanceId: `agent-run-${input.requestId}`,
         idempotencyKey: `demo-agent-action:${input.requestId}`,
@@ -2400,7 +3043,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           : null,
         errorMessage: approved ? null : "Human approval was rejected.",
         usage: approved
-          ? { budgetMinor: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 }
+          ? { budgetMinor: 0, tokens: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 }
           : candidate.usage,
         startedAt: approved ? timestamp : null,
         finishedAt: timestamp,

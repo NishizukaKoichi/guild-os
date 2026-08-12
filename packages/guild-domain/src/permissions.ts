@@ -178,10 +178,17 @@ export function authorizeAgent(
     throw new GuildDomainError("AGENT_STOPPED", `Agent ${agent.id} is stopped.`);
   }
   const requester = findIdentity(snapshot, request.requesterIdentityId);
-  if (requester.kind !== "human") {
+  if (requester.kind === "agent") {
+    const requesterProfile = snapshot.agents.find(
+      (candidate) => candidate.identityId === requester.id,
+    );
+    if (!requesterProfile || requesterProfile.status !== "active") {
+      throw new GuildDomainError("AGENT_STOPPED", `Agent ${requester.id} is stopped.`);
+    }
+  } else if (requester.kind !== "human") {
     throw new GuildDomainError(
       "PERMISSION_DENIED",
-      "An agent run must remain accountable to a human requester.",
+      "An agent run requester must be a human or an active agent.",
     );
   }
 

@@ -145,7 +145,8 @@ export class GuildPostgresRepository {
       for (const permission of role.permissions) {
         await this.#connection.query(
           `INSERT INTO role_permissions (guild_id, role_id, permission)
-           VALUES ($1, $2, $3)`,
+           VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
           [input.guildId, role.id, permission],
         );
       }

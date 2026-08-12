@@ -1,6 +1,6 @@
 # Guild OS v1.0 Completion Matrix
 
-Updated: 2026-08-12
+Updated: 2026-08-13
 
 `Complete` means the behavior has executable unit, PostgreSQL/Gatekeeper integration, and browser
 acceptance coverage, with representative production verification through the real Access,
@@ -20,7 +20,22 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
 | 9 | Role/Space Announcement, Inbox, Knowledge notification | Complete | Immutable audience, set-based fan-out, deduplication, current-authority reads, integration tests, and responsive E2E | Recheck current-authority visibility after permission changes |
 | 10 | Chronicle all important Human/Agent actions | Complete | Append-only forced-RLS history with lifecycle, approval, execution, Kill, offboarding, and late-delivery evidence plus searchable responsive UI | Compare sequence across every backup and restore |
 | 11 | Human departure and Agent stop revoke access/tokens immediately | Complete | Transactional Identity disable, Connector revocation, run Kill, approval expiry, outbox cancellation, Workflow termination, and current-authority recheck | Rehearse in isolated acceptance after capability changes |
-| 12 | Agent budget/time/step/retry limits and Kill Switch | Complete | Immutable intersected limits, runtime checks, zero-retry external write, atomic claim, Kill UI, dispatch exhaustion, and Kill-race tests | Rehearse timeout/Kill after Workflow changes |
+| 12 | Agent budget/token/time/step/retry/delegation limits and Kill Switch | Complete | Immutable intersected limits, database/runtime checks, zero-retry external write, atomic claim, Kill UI, dispatch exhaustion, and Kill-race tests | Rehearse timeout/Kill after Workflow changes |
+
+## Collective substrate acceptance
+
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| Four Actor kinds on one Membership model | Complete | Actor tables/profiles, compatibility mirrors, unified Members UI, domain/PostgreSQL/E2E tests |
+| Neutral Membership and Capability vocabulary | Complete | Neutral canonical states/capabilities; Company wording isolated to its Template |
+| Broad Memory with optional governance | Complete | Direct versioned Memory plus Canonical Knowledge workflow adapter and immutable version tests |
+| Recursive Activity without fixed depth | Complete | Parent Activity, typed recursion, any operational Actor assignment, Space containment tests |
+| Seven Templates with Blank default | Complete | Domain registry, initialization, Guild/Space vocabulary settings, all-Template E2E |
+| Ask over authorized Memory | Complete | SQL prefilter, domain recheck, Canonical-version selection, citations, leakage integration tests |
+| Agent safety after Members integration | Complete | Agent/requester/Workflow/Connector intersection, active Agent delegation check, Human-only governance |
+| Lossless additive migration | Complete | ID-preserving backfills, count guards, compatibility triggers, clean PostgreSQL 17 replay twice |
+| Neutral responsive UI | Complete | Home/Ask/Members/Memory/Activity/More at 1440, 390, and 320 pixels |
+| Compatibility is removable | Complete | New code targets Collective repository/service; removal conditions are documented separately |
 
 ## Current verified slice
 
@@ -52,7 +67,7 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
   human-only permissions.
 - Space ancestry, one-root topology, identity kind, Agent profile ownership, and active profile /
   Membership pairing are enforced in PostgreSQL as well as application code.
-- Human, Agent, and Service management plus custom Role and Space administration have PostgreSQL
+- Human, Agent, Service, and Guild Actor management plus custom Role and Space administration have PostgreSQL
   integration coverage and responsive management screens.
 - English, Japanese, and Simplified Chinese UI modes render without missing-key breakage.
 - Pre-publication Knowledge security changes require authorization on old and proposed boundaries;
@@ -89,9 +104,10 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
 - The optional reference receiver verifies exact signed bytes before parsing, rejects stale events,
   and gives each Guild/idempotency-key pair an independent SQLite-backed Durable Object. Unit tests
   cover forgery, replay-window, envelope mismatch, oversized input, exact duplicate, and conflict.
-- Desktop plus 320 px and 390 px mobile action-first Home, progressive navigation, Team, AI Agents, Settings,
+- Desktop plus 320 px and 390 px mobile action-first Home, Ask, Members, Memory, Activity, More, and Settings,
   invitation, uninvited, and suspended
-  states plus the complete Knowledge, Ask, Goal-to-Step Work, Decision, Announcement, Inbox, and
+  states plus the complete Canonical Knowledge, recursive Activity, Goal-to-Step Work compatibility,
+  Decision, Announcement, Inbox, and
   Chronicle and contextual Conversation paths have Playwright interaction and overflow checks.
 - Production operations fail closed on a dirty source tree, submodule drift, PostgreSQL below 17,
   plaintext remote database connections, privileged database roles, migration checksum drift, or

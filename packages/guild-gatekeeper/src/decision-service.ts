@@ -2,6 +2,7 @@ import {
   CLASSIFICATIONS,
   VISIBILITIES,
   assertDecisionContent,
+  assertDecisionMethod,
   assertDecisionOptions,
   assertDecisionReview,
   authorize,
@@ -66,6 +67,7 @@ function assertOptionalTimestamp(value: string | null, field: string): void {
 }
 
 function assertResourceInput(input: DecisionResourceRequest): void {
+  if (input.method !== undefined) assertDecisionMethod(input.method);
   assertDecisionContent(input.title, input.description, input.rationale);
   assertDecisionOptions(input.options);
   if (input.spaceId !== null) assertUuid(input.spaceId, "Space ID");
@@ -275,7 +277,10 @@ export class GuildDecisionService {
           options: optionWrites(input),
           actorIdentityId: this.#accountId,
           ownerIdentityId: this.#accountId,
-          chronicleEvent: this.#event("decision.created", id, { status: "draft" }, resource),
+          chronicleEvent: this.#event("decision.created", id, {
+            status: "draft",
+            method: input.method ?? "custodian",
+          }, resource),
         });
       },
     );
@@ -303,6 +308,7 @@ export class GuildDecisionService {
           actorIdentityId: this.#accountId,
           chronicleEvent: this.#event("decision.draft.updated", input.decisionId, {
             expectedVersion: input.expectedVersion,
+            method: input.method ?? current.method,
           }, proposed),
         });
       },

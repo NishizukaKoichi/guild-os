@@ -50,6 +50,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 0,
+      maxTokens: 100_000,
       maxDurationSeconds: 60,
       maxSteps: 5,
       maxRetries: 0,
@@ -151,6 +152,7 @@ function request(ids: Awaited<ReturnType<typeof fixture>>["ids"]) {
     payload: { completed: true, fixture: "agent-service" },
     estimatedUsage: {
       budgetMinor: 0,
+      tokens: 0,
       durationSeconds: 10,
       steps: 2,
       retries: 0,
@@ -216,7 +218,7 @@ integration("Guild Agent service", () => {
       input.requestId,
       `agent-run-${input.requestId}`,
       { kind: "https_webhook", statusCode: 204, deliveredAt: delivery.deliveredAt },
-      { budgetMinor: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 },
+      { budgetMinor: 0, tokens: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 },
     );
     const completed = await service.getRun(input.requestId);
     expect(completed).toMatchObject({
@@ -378,7 +380,7 @@ integration("Guild Agent service", () => {
     await service.claimExecution(input.requestId, `agent-run-${input.requestId}`);
     await service.kill(input.requestId);
     const result = { kind: "https_webhook" as const, statusCode: 202, deliveredAt: new Date().toISOString() };
-    const usage = { budgetMinor: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 };
+    const usage = { budgetMinor: 0, tokens: 0, durationSeconds: 1, steps: 2, retries: 0, delegationDepth: 0 };
 
     await expect(service.completeExecution(
       input.requestId,

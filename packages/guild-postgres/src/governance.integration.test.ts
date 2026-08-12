@@ -44,6 +44,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1_000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,
@@ -146,6 +147,7 @@ integration("Guild Constitution governance", () => {
         agentDefaults: {
           currency: "AUD",
           maxBudgetMinor: 2_500,
+          maxTokens: 100_000,
           maxDurationSeconds: 1_200,
           maxSteps: 24,
           maxRetries: 1,

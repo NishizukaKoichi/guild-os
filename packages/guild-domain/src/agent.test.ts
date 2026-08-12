@@ -10,6 +10,7 @@ import type { AgentLimits, AgentRunPlan } from "./types.js";
 const limits: AgentLimits = {
   currency: "USD",
   maxBudgetMinor: 500,
+  maxTokens: 10_000,
   maxDurationSeconds: 60,
   maxSteps: 3,
   maxRetries: 1,
@@ -30,6 +31,7 @@ function plan(overrides: Partial<AgentRunPlan> = {}): AgentRunPlan {
     },
     estimatedUsage: {
       budgetMinor: 0,
+      tokens: 0,
       durationSeconds: 10,
       steps: 2,
       retries: 0,
@@ -59,12 +61,21 @@ describe("Agent run policy", () => {
   });
 
   it("uses the stricter of immutable run limits and current profile limits", () => {
-    const effective = intersectAgentLimits(limits, { ...limits, maxSteps: 2, maxBudgetMinor: 800 });
-    expect(effective).toMatchObject({ maxSteps: 2, maxBudgetMinor: 500 });
+    const effective = intersectAgentLimits(limits, {
+      ...limits,
+      maxSteps: 2,
+      maxBudgetMinor: 800,
+      maxTokens: 8_000,
+    });
+    expect(effective).toMatchObject({ maxSteps: 2, maxBudgetMinor: 500, maxTokens: 8_000 });
     expect(() => assertUsageWithinLimits(effective, plan().estimatedUsage)).not.toThrow();
     expect(() => assertUsageWithinLimits(effective, {
       ...plan().estimatedUsage,
       steps: 3,
     })).toThrow("limit exceeded");
+    expect(() => assertUsageWithinLimits(effective, {
+      ...plan().estimatedUsage,
+      tokens: 8_001,
+    })).toThrow("token");
   });
 });

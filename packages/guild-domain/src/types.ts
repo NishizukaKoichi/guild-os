@@ -1,17 +1,26 @@
 import type {
   ANNOUNCEMENT_STATUSES,
   AGENT_RUN_STATUSES,
+  ACTIVITY_STATUSES,
+  ACTIVITY_TYPES,
+  ACTOR_KINDS,
+  ACTOR_MEMBERSHIP_STATES,
   APPROVAL_STATUSES,
   CLASSIFICATIONS,
   CONVERSATION_MESSAGE_STATES,
   CONVERSATION_STATUSES,
   CONVERSATION_SUBJECT_TYPES,
   CONNECTOR_STATUSES,
+  COLLECTIVE_TEMPLATE_KEYS,
+  DECISION_METHODS,
   DECISION_STATUSES,
   GOAL_STATUSES,
   IDENTITY_KINDS,
   IDENTITY_STATUSES,
   KNOWLEDGE_STATES,
+  MEMORY_STATUSES,
+  MEMORY_TYPES,
+  MEMORY_WORKFLOWS,
   MEMBERSHIP_STATES,
   PERMISSIONS,
   PROJECT_STATUSES,
@@ -22,10 +31,19 @@ import type {
 } from "./constants.js";
 
 export type IdentityKind = (typeof IDENTITY_KINDS)[number];
+export type ActorKind = (typeof ACTOR_KINDS)[number];
 export type IdentityStatus = (typeof IDENTITY_STATUSES)[number];
 export type MembershipState = (typeof MEMBERSHIP_STATES)[number];
+export type ActorMembershipState = (typeof ACTOR_MEMBERSHIP_STATES)[number];
 export type KnowledgeState = (typeof KNOWLEDGE_STATES)[number];
 export type Permission = (typeof PERMISSIONS)[number];
+export type Capability = Permission;
+export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
+export type MemoryType = (typeof MEMORY_TYPES)[number] | `custom:${string}`;
+export type MemoryWorkflow = (typeof MEMORY_WORKFLOWS)[number] | null;
+export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
+export type ActivityType = (typeof ACTIVITY_TYPES)[number] | `custom:${string}`;
+export type CollectiveTemplateKey = (typeof COLLECTIVE_TEMPLATE_KEYS)[number];
 export type Visibility = (typeof VISIBILITIES)[number];
 export type Classification = (typeof CLASSIFICATIONS)[number];
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
@@ -35,6 +53,7 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type QuestStatus = (typeof QUEST_STATUSES)[number];
 export type StepStatus = (typeof STEP_STATUSES)[number];
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+export type DecisionMethod = (typeof DECISION_METHODS)[number];
 export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
@@ -54,6 +73,55 @@ export interface Guild {
   rootOwnerIdentityId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Actor {
+  id: string;
+  kind: ActorKind;
+  displayName: string;
+  status: IdentityStatus;
+  preferredLocale: AppLocale;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActorMembership {
+  guildId: string;
+  actorId: string;
+  state: ActorMembershipState;
+  clearance: Classification;
+  operational: boolean;
+  joinedAt: string | null;
+  leftAt: string | null;
+  updatedAt: string;
+}
+
+export interface ActorRoleBinding {
+  id: string;
+  guildId: string;
+  actorId: string;
+  roleId: string;
+  spaceId: string | null;
+  createdAt: string;
+}
+
+export interface HumanProfile {
+  actorId: string;
+  biography: string;
+}
+
+export interface ServiceProfile {
+  actorId: string;
+  guildId: string;
+  serviceType: string;
+  description: string;
+}
+
+export interface GuildActorProfile {
+  actorId: string;
+  guildId: string;
+  representedGuildId: string | null;
+  description: string;
 }
 
 export interface Constitution {
@@ -168,6 +236,141 @@ export interface SecuredResource {
   allowedIdentityIds?: readonly string[];
 }
 
+export interface ActorSecuredResource {
+  id: string;
+  guildId: string;
+  spaceId: string | null;
+  ownerActorId: string;
+  visibility: Visibility;
+  classification: Classification;
+  allowedActorIds: readonly string[];
+}
+
+export interface MemoryRecord extends ActorSecuredResource {
+  type: MemoryType;
+  status: MemoryStatus;
+  workflow: MemoryWorkflow;
+  governanceState: KnowledgeState | null;
+  title: LocalizedText;
+  summary: LocalizedText;
+  currentVersion: number;
+  confidence: number | null;
+  sourceIds: readonly string[];
+  createdByActorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryVersion {
+  guildId: string;
+  memoryId: string;
+  version: number;
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  sourceIds: readonly string[];
+  createdByActorId: string;
+  createdAt: string;
+}
+
+export interface Activity extends ActorSecuredResource {
+  parentActivityId: string | null;
+  type: ActivityType;
+  title: string;
+  description: string;
+  status: ActivityStatus;
+  creatorActorId: string;
+  assigneeActorId: string | null;
+  sourceIds: readonly string[];
+  startsAt: string | null;
+  dueAt: string | null;
+  position: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityDependency {
+  guildId: string;
+  activityId: string;
+  dependsOnActivityId: string;
+  kind: "blocks" | "relates_to" | "follows";
+}
+
+export interface CollectiveTemplateLabels {
+  members: string;
+  member: string;
+  human: string;
+  agent: string;
+  service: string;
+  guildActor: string;
+  memory: string;
+  memoryItem: string;
+  remember: string;
+  activity: string;
+  activityItem: string;
+  startActivity: string;
+  decisions: string;
+  decision: string;
+  history: string;
+  join: string;
+  leave: string;
+  participant: string;
+  coordinator: string;
+}
+
+export type VocabularyProfile = CollectiveTemplateLabels;
+
+export interface CollectiveWorkflowPreset {
+  key: string;
+  name: string;
+  activityType: ActivityType | null;
+  memoryType: MemoryType | null;
+  decisionMethod: DecisionMethod | null;
+}
+
+export interface CollectiveTemplateRole {
+  name: string;
+  capabilities: readonly Capability[];
+}
+
+export interface CollectiveTemplate {
+  key: CollectiveTemplateKey;
+  name: string;
+  description: string;
+  labels: CollectiveTemplateLabels;
+  roles: readonly CollectiveTemplateRole[];
+  activityTypes: readonly ActivityType[];
+  memoryTypes: readonly MemoryType[];
+  decisionMethods: readonly DecisionMethod[];
+  dashboardIntents: readonly ("ask" | "remember" | "start" | "review" | "members")[];
+  workflows: readonly CollectiveWorkflowPreset[];
+  suggestedAgent: string | null;
+}
+
+export interface CollectiveOnboardingAnswers {
+  purpose: string;
+  participants: string;
+  memoryIntent: string;
+  activityIntent: string;
+  decisionStyle: string;
+}
+
+export interface CollectiveSettings {
+  guildId: string;
+  templateKey: CollectiveTemplateKey;
+  templateVersion: number;
+  vocabularyOverrides: Partial<CollectiveTemplateLabels>;
+  onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
+  updatedByActorId: string | null;
+  updatedAt: string;
+}
+
+export interface SpaceVocabularyAssignment {
+  spaceId: string;
+  vocabularyProfileKey: string | null;
+}
+
 export interface KnowledgeRecord extends SecuredResource {
   state: KnowledgeState;
   title: LocalizedText;
@@ -259,6 +462,7 @@ export interface Step {
 
 export interface Decision extends SecuredResource {
   proposerIdentityId: string;
+  method: DecisionMethod;
   title: string;
   description: string;
   rationale: string;
@@ -355,6 +559,7 @@ export interface InboxNotification extends SecuredResource {
 export interface AgentLimits {
   currency: string;
   maxBudgetMinor: number;
+  maxTokens: number;
   maxDurationSeconds: number;
   maxSteps: number;
   maxRetries: number;
@@ -373,6 +578,7 @@ export interface AgentProfile {
 
 export interface AgentRunUsage {
   budgetMinor: number;
+  tokens: number;
   durationSeconds: number;
   steps: number;
   retries: number;

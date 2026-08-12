@@ -23,6 +23,15 @@ function guildEnv(guildId: string): GuildEnv {
   } as GuildEnv;
 }
 
+const collectiveSetup = {
+  templateKey: "blank" as const,
+  purpose: "Preserve shared context without assuming a company.",
+  participants: "Humans, agents, services, and partner Guilds.",
+  memoryIntent: "Facts, experiences, decisions, and artifacts.",
+  activityIntent: "Any shared activity chosen by the participants.",
+  decisionStyle: "Consent with explicit review for high-impact actions.",
+};
+
 integration("Guild bootstrap boundary", () => {
   it("requires an explicit Workshop administrator and minimizes pre-membership state", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
@@ -51,6 +60,7 @@ integration("Guild bootstrap boundary", () => {
       preferredLocale: "en",
     });
     await expect(visitor.initializeGuild({
+      ...collectiveSetup,
       displayName: "Unauthorized Human",
       preferredLocale: "en",
       confirmation: env.GUILD_NAME,
@@ -58,11 +68,13 @@ integration("Guild bootstrap boundary", () => {
 
     const root = new GuildManagementApiImpl(env, rootId, true);
     await expect(root.initializeGuild({
+      ...collectiveSetup,
       displayName: "Purchaser Root",
       preferredLocale: "ja",
       confirmation: "wrong Guild",
     })).rejects.toThrow("Guild name exactly");
     const initialized = await root.initializeGuild({
+      ...collectiveSetup,
       displayName: "Purchaser Root",
       preferredLocale: "ja",
       confirmation: env.GUILD_NAME,
@@ -80,6 +92,7 @@ integration("Guild bootstrap boundary", () => {
 
     const otherAdmin = new GuildManagementApiImpl(env, otherAdminId, true);
     await expect(otherAdmin.initializeGuild({
+      ...collectiveSetup,
       displayName: "Racing Administrator",
       preferredLocale: "en",
       confirmation: env.GUILD_NAME,
@@ -98,5 +111,69 @@ integration("Guild bootstrap boundary", () => {
     expect(serialized).not.toContain("rootOwnerIdentityId");
     expect(serialized).not.toContain("constitution");
     expect(serialized).not.toContain("agentDefaults");
+  });
+
+  it("returns only Space-scoped collective context to an invited member", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const env = guildEnv(randomUUID());
+    const rootId = randomUUID();
+    const memberId = randomUUID();
+    const root = new GuildManagementApiImpl(env, rootId, true);
+    await root.initializeGuild({
+      ...collectiveSetup,
+      displayName: "Collective Custodian",
+      preferredLocale: "en",
+      confirmation: env.GUILD_NAME,
+    });
+    const rootSpace = (await root.getDirectory()).spaces[0];
+    if (!rootSpace) throw new Error("Root Space was not created.");
+    const visibleSpaceId = await root.createSpace({
+      name: "Visible Lab",
+      parentSpaceId: rootSpace.id,
+    });
+    const childSpaceId = await root.createSpace({
+      name: "Visible Lab Archive",
+      parentSpaceId: visibleSpaceId,
+    });
+    const hiddenSpaceId = await root.createSpace({
+      name: "Hidden Council",
+      parentSpaceId: rootSpace.id,
+    });
+    const roleId = await root.createRole({
+      name: "Scoped participant",
+      permissions: [
+        "guild.read",
+        "space.read",
+        "template.read",
+        "memory.read",
+        "activity.read",
+      ],
+    });
+    const invitation = await root.issueInvitation({
+      inviteeLabel: "Scoped member",
+      roleId,
+      spaceId: visibleSpaceId,
+      initialMembershipState: "active",
+      expiresInDays: 7,
+    });
+    const member = new GuildManagementApiImpl(env, memberId, false);
+    await member.claimInvitation({
+      token: invitation.token,
+      displayName: "Scoped Member",
+      preferredLocale: "en",
+    });
+
+    const context = await member.getCollectiveContext();
+    expect(context.spaces.map((space) => space.id)).toEqual(expect.arrayContaining([
+      visibleSpaceId,
+      childSpaceId,
+    ]));
+    expect(context.spaces.map((space) => space.id)).not.toEqual(expect.arrayContaining([
+      rootSpace.id,
+      hiddenSpaceId,
+    ]));
+    expect(context.spaces.every((space) => !space.canConfigure)).toBe(true);
+    expect(context.canConfigure).toBe(false);
+    expect(context.canConfigureSpaces).toBe(false);
   });
 });

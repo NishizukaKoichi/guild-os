@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { navigateToMore } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -13,7 +14,7 @@ test("creates, proposes, and records a Human Decision approval", async ({ page }
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Decisions", exact: true }).click();
+  await navigateToMore(page, "Decisions");
   await expect(page.getByRole("heading", {
     name: "Adopt a citation requirement for Agent research",
   })).toBeVisible();
@@ -61,8 +62,7 @@ test("keeps Decision review operable in a mobile viewport", async ({ page }) => 
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Decisions", exact: true }).click();
+  await navigateToMore(page, "Decisions");
   await expect(page.locator(".sidebar-scrim")).toHaveCount(0);
   await expect(page.getByRole("heading", {
     name: "Adopt a citation requirement for Agent research",

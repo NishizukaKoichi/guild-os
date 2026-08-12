@@ -4,11 +4,18 @@ import type {
   AgentRunUsage,
   AgentApprovalRequest,
   AgentApprovalVote,
+  ActivityStatus,
+  ActivityType,
   Announcement,
   AppLocale,
   Classification,
+  CollectiveOnboardingAnswers,
+  CollectiveTemplate,
+  CollectiveTemplateKey,
+  CollectiveTemplateLabels,
   Decision,
   DecisionApproval,
+  DecisionMethod,
   DecisionOption,
   Goal,
   GoalStatus,
@@ -20,6 +27,7 @@ import type {
   KnowledgeState,
   LocalizedText,
   MembershipState,
+  MemoryType,
   Permission,
   Project,
   ProjectStatus,
@@ -88,6 +96,12 @@ export interface InitializeGuildRequest {
   displayName: string;
   preferredLocale: AppLocale;
   confirmation: string;
+  templateKey: CollectiveTemplateKey;
+  purpose: string;
+  participants: string;
+  memoryIntent: string;
+  activityIntent: string;
+  decisionStyle: string;
 }
 
 export type UiConstitution = Omit<Constitution, "guildId">;
@@ -223,6 +237,184 @@ export interface UiDirectory {
   nextInvitationCursor: string | null;
 }
 
+export interface UiCollectiveSpace {
+  id: string;
+  parentSpaceId: string | null;
+  name: string;
+  vocabularyProfileKey: CollectiveTemplateKey | null;
+  labels: CollectiveTemplateLabels;
+  canConfigure: boolean;
+}
+
+export interface UiCollectiveContext {
+  template: CollectiveTemplate;
+  templates: readonly CollectiveTemplate[];
+  labels: CollectiveTemplateLabels;
+  vocabularyOverrides: Partial<CollectiveTemplateLabels>;
+  onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
+  templateVersion: number;
+  spaces: readonly UiCollectiveSpace[];
+  canConfigure: boolean;
+  canConfigureSpaces: boolean;
+}
+
+export interface ConfigureCollectiveRequest {
+  templateKey: CollectiveTemplateKey;
+  vocabularyOverrides: Partial<CollectiveTemplateLabels>;
+  onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
+}
+
+export interface SetSpaceVocabularyRequest {
+  spaceId: string;
+  templateKey: CollectiveTemplateKey | null;
+}
+
+export interface UiMemoryCapabilities {
+  edit: boolean;
+  archive: boolean;
+  governed: boolean;
+}
+
+export interface UiMemory {
+  id: string;
+  spaceId: string | null;
+  ownerActorId: string;
+  createdByActorId: string;
+  type: MemoryType;
+  status: "active" | "archived";
+  workflow: "canonical" | null;
+  governanceState: KnowledgeState | null;
+  visibility: Visibility;
+  classification: Classification;
+  allowedActorIds: readonly string[];
+  currentVersion: number;
+  confidence: number | null;
+  sourceIds: readonly string[];
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  createdAt: string;
+  updatedAt: string;
+  capabilities: UiMemoryCapabilities;
+}
+
+export interface UiMemoryPage {
+  items: readonly UiMemory[];
+  nextCursor: string | null;
+  creatableSpaceIds: readonly string[];
+}
+
+export interface UiMemoryPageRequest {
+  cursor?: string | null;
+  type?: MemoryType | null;
+  search?: string | null;
+  includeArchived?: boolean;
+}
+
+export interface CreateMemoryRequest {
+  spaceId: string | null;
+  type: MemoryType;
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  visibility: Visibility;
+  classification: Classification;
+  allowedActorIds: readonly string[];
+  sourceIds: readonly string[];
+  confidence: number | null;
+  changeNote: string;
+}
+
+export interface SaveMemoryRequest {
+  memoryId: string;
+  expectedVersion: number;
+  title: LocalizedText;
+  summary: LocalizedText;
+  body: LocalizedText;
+  sourceIds: readonly string[];
+  changeNote: string;
+}
+
+export interface ArchiveMemoryRequest {
+  memoryId: string;
+  expectedVersion: number;
+}
+
+export interface UiActivityCapabilities {
+  changeStatus: boolean;
+  assign: boolean;
+  addChild: boolean;
+}
+
+export interface UiActivity {
+  id: string;
+  parentActivityId: string | null;
+  spaceId: string | null;
+  ownerActorId: string;
+  creatorActorId: string;
+  assigneeActorId: string | null;
+  type: ActivityType;
+  title: string;
+  description: string;
+  status: ActivityStatus;
+  visibility: Visibility;
+  classification: Classification;
+  allowedActorIds: readonly string[];
+  sourceIds: readonly string[];
+  startsAt: string | null;
+  dueAt: string | null;
+  position: number;
+  version: number;
+  compatibilitySourceType: "goal" | "project" | "quest" | "step" | null;
+  createdAt: string;
+  updatedAt: string;
+  capabilities: UiActivityCapabilities;
+}
+
+export interface UiActivityPage {
+  items: readonly UiActivity[];
+  nextCursor: string | null;
+  creatableSpaceIds: readonly string[];
+}
+
+export interface UiActivityPageRequest {
+  cursor?: string | null;
+  parentActivityId?: string | null;
+  assigneeActorId?: string | null;
+  types?: readonly ActivityType[];
+  statuses?: readonly ActivityStatus[];
+  search?: string | null;
+}
+
+export interface CreateActivityRequest {
+  parentActivityId: string | null;
+  spaceId: string | null;
+  assigneeActorId: string | null;
+  type: ActivityType;
+  title: string;
+  description: string;
+  status: ActivityStatus;
+  visibility: Visibility;
+  classification: Classification;
+  allowedActorIds: readonly string[];
+  sourceIds: readonly string[];
+  startsAt: string | null;
+  dueAt: string | null;
+  position: number;
+}
+
+export interface ChangeActivityStatusRequest {
+  activityId: string;
+  expectedVersion: number;
+  status: ActivityStatus;
+}
+
+export interface AssignActivityRequest {
+  activityId: string;
+  expectedVersion: number;
+  assigneeActorId: string | null;
+}
+
 export interface UiDirectoryRequest {
   identityCursor?: string | null;
   invitationCursor?: string | null;
@@ -304,6 +496,7 @@ export interface CreateAgentRequest {
 }
 
 export interface CreateServiceRequest {
+  kind?: "service" | "guild";
   displayName: string;
   clearance: Classification;
   roleId: string;
@@ -438,7 +631,10 @@ export interface AskGuildRequest {
 }
 
 export interface AskGuildCitation {
-  knowledgeId: string;
+  memoryId: string;
+  /** @deprecated Use memoryId. Null for Memory without the Canonical workflow. */
+  knowledgeId: string | null;
+  governed: boolean;
   version: number;
   title: string;
   summary: string;
@@ -580,6 +776,7 @@ export interface DecisionOptionRequest {
 
 export interface DecisionResourceRequest {
   spaceId: string | null;
+  method?: DecisionMethod;
   title: string;
   description: string;
   rationale: string;
@@ -862,6 +1059,9 @@ export interface ReviewAgentRunRequest {
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
   initializeGuild(input: InitializeGuildRequest): Promise<UiBootstrapState>;
+  getCollectiveContext(): Promise<UiCollectiveContext>;
+  configureCollective(input: ConfigureCollectiveRequest): Promise<UiCollectiveContext>;
+  setSpaceVocabulary(input: SetSpaceVocabularyRequest): Promise<UiCollectiveContext>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;
   rotateBreakGlassCodes(
     input: RotateBreakGlassCodesRequest,
@@ -900,6 +1100,14 @@ export interface GuildUiApi {
     identityId: string,
     nextState: "active" | "suspended" | "departed",
   ): Promise<void>;
+  getMemoryPage(request?: UiMemoryPageRequest): Promise<UiMemoryPage>;
+  createMemory(input: CreateMemoryRequest): Promise<string>;
+  saveMemory(input: SaveMemoryRequest): Promise<number>;
+  archiveMemory(input: ArchiveMemoryRequest): Promise<number>;
+  getActivityPage(request?: UiActivityPageRequest): Promise<UiActivityPage>;
+  createActivity(input: CreateActivityRequest): Promise<string>;
+  changeActivityStatus(input: ChangeActivityStatusRequest): Promise<number>;
+  assignActivity(input: AssignActivityRequest): Promise<number>;
   getKnowledgePage(request?: UiKnowledgePageRequest): Promise<UiKnowledgePage>;
   getKnowledge(knowledgeId: string): Promise<UiKnowledgeDetail>;
   createKnowledge(input: CreateKnowledgeRequest): Promise<string>;

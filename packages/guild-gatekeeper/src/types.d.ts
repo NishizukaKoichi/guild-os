@@ -9,7 +9,7 @@ export interface GuildOverview {
   name: string;
   purpose: string;
   identityId: string;
-  identityKind: "human" | "agent" | "service";
+  identityKind: "human" | "agent" | "service" | "guild";
   membershipState: "invited" | "preboarding" | "active" | "suspended" | "departed";
   rootOwner: boolean;
   globalPermissions: string[];
@@ -25,9 +25,21 @@ export interface GuildKnowledgeSearchResult {
   spaceId: string | null;
 }
 
+export interface GuildMemorySearchResult {
+  memoryId: string;
+  version: number;
+  type: string;
+  governed: boolean;
+  title: string;
+  summary: string;
+  content: string;
+  spaceId: string | null;
+}
+
 export interface GuildAgentLimits {
   currency: string;
   maxBudgetMinor: number;
+  maxTokens: number;
   maxDurationSeconds: number;
   maxSteps: number;
   maxRetries: number;
@@ -92,6 +104,11 @@ export interface GuildSession {
     query: string,
     locale?: "en" | "ja" | "zh-CN",
   ): Promise<GuildKnowledgeSearchResult[]>;
+  /** Searches permission-filtered Guild Memory before any content enters model context. */
+  searchMemory(
+    query: string,
+    locale?: "en" | "ja" | "zh-CN",
+  ): Promise<GuildMemorySearchResult[]>;
   /** Discovers only the Agents, Spaces, and Connectors that can form a valid governed run. */
   getAgentExecutionContext(): Promise<GuildAgentExecutionContext>;
   /** Stages a Risk Level 2 write to the deployment-owned webhook for human approval. */

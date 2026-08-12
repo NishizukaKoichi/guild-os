@@ -13,27 +13,28 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { GuildUiApi, UiDirectory, UiMemberBootstrapState } from "../../src/management-types";
+import type { GuildUiApi, UiCollectiveContext, UiDirectory, UiMemberBootstrapState } from "../../src/management-types";
 import type { AppPage } from "../components/AppShell";
 import { useI18n } from "../i18n";
 
 interface HomeOverview {
-  knowledgeCount: number | null;
-  openWorkCount: number | null;
+  memoryCount: number | null;
+  openActivityCount: number | null;
   unreadCount: number | null;
   pendingApprovalCount: number | null;
 }
 
 const EMPTY_OVERVIEW: HomeOverview = {
-  knowledgeCount: null,
-  openWorkCount: null,
+  memoryCount: null,
+  openActivityCount: null,
   unreadCount: null,
   pendingApprovalCount: null,
 };
 
-export function HomePage({ api, bootstrap, directory, onNavigate }: {
+export function HomePage({ api, bootstrap, collective, directory, onNavigate }: {
   api: GuildUiApi;
   bootstrap: UiMemberBootstrapState;
+  collective: UiCollectiveContext;
   directory: UiDirectory | null;
   onNavigate(page: AppPage): void;
 }) {
@@ -44,18 +45,15 @@ export function HomePage({ api, bootstrap, directory, onNavigate }: {
   useEffect(() => {
     let current = true;
     void Promise.allSettled([
-      api.getKnowledgePage(),
-      api.getWorkPage({
-        assigneeIdentityId: bootstrap.accountId,
-        questStatuses: ["backlog", "ready", "in_progress", "blocked"],
-      }),
+      api.getMemoryPage(),
+      api.getActivityPage({ assigneeActorId: bootstrap.accountId, statuses: ["proposed", "planned", "ready", "active", "paused", "blocked"] }),
       api.getInboxPage({ unreadOnly: true }),
       api.getAgentRunPage(),
     ]).then(([knowledge, work, inbox, runs]) => {
       if (!current) return;
       setOverview({
-        knowledgeCount: knowledge.status === "fulfilled" ? knowledge.value.items.length : null,
-        openWorkCount: work.status === "fulfilled" ? work.value.quests.length : null,
+        memoryCount: knowledge.status === "fulfilled" ? knowledge.value.items.length : null,
+        openActivityCount: work.status === "fulfilled" ? work.value.items.length : null,
         unreadCount: inbox.status === "fulfilled" ? inbox.value.unreadCount : null,
         pendingApprovalCount: runs.status === "fulfilled"
           ? runs.value.items.filter((run) => run.status === "awaiting_approval" && run.capabilities.review).length
@@ -69,29 +67,29 @@ export function HomePage({ api, bootstrap, directory, onNavigate }: {
   }, [api, bootstrap.accountId]);
 
   const pendingInvitations = directory?.invitations.filter((invitation) => invitation.state === "pending").length ?? 0;
-  const humanCount = directory?.identities.filter((identity) =>
-    identity.kind === "human" && identity.membershipState !== "departed").length ?? 0;
+  const memberCount = directory?.identities.filter((identity) =>
+    identity.membershipState !== "departed").length ?? 0;
   const setupSteps = [
     {
-      id: "knowledge",
+      id: "memory",
       label: t("home.setupKnowledge"),
-      complete: overview.knowledgeCount !== null && overview.knowledgeCount > 0,
+      complete: overview.memoryCount !== null && overview.memoryCount > 0,
       icon: BookOpen,
-      page: "knowledge" as const,
+      page: "memory" as const,
     },
     {
-      id: "people",
+      id: "members",
       label: t("home.setupPeople"),
-      complete: humanCount > 1 || pendingInvitations > 0,
+      complete: memberCount > 1 || pendingInvitations > 0,
       icon: Users,
-      page: "people" as const,
+      page: "members" as const,
     },
     {
       id: "agent",
       label: t("home.setupAgent"),
       complete: Boolean(directory?.agentProfiles.length),
       icon: Bot,
-      page: "agents" as const,
+      page: "members" as const,
     },
     {
       id: "recovery",
@@ -113,18 +111,18 @@ export function HomePage({ api, bootstrap, directory, onNavigate }: {
       page: "ask" as const,
     },
     {
-      id: "knowledge",
-      title: t("home.actionKnowledgeTitle"),
+      id: "memory",
+      title: collective.labels.remember,
       description: t("home.actionKnowledgeDescription"),
       icon: BookOpen,
-      page: "knowledge" as const,
+      page: "memory" as const,
     },
     {
-      id: "work",
-      title: t("home.actionWorkTitle"),
+      id: "activity",
+      title: collective.labels.startActivity,
       description: t("home.actionWorkDescription"),
       icon: ListTodo,
-      page: "work" as const,
+      page: "activity" as const,
     },
     {
       id: "inbox",
@@ -148,14 +146,14 @@ export function HomePage({ api, bootstrap, directory, onNavigate }: {
       label: t("home.pendingApprovals"),
       value: overview.pendingApprovalCount,
       icon: CheckCircle2,
-      page: "agents" as const,
+      page: "members" as const,
     } : null,
-    overview.openWorkCount !== null && overview.openWorkCount > 0 ? {
-      id: "work",
+    overview.openActivityCount !== null && overview.openActivityCount > 0 ? {
+      id: "activity",
       label: t("home.openWork"),
-      value: overview.openWorkCount,
+      value: overview.openActivityCount,
       icon: ListTodo,
-      page: "work" as const,
+      page: "activity" as const,
     } : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null);
 

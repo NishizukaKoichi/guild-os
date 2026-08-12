@@ -26,6 +26,7 @@ export function makeSnapshot(): AuthorizationSnapshot {
       agentDefaults: {
         currency: "AUD",
         maxBudgetMinor: 1_000,
+        maxTokens: 100_000,
         maxDurationSeconds: 900,
         maxSteps: 20,
         maxRetries: 2,
@@ -77,6 +78,7 @@ export function makeSnapshot(): AuthorizationSnapshot {
       limits: {
         currency: "AUD",
         maxBudgetMinor: 500,
+        maxTokens: 100_000,
         maxDurationSeconds: 600,
         maxSteps: 10,
         maxRetries: 1,

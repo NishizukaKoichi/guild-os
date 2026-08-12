@@ -140,6 +140,10 @@ function ConstitutionDialog({
                 <input required type="number" min={0} step={1} value={agentDefaults.maxBudgetMinor} onChange={(event) => setLimit("maxBudgetMinor", Number(event.target.value))} />
               </label>
               <label>
+                <span>{t("agents.tokens")}</span>
+                <input required type="number" min={1} step={1} value={agentDefaults.maxTokens} onChange={(event) => setLimit("maxTokens", Number(event.target.value))} />
+              </label>
+              <label>
                 <span>{t("agents.duration")}</span>
                 <input required type="number" min={1} step={1} value={agentDefaults.maxDurationSeconds} onChange={(event) => setLimit("maxDurationSeconds", Number(event.target.value))} />
               </label>
@@ -218,6 +222,7 @@ export function ConstitutionManager({
         <div><dt>{t("settings.level3Quorum")}</dt><dd>{constitution.level3ApprovalQuorum}</dd></div>
         <div><dt>{t("settings.retentionDays")}</dt><dd>{constitution.dataRetentionDays}</dd></div>
         <div><dt>{t("settings.agentBudget")}</dt><dd>{constitution.agentDefaults.maxBudgetMinor} {constitution.agentDefaults.currency}</dd></div>
+        <div><dt>{t("settings.agentTokens")}</dt><dd>{constitution.agentDefaults.maxTokens}</dd></div>
         <div><dt>{t("settings.constitutionUpdated")}</dt><dd>{updatedLabel}</dd></div>
       </dl>
       <Notice>{t(rootOwner ? "settings.constitutionRootOnly" : "settings.constitutionReadOnly")}</Notice>

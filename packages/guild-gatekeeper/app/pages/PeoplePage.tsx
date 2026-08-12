@@ -1,5 +1,6 @@
 import {
   Check,
+  Bot,
   Clipboard,
   LogOut,
   Plus,
@@ -14,27 +15,33 @@ import {
 import { useMemo, useState } from "react";
 import type {
   AssignRoleRequest,
+  CreateAgentRequest,
   CreateServiceRequest,
+  GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
   UiMemberBootstrapState,
   UiDirectory,
   UiDirectoryIdentity,
+  UiCollectiveContext,
 } from "../../src/management-types";
+import { AgentDialog } from "../components/AgentDialog";
+import { AgentRunsPanel } from "../components/AgentRunsPanel";
 import { IdentityRoleDialog } from "../components/IdentityRoleDialog";
 import { InviteDialog } from "../components/InviteDialog";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { ServiceDialog } from "../components/ServiceDialog";
+import { actorKindLabel, membershipStateLabel } from "../collective-language";
 import {
-  identityTranslationKey,
   invitationTranslationKey,
-  membershipTranslationKey,
   useI18n,
 } from "../i18n";
 
 interface PeoplePageProps {
+  api: GuildUiApi;
   bootstrap: UiMemberBootstrapState;
+  collective: UiCollectiveContext;
   directory: UiDirectory;
   onIssue(input: IssueInvitationInput): Promise<IssuedInvitation>;
   onRevoke(invitationId: string): Promise<void>;
@@ -49,12 +56,15 @@ interface PeoplePageProps {
   onAssignRole(input: AssignRoleRequest): Promise<void>;
   onRemoveRole(bindingId: string): Promise<void>;
   onCreateService(input: CreateServiceRequest): Promise<void>;
+  onCreateAgent(input: CreateAgentRequest): Promise<void>;
   onLoadMoreIdentities: (() => Promise<void>) | null;
   onLoadMoreInvitations: (() => Promise<void>) | null;
 }
 
 export function PeoplePage({
+  api,
   bootstrap,
+  collective,
   directory,
   onIssue,
   onRevoke,
@@ -63,12 +73,15 @@ export function PeoplePage({
   onAssignRole,
   onRemoveRole,
   onCreateService,
+  onCreateAgent,
   onLoadMoreIdentities,
   onLoadMoreInvitations,
 }: PeoplePageProps) {
   const { locale, t } = useI18n();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serviceOpen, setServiceOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [kindFilter, setKindFilter] = useState<"all" | UiDirectoryIdentity["kind"]>("all");
   const [roleIdentity, setRoleIdentity] = useState<UiDirectoryIdentity | null>(null);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   const [copied, setCopied] = useState(false);
@@ -77,6 +90,13 @@ export function PeoplePage({
   const [loadingMore, setLoadingMore] = useState<"identities" | "invitations" | null>(null);
   const roles = useMemo(() => new Map(directory.roles.map((role) => [role.id, role.name])), [directory.roles]);
   const spaces = useMemo(() => new Map(directory.spaces.map((space) => [space.id, space.name])), [directory.spaces]);
+  const profiles = useMemo(() => new Map(directory.agentProfiles.map((profile) => [profile.identityId, profile])), [directory.agentProfiles]);
+  const operationalIdentities = useMemo(() => collective.template.key === "agent-collective"
+    ? directory.identities.filter((identity) => identity.id !== bootstrap.rootOwnerIdentityId)
+    : directory.identities, [bootstrap.rootOwnerIdentityId, collective.template.key, directory.identities]);
+  const visibleIdentities = useMemo(() => kindFilter === "all"
+    ? operationalIdentities
+    : operationalIdentities.filter((identity) => identity.kind === kindFilter), [kindFilter, operationalIdentities]);
   const bindingsByIdentity = useMemo(() => {
     const map = new Map<string, typeof directory.roleBindings>();
     for (const identity of directory.identities) {
@@ -114,7 +134,7 @@ export function PeoplePage({
     if (nextState === "suspended" && !window.confirm(t("people.confirmSuspend"))) return;
     if (identity.kind === "human" && nextState === "departed" &&
         !window.confirm(t("people.confirmDepart"))) return;
-    if (identity.kind === "service" && nextState === "departed" &&
+    if (identity.kind !== "human" && nextState === "departed" &&
         !window.confirm(t("people.confirmServiceDepart"))) return;
     setBusy(identity.id);
     setError(null);
@@ -154,14 +174,19 @@ export function PeoplePage({
   return (
     <>
       <PageHeader
-        title={t("people.title")}
-        subtitle={t("people.subtitle")}
+        title={collective.labels.members}
+        subtitle={t("members.subtitle")}
         action={directory.capabilities.manageMemberships ||
           directory.capabilities.manageIdentities && directory.capabilities.manageRoles ? (
             <div className="action-group">
+              {directory.capabilities.manageAgents && directory.capabilities.manageRoles ? (
+                <button className="secondary-button" type="button" onClick={() => setAgentOpen(true)}>
+                  <Bot size={17} /><span>{t("agents.create")}</span>
+                </button>
+              ) : null}
               {directory.capabilities.manageIdentities && directory.capabilities.manageRoles ? (
                 <button className="secondary-button" type="button" onClick={() => setServiceOpen(true)}>
-                  <ServerCog size={17} /><span>{t("people.addService")}</span>
+                  <ServerCog size={17} /><span>{t("members.addMachine")}</span>
                 </button>
               ) : null}
               {directory.capabilities.manageMemberships ? (
@@ -175,7 +200,16 @@ export function PeoplePage({
       {error ? <Notice kind="error">{error}</Notice> : null}
 
       <section className="content-section">
-        <div className="section-heading-row compact-heading"><h2>{t("people.members")}</h2><span>{directory.identities.length}</span></div>
+        <div className="section-heading-row compact-heading members-heading-row">
+          <div><h2>{collective.labels.members}</h2><span>{visibleIdentities.length}</span></div>
+          <div className="segmented-control" role="group" aria-label={t("members.filter")}>
+            {(["all", "human", "agent", "service", "guild"] as const).map((kind) => (
+              <button className={kindFilter === kind ? "segment-active" : ""} type="button" key={kind} aria-pressed={kindFilter === kind} onClick={() => setKindFilter(kind)}>
+                {kind === "all" ? t("members.filterAll") : actorKindLabel(kind, collective.labels)}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="data-table identity-table">
           <div className="data-table-head">
             <span>{t("people.members")}</span>
@@ -184,24 +218,25 @@ export function PeoplePage({
             <span>{t("people.status")}</span>
             <span className="align-right">{t("people.actions")}</span>
           </div>
-          {directory.identities.map((identity) => {
+          {visibleIdentities.map((identity) => {
             const bindings = bindingsByIdentity.get(identity.id) ?? [];
+            const profile = profiles.get(identity.id);
             const isRoot = identity.id === bootstrap.rootOwnerIdentityId;
             const isBusy = busy === identity.id;
             return (
               <article className="data-row" key={identity.id}>
                 <div className="identity-cell">
                   <span className="identity-avatar" aria-hidden="true">{identity.displayName.slice(0, 1).toUpperCase()}</span>
-                  <div><strong>{identity.displayName}</strong>{isRoot ? <small><Shield size={12} />{t("people.root")}</small> : null}</div>
+                  <div><strong>{identity.displayName}</strong>{isRoot ? <small><Shield size={12} />{t("people.root")}</small> : profile ? <small>{profile.model} · {profile.limits.maxBudgetMinor} {profile.limits.currency}</small> : null}</div>
                 </div>
-                <div data-label={t("people.kind")}>{t(identityTranslationKey(identity.kind))}</div>
+                <div data-label={t("people.kind")}>{actorKindLabel(identity.kind, collective.labels)}</div>
                 <div className="binding-list" data-label={t("people.role")}>
                   {bindings.length === 0 ? <span>{t("people.noRole")}</span> : bindings.map((binding) => (
                     <span key={binding.id}>{roles.get(binding.roleId) ?? t("common.unknown")} · {binding.spaceId ? spaces.get(binding.spaceId) ?? t("common.unknown") : t("people.global")}</span>
                   ))}
                 </div>
                 <div data-label={t("people.status")}>
-                  <span className={`status-pill status-${identity.membershipState}`}>{t(membershipTranslationKey(identity.membershipState))}</span>
+                  <span className={`status-pill status-${identity.membershipState}`}>{membershipStateLabel(identity.membershipState, collective.template.key, locale)}</span>
                 </div>
                 <div className="row-actions">
                   {directory.capabilities.manageRoles ? (
@@ -223,7 +258,8 @@ export function PeoplePage({
                       ) : null}
                     </>
                   ) : null}
-                  {directory.capabilities.manageIdentities && identity.kind === "service" ? (
+                  {(identity.kind === "agent" ? directory.capabilities.stopAgents : directory.capabilities.manageIdentities) &&
+                    (identity.kind === "agent" || identity.kind === "service" || identity.kind === "guild") ? (
                     <>
                       {identity.membershipState === "active" ? (
                         <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "suspended")}><UserX size={16} />{t("people.suspend")}</button>
@@ -238,7 +274,7 @@ export function PeoplePage({
                   ) : null}
                   {!directory.capabilities.manageRoles &&
                     !(directory.capabilities.manageMemberships && identity.kind === "human" && !isRoot) &&
-                    !(directory.capabilities.manageIdentities && identity.kind === "service") ? <span className="muted-dash">-</span> : null}
+                    !((identity.kind === "agent" ? directory.capabilities.stopAgents : directory.capabilities.manageIdentities) && identity.kind !== "human") ? <span className="muted-dash">-</span> : null}
                 </div>
               </article>
             );
@@ -276,8 +312,11 @@ export function PeoplePage({
         </section>
       ) : null}
 
-      {inviteOpen ? <InviteDialog directory={directory} onClose={() => setInviteOpen(false)} onIssue={issue} /> : null}
+      <AgentRunsPanel api={api} directory={directory} />
+
+      {inviteOpen ? <InviteDialog collective={collective} directory={directory} onClose={() => setInviteOpen(false)} onIssue={issue} /> : null}
       {serviceOpen ? <ServiceDialog directory={directory} onCreate={onCreateService} onClose={() => setServiceOpen(false)} /> : null}
+      {agentOpen ? <AgentDialog directory={directory} defaults={bootstrap.agentDefaults} onCreate={onCreateAgent} onClose={() => setAgentOpen(false)} /> : null}
       {roleIdentity ? (
         <IdentityRoleDialog
           directory={directory}

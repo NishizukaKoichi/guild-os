@@ -37,6 +37,7 @@ function constitution(guildId: string, rootId: string): Constitution {
     agentDefaults: {
       currency: "USD",
       maxBudgetMinor: 1000,
+      maxTokens: 100_000,
       maxDurationSeconds: 900,
       maxSteps: 20,
       maxRetries: 2,
@@ -109,10 +110,10 @@ integration("Guild Work service authorization boundary", () => {
         `INSERT INTO agent_profiles
            (guild_id, identity_id, instructions, model, tool_ids, limits, status)
          VALUES ($1, $2, 'Execute eligible work.', 'test/model', '{}',
-                 '{"currency":"USD","maxBudgetMinor":100,"maxDurationSeconds":60,"maxSteps":5,"maxRetries":1,"maxDelegationDepth":0}',
+                 '{"currency":"USD","maxBudgetMinor":100,"maxTokens":100000,"maxDurationSeconds":60,"maxSteps":5,"maxRetries":1,"maxDelegationDepth":0}',
                  'active'),
                 ($1, $3, 'Remain in denied scope.', 'test/model', '{}',
-                 '{"currency":"USD","maxBudgetMinor":100,"maxDurationSeconds":60,"maxSteps":5,"maxRetries":1,"maxDelegationDepth":0}',
+                 '{"currency":"USD","maxBudgetMinor":100,"maxTokens":100000,"maxDurationSeconds":60,"maxSteps":5,"maxRetries":1,"maxDelegationDepth":0}',
                  'active')`,
         [ids.guild, ids.eligibleAgent, ids.deniedAgent],
       );

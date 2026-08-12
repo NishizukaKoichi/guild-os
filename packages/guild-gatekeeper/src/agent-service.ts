@@ -116,9 +116,12 @@ function assertInput(input: CreateAgentWebhookRunRequest): void {
     },
     estimatedUsage: input.estimatedUsage,
   });
-  if (input.estimatedUsage.budgetMinor !== 0 || input.estimatedUsage.retries !== 0 ||
+  if (input.estimatedUsage.budgetMinor !== 0 || input.estimatedUsage.tokens !== 0 ||
+      input.estimatedUsage.retries !== 0 ||
       input.estimatedUsage.delegationDepth !== 0) {
-    throw new Error("The v1 Webhook action requires zero budget, retries, and delegation depth.");
+    throw new Error(
+      "The v1 Webhook action requires zero budget, tokens, retries, and delegation depth.",
+    );
   }
 }
 
@@ -834,6 +837,7 @@ export class GuildAgentService {
           limits,
           usage: {
             budgetMinor: 0,
+            tokens: 0,
             durationSeconds: 0,
             steps: 0,
             retries: 0,

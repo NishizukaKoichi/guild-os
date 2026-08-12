@@ -12,6 +12,7 @@ export interface AgentWorkflowParams {
 
 const ZERO_USAGE: AgentRunUsage = {
   budgetMinor: 0,
+  tokens: 0,
   durationSeconds: 0,
   steps: 0,
   retries: 0,
@@ -44,6 +45,7 @@ function boundedFailureUsage(
   if (!claim) return ZERO_USAGE;
   return {
     budgetMinor: 0,
+    tokens: 0,
     durationSeconds: Math.min(
       claim.effectiveLimits.maxDurationSeconds,
       Math.max(0, Math.ceil((Date.now() - startedAt) / 1_000)),
@@ -123,6 +125,7 @@ export class AgentExecutionWorkflow extends WorkflowEntrypoint<GuildEnv, AgentWo
       );
       const usage: AgentRunUsage = {
         budgetMinor: 0,
+        tokens: 0,
         durationSeconds: delivery.durationSeconds,
         steps: claim.plannedSteps,
         retries: 0,

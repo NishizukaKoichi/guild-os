@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type FrameLocator, type Page } from "playwright/test";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -9,6 +9,21 @@ function collectBrowserErrors(page: Page): string[] {
   });
   page.on("pageerror", (error) => errors.push(`page: ${error.message}`));
   return errors;
+}
+
+async function fillInitialization(app: Page | FrameLocator) {
+  await app.getByRole("button", { name: "Continue", exact: true }).click();
+  await app.getByLabel("Who or what participates?", { exact: true })
+    .fill("People, agents, services, and partner collectives");
+  await app.getByLabel("What should it remember?", { exact: true })
+    .fill("Evidence, decisions, experiences, and reusable methods");
+  await app.getByLabel("What will it do together?", { exact: true })
+    .fill("Research, discussions, events, and shared activities");
+  await app.getByLabel("How will it decide?", { exact: true })
+    .fill("Consent with explicit review for high-impact actions");
+  await app.getByLabel("Root Owner display name", { exact: true }).fill("Jordan Lee");
+  await app.getByLabel("Type the Guild name to confirm", { exact: true })
+    .fill("Commonweal Research Guild");
 }
 
 async function mountSandboxedStandaloneApp(
@@ -57,10 +72,9 @@ test("requires explicit confirmation before the Workshop administrator becomes R
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=uninitialized-admin");
 
-  await expect(page.getByRole("heading", { name: "Initialize this Guild", exact: true })).toBeVisible();
-  await page.getByLabel("Root Owner display name", { exact: true }).fill("Jordan Lee");
-  await page.getByLabel("Type the Guild name to confirm", { exact: true })
-    .fill("Commonweal Research Guild");
+  await expect(page.getByRole("heading", { name: "What kind of collective are you creating?", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Blank Guild/ })).toHaveAttribute("aria-pressed", "true");
+  await fillInitialization(page);
   await page.getByRole("button", {
     name: "Initialize and become Root Owner",
     exact: true,
@@ -68,6 +82,9 @@ test("requires explicit confirmation before the Workshop administrator becomes R
 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
+  await page.getByRole("button", { name: "Members", exact: true }).click();
+  await expect(page.getByText(/Coordinator/)).toBeVisible();
+  await expect(page.getByText(/Employee|Manager|Preboarding/)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -97,9 +114,7 @@ test("initializes inside the Cloudflare OS form-restricted sandbox", async ({ pa
   await page.setViewportSize({ width: 1440, height: 1000 });
   const app = await mountSandboxedStandaloneApp(page, "uninitialized-admin");
 
-  await app.getByLabel("Root Owner display name", { exact: true }).fill("Jordan Lee");
-  await app.getByLabel("Type the Guild name to confirm", { exact: true })
-    .fill("Commonweal Research Guild");
+  await fillInitialization(app);
   await app.getByRole("button", {
     name: "Initialize and become Root Owner",
     exact: true,
@@ -113,9 +128,8 @@ test("supports keyboard submission in the form-restricted sandbox", async ({ pag
   const errors = collectBrowserErrors(page);
   const app = await mountSandboxedStandaloneApp(page, "uninitialized-admin");
 
-  await app.getByLabel("Root Owner display name", { exact: true }).fill("Jordan Lee");
+  await fillInitialization(app);
   const confirmation = app.getByLabel("Type the Guild name to confirm", { exact: true });
-  await confirmation.fill("Commonweal Research Guild");
   await confirmation.press("Enter");
 
   await expect(app.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
@@ -126,7 +140,8 @@ test("opens the native Knowledge file chooser inside the Cloudflare OS sandbox",
   const errors = collectBrowserErrors(page);
   const app = await mountSandboxedStandaloneApp(page, "root");
 
-  await app.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await app.locator(".nav-group-toggle").filter({ hasText: /^More$/ }).click();
+  await app.getByRole("button", { name: "Canonical memory", exact: true }).click();
   page.once("dialog", (confirmation) => confirmation.accept());
   await app.getByRole("button", { name: "Start revision", exact: true }).click();
   await expect(app.getByText("Draft", { exact: true }).first()).toBeVisible();

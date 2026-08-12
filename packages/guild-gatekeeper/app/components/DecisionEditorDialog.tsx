@@ -4,6 +4,7 @@ import {
   CLASSIFICATIONS,
   VISIBILITIES,
   type Classification,
+  type DecisionMethod,
   type Visibility,
 } from "@guild-os/domain";
 import type {
@@ -11,8 +12,10 @@ import type {
   GuildUiApi,
   SaveDecisionDraftRequest,
   UiDecisionDetail,
+  UiCollectiveContext,
   UiDirectory,
 } from "../../src/management-types";
+import { decisionMethodLabel } from "../collective-language";
 import {
   classificationTranslationKey,
   useI18n,
@@ -28,6 +31,7 @@ interface DraftOption {
 
 interface DecisionEditorDialogProps {
   api: GuildUiApi;
+  collective: UiCollectiveContext;
   directory: UiDirectory;
   detail: UiDecisionDetail | null;
   onSaved(decisionId: string): Promise<void>;
@@ -60,14 +64,21 @@ function initialOptions(detail: UiDecisionDetail | null): DraftOption[] {
   }));
 }
 
+function templateForSpace(collective: UiCollectiveContext, targetSpaceId: string) {
+  const profileKey = collective.spaces.find((space) => space.id === targetSpaceId)
+    ?.vocabularyProfileKey;
+  return collective.templates.find((template) => template.key === profileKey) ?? collective.template;
+}
+
 export function DecisionEditorDialog({
   api,
+  collective,
   directory,
   detail,
   onSaved,
   onClose,
 }: DecisionEditorDialogProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const activeSpaces = useMemo(
     () => directory.spaces.filter((space) => space.status === "active"),
     [directory.spaces],
@@ -77,6 +88,14 @@ export function DecisionEditorDialog({
   const [description, setDescription] = useState(current?.description ?? "");
   const [rationale, setRationale] = useState(current?.rationale ?? "");
   const [spaceId, setSpaceId] = useState(current?.spaceId ?? activeSpaces[0]?.id ?? "");
+  const [method, setMethod] = useState<DecisionMethod>(
+    current?.method ?? templateForSpace(collective, current?.spaceId ?? activeSpaces[0]?.id ?? "")
+      .decisionMethods[0] ?? "custodian",
+  );
+  const methodOptions = useMemo(() => {
+    const methods = templateForSpace(collective, spaceId).decisionMethods;
+    return methods.includes(method) ? methods : [method, ...methods];
+  }, [collective, method, spaceId]);
   const [visibility, setVisibility] = useState<Visibility>(current?.visibility ?? "space");
   const [classification, setClassification] = useState<Classification>(
     current?.classification ?? "internal",
@@ -112,6 +131,7 @@ export function DecisionEditorDialog({
     try {
       const resource: CreateDecisionRequest = {
         spaceId: spaceId || null,
+        method,
         title,
         description,
         rationale,
@@ -172,7 +192,12 @@ export function DecisionEditorDialog({
           <div className="form-grid">
             <label>
               <span>{t("decision.space")}</span>
-              <select value={spaceId} onChange={(event) => setSpaceId(event.target.value)}>
+              <select value={spaceId} onChange={(event) => {
+                const nextSpaceId = event.target.value;
+                const nextMethods = templateForSpace(collective, nextSpaceId).decisionMethods;
+                setSpaceId(nextSpaceId);
+                if (!nextMethods.includes(method)) setMethod(nextMethods[0] ?? "custodian");
+              }}>
                 <option value="">{t("people.global")}</option>
                 {activeSpaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
               </select>
@@ -180,6 +205,14 @@ export function DecisionEditorDialog({
             <label>
               <span>{t("decision.reviewAt")}</span>
               <input type="datetime-local" value={reviewAt} onChange={(event) => setReviewAt(event.target.value)} />
+            </label>
+            <label>
+              <span>{t("decision.method")}</span>
+              <select value={method} onChange={(event) => setMethod(event.target.value as DecisionMethod)}>
+                {methodOptions.map((value) => (
+                  <option key={value} value={value}>{decisionMethodLabel(value, locale)}</option>
+                ))}
+              </select>
             </label>
           </div>
           <div className="form-grid">

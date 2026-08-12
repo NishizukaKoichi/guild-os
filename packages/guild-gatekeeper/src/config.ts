@@ -1,4 +1,4 @@
-import { PERMISSIONS, ROOT_ONLY_PERMISSIONS, type Permission } from "@guild-os/domain";
+import { collectiveTemplate, type Permission } from "@guild-os/domain";
 import type {
   AccountDescription,
   VendorDescription,
@@ -45,79 +45,14 @@ export const GUILD_ICON = {
     ),
 };
 
+/** @deprecated Initialization derives roles from the selected Collective template. */
 export const BUILTIN_ROLES: readonly {
   name: string;
   permissions: readonly Permission[];
-}[] = [
-  {
-    name: "Admin",
-    permissions: PERMISSIONS.filter((permission) => !ROOT_ONLY_PERMISSIONS.has(permission)),
-  },
-  {
-    name: "Manager",
-    permissions: [
-      "guild.read",
-      "constitution.read",
-      "space.read",
-      "identity.read",
-      "membership.read",
-      "role.read",
-      "knowledge.read",
-      "knowledge.create",
-      "knowledge.propose",
-      "knowledge.approve",
-      "file.read",
-      "file.create",
-      "file.delete",
-      "work.read",
-      "work.create",
-      "work.assign",
-      "decision.read",
-      "decision.propose",
-      "decision.approve",
-      "conversation.read",
-      "conversation.create",
-      "conversation.moderate",
-      "announcement.read",
-      "announcement.manage",
-      "agent.read",
-      "agent.run",
-      "agent.approve",
-      "inbox.read",
-      "chronicle.read",
-      "integration.read",
-      "integration.execute",
-    ],
-  },
-  {
-    name: "Member",
-    permissions: [
-      "guild.read",
-      "constitution.read",
-      "space.read",
-      "identity.read",
-      "membership.read",
-      "role.read",
-      "knowledge.read",
-      "knowledge.create",
-      "knowledge.propose",
-      "file.read",
-      "file.create",
-      "work.read",
-      "work.create",
-      "decision.read",
-      "decision.propose",
-      "conversation.read",
-      "conversation.create",
-      "announcement.read",
-      "agent.read",
-      "agent.run",
-      "inbox.read",
-      "integration.read",
-      "integration.execute",
-    ],
-  },
-];
+}[] = collectiveTemplate("blank").roles.map((role) => ({
+  name: role.name,
+  permissions: role.capabilities,
+}));
 
 export function describeGuildVendor(): VendorDescription {
   return {
