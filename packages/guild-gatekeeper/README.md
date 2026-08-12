@@ -113,4 +113,7 @@ pnpm exec wrangler deploy --dry-run
 ```
 
 The management iframe is bundled into one HTML file. It performs the Cloudflare OS MessagePort RPC
-handshake and makes no network requests from the sandbox.
+handshake and makes no network requests from the sandbox. Cloudflare OS intentionally omits
+`allow-forms`; the bundled app keeps that boundary closed and translates validated submit-control
+clicks and single-line Enter presses into cancellable React submit events. The production-like E2E
+suite mounts the exact single-file bundle under the same sandbox flags.

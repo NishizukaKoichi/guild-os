@@ -2,6 +2,7 @@ import { RpcTarget, newMessagePortRpcSession, type RpcStub } from "capnweb";
 import { createRoot } from "react-dom/client";
 import type { GuildUiApi } from "../src/management-types";
 import { App } from "./App";
+import { installFormSubmitBridge } from "./form-submit-bridge";
 import { I18nProvider } from "./i18n";
 import "./styles.css";
 
@@ -13,6 +14,8 @@ interface HostCapability extends RpcTarget {
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing Guild application root.");
+
+installFormSubmitBridge(document);
 
 function render(api: GuildUiApi) {
   createRoot(root!).render(
