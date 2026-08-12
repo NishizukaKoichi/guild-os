@@ -95,12 +95,21 @@ product requirement must be resolved explicitly rather than silently weakened.
   Human mentions, Inbox delivery, append-only messages, audited lock/unlock, and redaction have
   PostgreSQL and Gatekeeper integration coverage. Knowledge, Quest, and Decision expose the shared
   responsive comments panel in the v1 UI.
+- The Gatekeeper now separates liveness from database/schema readiness, denies unrelated HTTP
+  paths, and emits bounded maintenance counts without Guild content or exception messages.
+- Production operations are implemented as executable tools: exact database/TLS/RLS preflight,
+  partial-to-complete Cloudflare resource locking, Git-annotated clean-source deploys, redacted
+  release evidence, Access/receiver smoke evidence, consistent PostgreSQL/KV/R2/Access backup,
+  checksum verification, and non-destructive KV restore preparation. ADR 0016 records the
+  purchaser-owned recovery boundary.
 - No Cloudflare resources have been created or deployed.
 
 ## Next sequence
 
-1. Complete bootstrap privacy, operational recovery/export, and release observability tooling.
-2. Run full local release verification and produce an immutable release manifest.
-3. Provision the purchaser-owned production resources, deploy, and run the complete owner-to-agent
+1. Make the root deployment lockfile authoritative for the Cloudflare OS build and eliminate the
+   audited vulnerable transitive build dependency without mutating the pinned submodule.
+2. Produce the clean committed local release evidence and complete release-source review.
+3. Provision the purchaser-owned PostgreSQL, Hyperdrive, Access, domain, and Cloudflare resources,
+   deploy, and run the complete owner-to-agent
    smoke test.
 4. Record the production evidence in the v1 completion matrix and release manifest.

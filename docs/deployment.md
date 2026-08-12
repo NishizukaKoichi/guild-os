@@ -26,6 +26,8 @@ unreviewed changes.
    where available, and a dedicated non-superuser application role.
 2. Run `pnpm db:migrate` with the direct database URL. Never put that URL in Git or
    `deployment.jsonc`.
+   Then run `pnpm db:verify`; production verification requires PostgreSQL 17+, TLS, a non-superuser
+   role without `BYPASSRLS`, exact migration checksums, and forced RLS on every Guild table.
 3. Create a Hyperdrive configuration for that database and record its 32-character ID.
 4. Choose the Workshop hostname. For an evaluation deployment, use a `workersDev` route. For
    production, use a hostname in a purchaser-owned Cloudflare zone.
@@ -57,9 +59,17 @@ production use:
 - KV namespace IDs and R2 bucket names after automatic provisioning
 - Per-Identity Ask and emergency-recovery attempt limits
 
-For first deployment, `null` KV/R2 values allow Wrangler automatic provisioning. Immediately after
-the deploy, record the created namespace IDs and bucket names in `deployment.jsonc`; explicit
-identifiers are required for reproducible recovery into existing resources.
+For first deployment, `null` KV/R2 values allow Wrangler automatic provisioning. The deploy script
+captures the IDs and bucket names Wrangler writes into temporary configs and atomically creates a
+mode-`0600` `deployment.lock.json`. Every later deploy reapplies the lock and fails if its account,
+Guild, Worker names, or configured resource values differ.
+If an initial multi-Worker deploy fails, the same file retains every ID Wrangler had already
+provisioned and leaves unknown entries `null`, so the next attempt resumes without replacing known
+stores. A release record or backup still refuses an unresolved partial lock.
+
+`deployment.lock.json` is ignored by Git because it belongs to one purchaser instance, not the
+reusable source template. Preserve it in the purchaser's encrypted operations vault and complete
+backup. Losing it does not delete data, but turns resource recovery into manual account discovery.
 
 ## 4. Verify without changing cloud state
 
@@ -74,8 +84,8 @@ pnpm types:check
 pnpm check
 ```
 
-`pnpm check` runs tests, builds all Workers, and asks Wrangler for deployment dry runs. It does not
-need application secrets and does not create cloud resources.
+`pnpm check` runs tests, type/lint checks, builds all Workers, and asks Wrangler for deployment dry
+runs. It does not need application secrets and does not create cloud resources.
 
 ## 5. Supply secrets and deploy
 
@@ -84,6 +94,8 @@ hidden prompt for the live deploy:
 
 ```sh
 pnpm exec wrangler login
+read -r -s DATABASE_URL
+export DATABASE_URL
 read -r -s GUILD_WEBHOOK_SIGNING_SECRET
 export GUILD_WEBHOOK_SIGNING_SECRET
 ```
@@ -102,9 +114,28 @@ pnpm deploy
 unset GUILD_WEBHOOK_SIGNING_SECRET CF_AI_GATEWAY_API_TOKEN
 ```
 
-The deploy script validates every required secret before updating any Worker. It creates restricted
-temporary secret files for Wrangler, deletes them in all exit paths, and does not expose the values
-in command arguments, generated configs, logs, or child-process environments.
+The deploy script rejects uncommitted source or an unpinned submodule, verifies the direct database,
+then reruns tests, lint/type checks, and builds before updating a Worker. Every deployed Worker
+Version receives the full Git
+SHA as its message and `guild-os-<short-sha>` as its tag. It validates every required secret before
+the first update, creates restricted temporary secret files for Wrangler, deletes them in all exit
+paths, and removes database, Webhook, AI, and Access smoke credentials from unrelated child
+processes.
+
+Generate a non-secret release record after deployment. The output must be a new absolute path
+outside the repository:
+
+```sh
+pnpm release:evidence -- \
+  --output /Volumes/EncryptedOps/guild-os/releases/RELEASE.json
+unset DATABASE_URL
+```
+
+For a `workersDev` Workshop, add `--url https://<worker>.<subdomain>.workers.dev`. The record hashes
+private labels and administrator identities, re-verifies the target database, captures
+migration/config hashes and all active Worker Version IDs, strips Cloudflare author email, and
+writes a read-only SHA-256 sidecar. Keep it with the change record; do not commit purchaser instance
+evidence to the sales template.
 
 ## 6. Initialize ownership
 
@@ -132,6 +163,19 @@ the application.
 
 ## 7. Production acceptance smoke
 
+First run the non-destructive automated smoke. It proves that an unauthenticated Workshop request
+is redirected to the configured Access tenant, the reference receiver has strict health headers,
+and an unsigned plausible write is rejected. It also captures the active Worker Versions:
+
+```sh
+pnpm smoke:production -- \
+  --output /Volumes/EncryptedOps/guild-os/releases/SMOKE.json
+```
+
+Add `--url` for `workersDev`. Optionally set both `CF_ACCESS_CLIENT_ID` and
+`CF_ACCESS_CLIENT_SECRET` for a narrowly scoped Access service-token check; unset them immediately.
+The smoke evidence deliberately lists the human checks that remain.
+
 Use synthetic names and non-sensitive content for the first test:
 
 1. Invite one Human into `Preboarding`, claim the one-time invitation, complete assigned Knowledge,
@@ -157,7 +201,8 @@ Use synthetic names and non-sensitive content for the first test:
     codes and pending transfers become invalid, `break_glass.used` records the disclosure and
     changes, and a fresh generation can be created under the new Root.
 
-Do not admit real users until all twelve checks pass and the results are attached to the release record.
+Do not admit real users until the automated smoke and all twelve human checks pass and their
+checksums/results are attached to the release record.
 For the bundled receiver, the repeat-delivery test is executable as `pnpm smoke:webhook`; see
 [`packages/webhook-receiver/README.md`](../packages/webhook-receiver/README.md).
 

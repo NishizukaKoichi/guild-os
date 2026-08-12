@@ -9,8 +9,14 @@
     "types:check": "pnpm --filter @guild-os/domain types:check && pnpm --filter @guild-os/postgres types:check && pnpm --filter @guild-os/gatekeeper types:check && pnpm --filter @guild-os/webhook-receiver types:check && pnpm --filter error-reporter types:check",
     "lint": "pnpm types:check",
     "db:migrate": "pnpm --filter @guild-os/postgres migrate",
+    "db:verify": "node scripts/database-preflight.mjs",
     "check": "node scripts/deploy.mjs --check",
     "deploy": "node scripts/deploy.mjs",
+    "release:evidence": "node scripts/release-manifest.mjs",
+    "backup:create": "node scripts/backup.mjs create",
+    "backup:verify": "node scripts/backup.mjs verify",
+    "restore:prepare": "node scripts/backup.mjs prepare-restore",
+    "smoke:production": "node scripts/production-smoke.mjs",
     "smoke:webhook": "node packages/webhook-receiver/scripts/smoke.mjs"
   },
   "devDependencies": {

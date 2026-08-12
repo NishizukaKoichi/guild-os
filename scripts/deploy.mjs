@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -7,6 +7,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { parse, printParseErrorCode } from "jsonc-parser";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const deploymentLockPath = join(root, "deployment.lock.json");
 // One deployment per checkout; use separate worktrees for concurrent deploys.
 const generatedName = "wrangler.prod.jsonc";
 const generatedPaths = {
@@ -76,6 +77,109 @@ const resourcePaths = [
   "resources.blueprintContentBucket",
   "resources.knowledgeFilesBucket",
 ];
+
+function configuredWorkerNames(config) {
+  return Object.fromEntries(Object.entries(config.workers)
+    .filter(([key]) =>
+      (key !== "errorReporter" || config.errorReporting.enabled) &&
+      (key !== "webhookReceiver" || config.referenceWebhook.enabled))
+    .map(([key, worker]) => [key, worker.name]));
+}
+
+export function applyProvisioningLock(config, lock) {
+  if (!lock) return config;
+  if (lock.format !== "guild-os-deployment-lock/v1" ||
+      lock.accountId !== config.accountId || lock.guildId !== config.guild.id) {
+    throw new Error("deployment.lock.json does not belong to this account and Guild.");
+  }
+  const expectedWorkers = configuredWorkerNames(config);
+  if (JSON.stringify(lock.workers) !== JSON.stringify(expectedWorkers)) {
+    throw new Error("deployment.lock.json Worker names do not match deployment.jsonc.");
+  }
+
+  const resolved = structuredClone(config);
+  const pairs = [
+    ["context.kvNamespaceId", lock.resources.contextKvNamespaceId],
+    ["resources.blueprintsKvNamespaceId", lock.resources.blueprintsKvNamespaceId],
+    ["resources.avatarsKvNamespaceId", lock.resources.avatarsKvNamespaceId],
+    ["resources.blueprintContentBucket", lock.resources.blueprintContentBucket],
+    ["resources.knowledgeFilesBucket", lock.resources.knowledgeFilesBucket],
+  ];
+  for (const [path, lockedValue] of pairs) {
+    if (lockedValue === undefined || lockedValue !== null &&
+        (typeof lockedValue !== "string" || !lockedValue)) {
+      throw new Error(`deployment.lock.json is missing ${path}.`);
+    }
+    if (lockedValue === null) continue;
+    const configuredValue = valueAt(resolved, path);
+    if (configuredValue !== null && configuredValue !== lockedValue) {
+      throw new Error(`deployment.lock.json conflicts with deployment.jsonc at ${path}.`);
+    }
+    const keys = path.split(".");
+    let target = resolved;
+    for (const key of keys.slice(0, -1)) target = target[key];
+    target[keys.at(-1)] = lockedValue;
+  }
+  return resolved;
+}
+
+function generatedBinding(source, collection, binding, valueKey, allowIncomplete) {
+  const entry = source?.[collection]?.find((candidate) => candidate.binding === binding);
+  const value = entry?.[valueKey];
+  if (allowIncomplete && (value === undefined || value === null)) return null;
+  if (typeof value !== "string" || !value) {
+    throw new Error(
+      `Wrangler did not persist ${binding} ${valueKey}; production resource identity is unknown.`,
+    );
+  }
+  return value;
+}
+
+export function provisioningLockFromGenerated(config, generated, { allowIncomplete = false } = {}) {
+  return {
+    format: "guild-os-deployment-lock/v1",
+    accountId: config.accountId,
+    guildId: config.guild.id,
+    workers: configuredWorkerNames(config),
+    resources: {
+      contextKvNamespaceId: generatedBinding(
+        generated.context,
+        "kv_namespaces",
+        "CONTEXT_COLLECTIONS",
+        "id",
+        allowIncomplete,
+      ),
+      blueprintsKvNamespaceId: generatedBinding(
+        generated.workshop,
+        "kv_namespaces",
+        "BLUEPRINTS",
+        "id",
+        allowIncomplete,
+      ),
+      avatarsKvNamespaceId: generatedBinding(
+        generated.workshop,
+        "kv_namespaces",
+        "AVATARS",
+        "id",
+        allowIncomplete,
+      ),
+      blueprintContentBucket: generatedBinding(
+        generated.workshop,
+        "r2_buckets",
+        "BLUEPRINT_CONTENT",
+        "bucket_name",
+        allowIncomplete,
+      ),
+      knowledgeFilesBucket: generatedBinding(
+        generated.guildGatekeeper,
+        "r2_buckets",
+        "KNOWLEDGE_FILES",
+        "bucket_name",
+        allowIncomplete,
+      ),
+    },
+  };
+}
 
 function valueAt(object, path) {
   return path.split(".").reduce((value, key) => value?.[key], object);
@@ -576,11 +680,75 @@ async function readDeployment(path) {
   }
 }
 
+async function readDeploymentLock() {
+  if (!existsSync(deploymentLockPath)) return null;
+  return readJsonc(deploymentLockPath);
+}
+
+async function persistDeploymentLock(config, allowIncomplete = false) {
+  const deployed = {};
+  for (const [name, path] of Object.entries(generatedPaths)) {
+    if ((name === "webhookReceiver" && !config.referenceWebhook.enabled) ||
+        (name === "errorReporter" && !config.errorReporting.enabled)) continue;
+    deployed[name] = await readJsonc(path);
+  }
+  const lock = provisioningLockFromGenerated(config, deployed, { allowIncomplete });
+  const temporaryPath = `${deploymentLockPath}.${process.pid}.tmp`;
+  await writeFile(temporaryPath, JSON.stringify(lock, null, 2) + "\n", { mode: 0o600 });
+  await rename(temporaryPath, deploymentLockPath);
+  await chmod(deploymentLockPath, 0o600);
+}
+
 function sanitizedChildEnv(env) {
   const childEnv = { ...env };
+  delete childEnv.DATABASE_URL;
   delete childEnv.GUILD_WEBHOOK_SIGNING_SECRET;
   delete childEnv.CF_AI_GATEWAY_API_TOKEN;
+  delete childEnv.CF_ACCESS_CLIENT_ID;
+  delete childEnv.CF_ACCESS_CLIENT_SECRET;
   return childEnv;
+}
+
+function capture(command, args) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    env: sanitizedChildEnv(process.env),
+    encoding: "utf8",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed before deployment.`);
+  }
+  return String(result.stdout ?? "");
+}
+
+export function assertDeployableGitState(status, submodules) {
+  if (status.trim()) {
+    throw new Error("Commit every source change before a production deployment.");
+  }
+  const invalid = submodules.trimEnd().split("\n").filter(Boolean)
+    .filter((line) => !line.startsWith(" "));
+  if (invalid.length) {
+    throw new Error("Every Git submodule must be initialized at its recorded commit before deployment.");
+  }
+}
+
+function releaseSource() {
+  const status = capture("git", ["status", "--porcelain=v1", "--untracked-files=all"]);
+  const submodules = capture("git", ["submodule", "status", "--recursive"]);
+  assertDeployableGitState(status, submodules);
+  const commit = capture("git", ["rev-parse", "HEAD"]).trim();
+  if (!/^[a-f0-9]{40}$/i.test(commit)) throw new Error("Git did not return a release commit.");
+  return commit;
+}
+
+export function deploymentVersionArgs(commit) {
+  if (!/^[a-f0-9]{40}$/i.test(commit)) throw new Error("Release commit must be a full Git SHA.");
+  return [
+    "--strict",
+    "--message", `Guild OS ${commit}`,
+    "--tag", `guild-os-${commit.slice(0, 12)}`,
+  ];
 }
 
 function run(args, cwd = root, env = process.env) {
@@ -620,8 +788,15 @@ function build(config) {
 
 async function main() {
   requireSubmodule();
-  const config = await readDeployment(join(root, "deployment.jsonc"));
+  const deployment = await readDeployment(join(root, "deployment.jsonc"));
+  const config = applyProvisioningLock(deployment, await readDeploymentLock());
   const check = process.argv.includes("--check");
+  const releaseCommit = check ? null : releaseSource();
+  if (!check) {
+    const { verifyProductionDatabase } = await import("./database-preflight.mjs");
+    const result = await verifyProductionDatabase(process.env.DATABASE_URL);
+    console.log(JSON.stringify({ event: "guild.database.preflight", ...result }));
+  }
   // Validate every secret before any Worker is deployed. Dry runs intentionally remain secret-free.
   const deploymentSecrets = check
     ? undefined
@@ -636,11 +811,14 @@ async function main() {
 
   let secretsDirectory;
   const secretFiles = {};
+  let deploymentError = null;
+  let deploymentStarted = false;
   try {
     for (const [name, generatedConfig] of Object.entries(generated)) {
       await writeFile(generatedPaths[name], JSON.stringify(generatedConfig, null, 2) + "\n");
     }
-    if (check) run(["test"]);
+    run(["test"]);
+    run(["lint"]);
     build(config);
 
     if (deploymentSecrets) {
@@ -653,10 +831,11 @@ async function main() {
       }
     }
 
-    const deployArgs = check ? ["--dry-run"] : [];
+    const deployArgs = check ? ["--dry-run"] : deploymentVersionArgs(releaseCommit);
     const secretsArgs = (name) => secretFiles[name]
       ? ["--secrets-file", secretFiles[name]]
       : [];
+    deploymentStarted = !check;
     if (config.referenceWebhook.enabled) {
       run(["exec", "wrangler", "deploy", "--config", generatedName,
         ...secretsArgs("webhookReceiver"), ...deployArgs],
@@ -674,7 +853,18 @@ async function main() {
     run(["exec", "wrangler", "deploy", "--config", generatedName,
       ...secretsArgs("workshop"), ...deployArgs],
       join(root, "cloudflare-os/packages/workshop-backend"));
+    if (!check) await persistDeploymentLock(config);
+  } catch (error) {
+    deploymentError = error;
+    throw error;
   } finally {
+    if (deploymentStarted && deploymentError) {
+      try {
+        await persistDeploymentLock(config, true);
+      } catch {
+        // Preserve the deployment failure. Wrangler may not have provisioned any resource yet.
+      }
+    }
     await Promise.all([
       ...Object.values(generatedPaths).map((path) => rm(path, { force: true })),
       ...(secretsDirectory ? [rm(secretsDirectory, { recursive: true, force: true })] : []),

@@ -1,134 +1,142 @@
 # Backup And Recovery
 
-Guild OS has one authoritative relational store and several purchaser-owned object/configuration
-stores. A database dump alone is not a complete backup.
+Guild OS has one relational system of record plus purchaser-owned Cloudflare stores. A PostgreSQL
+dump alone is not a complete backup. The supported backup command captures one verified set and
+does not depend on a seller account or service.
 
-## Inventory
+## Backup contents
 
-| Store | Contents | Backup mechanism |
-| --- | --- | --- |
-| PostgreSQL | Guild, Constitution, Spaces, Identities, Memberships, Roles, Knowledge metadata and versions, Work, Decisions, Inbox, Agent Runs, Chronicle | Provider PITR plus encrypted `pg_dump` |
-| Knowledge R2 | Knowledge files and checksummed Agent/file artifacts | S3-compatible copy with `rclone` or equivalent |
-| Blueprint-content R2 | Cloudflare OS Blueprint assets | S3-compatible copy |
-| Workshop KV | Blueprints and avatars | Cloudflare KV list/get export |
-| Context KV or Artifacts | Cloudflare OS Context collections | KV export or Artifacts repository mirror |
-| Cloudflare configuration | Access policy, Hyperdrive, AI Gateway, Worker versions, bindings | Exported settings plus `deployment.jsonc` and release record |
-| Secrets | HMAC, provider, OAuth, and database credentials | Purchaser secret manager; never the backup archive |
+| Store | Export |
+| --- | --- |
+| PostgreSQL | Custom-format `pg_dump`, restore catalog, migration and quiescence boundary |
+| Context, Blueprints, Avatars KV | Binary-safe JSONL with expiration and metadata |
+| Knowledge and Blueprint R2 | Full object trees plus per-object SHA-256 indexes |
+| Cloudflare Access | Matching application and policies |
+| Workers | Active deployment and Version IDs, with author identity removed |
+| Deployment | Restorable resource lock, summary, and source/migration hashes; no secret values |
+| Context Artifacts | Optional verified Git bundle |
+
+Secrets and plaintext Break Glass codes are deliberately excluded. Keep database credentials,
+Webhook HMAC values, OAuth/provider secrets, and recovery codes in separate purchaser-controlled
+custody.
 
 ## Policy
 
-Set an explicit recovery point objective and recovery time objective before launch. A practical
-small-team baseline is daily logical export, provider point-in-time recovery, 30 daily copies, 12
-monthly copies, and a quarterly restore rehearsal. Encrypt every archive, store it in a different
-failure domain and account, and restrict access to named Human administrators.
+Choose RPO and RTO before admitting real users. A reasonable small-team baseline is provider PITR,
+one daily logical backup, 30 daily copies, 12 monthly copies, and a quarterly restore rehearsal.
+Keep at least one encrypted copy in a different account and failure domain.
 
-Chronicle is append-only application history, not a substitute for a backup. R2 and KV are not
-automatically reconstructed from PostgreSQL.
+The backup directory contains private organizational data. Put it on a FileVault/LUKS/BitLocker
+volume or another encrypted destination before using the required confirmation flag. The flag is an
+operator assertion; the script cannot prove the storage layer's encryption policy.
 
-Emergency recovery code plaintext is deliberately not part of any application backup. PostgreSQL
-contains only hashes and generation metadata. Store downloaded code sets offline, encrypted, and
-under separate Human custody. Do not place them beside database dumps or in the Git repository.
+## Requirements
 
-## Break Glass custody and use
+- A clean source checkout with the purchaser's `deployment.lock.json`
+- `pg_dump` and `pg_restore` matching the production PostgreSQL major version
+- `rclone` configured for the purchaser's R2 account
+- `DATABASE_URL` with read access to the full Guild database
+- `CLOUDFLARE_API_TOKEN` scoped to read the configured KV namespaces, Access application/policies,
+  and Worker deployments
+- Zero nonterminal Agent Runs, pending/processing outbox rows, or pending file uploads
+- Access temporarily restricted to the backup operator for the whole command
 
-1. The active Root opens **Settings > Emergency recovery**, selects the Role that the prior Root
-   should retain, chooses an expiry, records a reason, and types the exact Guild name.
-2. Download the ten codes from the one-time reveal. Verify the file before closing it; the server
-   cannot display the plaintext again.
-3. Split the codes between at least two trusted Human custodians and a separate failure domain.
-   Record who holds which sealed copy without recording the code itself.
-4. Revoke and regenerate the set whenever custody changes, a copy may have been exposed, or before
-   its expiry. Confirm `break_glass.codes.rotated` or `break_glass.codes.revoked` in Chronicle.
-5. During a real incident, an authenticated Human opens **Emergency recovery**, enters one code,
-   their display name, the exact Guild name, and a factual reason. After success, immediately review
-   `break_glass.used`, every superseded transfer, the outgoing Role, Access policy, active sessions,
-   Roles, connectors, Agent runs, and secrets.
-6. Generate a fresh code set under the new Root. A successful recovery invalidates the entire prior
-   generation, including its nine unused codes.
+The script checks the latest migration, Guild existence, active-work counts, and Chronicle sequence
+before and after export. If the Chronicle sequence changes, it deletes the incomplete output.
 
-A normal two-party Root transfer also invalidates the current generation automatically. The new
-Root must generate and distribute a fresh set after accepting ownership.
+## Create and verify
 
-The seller has no master credential and cannot reconstruct a code. Do not test this procedure in
-production merely to inspect it; rehearse with a separate deployment and database.
+Use an absolute destination outside the repository. `R2_REMOTE` is the name of an existing `rclone`
+remote, not a secret or bucket name.
 
-## Consistent backup
+```sh
+export DATABASE_URL='postgresql://...'
+export CLOUDFLARE_API_TOKEN='...'
 
-1. Record the release commit and current `deployment.jsonc` resource identifiers.
-2. Temporarily restrict the Cloudflare Access policy to the backup operator.
-3. Kill or wait for every non-terminal Agent Run. Confirm no Workflow delivery or file upload is in
-   progress and the durable outboxes have no pending item.
-4. Take the PostgreSQL provider snapshot/PITR marker.
-5. Create a custom-format logical dump without ownership or ACL records:
+pnpm backup:create -- \
+  --output /Volumes/EncryptedOps/guild-os/2026-08-12T010000Z \
+  --r2-remote purchaser-r2 \
+  --confirm-encrypted-destination
 
-   ```sh
-   read -r -s DATABASE_URL
-   export DATABASE_URL
-   pg_dump --format=custom --no-owner --no-acl --file guild-os.dump "$DATABASE_URL"
-   unset DATABASE_URL
-   ```
+unset DATABASE_URL CLOUDFLARE_API_TOKEN
 
-6. Copy each R2 bucket to an encrypted backup destination. Cloudflare R2 exposes an S3-compatible
-   endpoint and supports `rclone copy` in either direction:
+pnpm backup:verify -- \
+  --input /Volumes/EncryptedOps/guild-os/2026-08-12T010000Z
+```
 
-   ```sh
-   rclone copy r2:knowledge-bucket encrypted-backup:guild-os/2026-08-12/r2/knowledge
-   rclone copy r2:blueprint-bucket encrypted-backup:guild-os/2026-08-12/r2/blueprints
-   ```
+When Context Artifacts is enabled, also pass its clean local mirror:
 
-7. Export every KV namespace. Use `wrangler kv key list` to obtain all key names, retrieve values in
-   batches of at most 100, and retain `expiration` and `metadata`; the resulting restore file must
-   match the `wrangler kv bulk put` `{key,value,expiration,metadata,base64}` shape. Binary values must
-   be Base64 encoded with `base64: true`.
-8. Mirror an enabled Context Artifacts namespace through its Git-compatible interface.
-9. Export Access application/policy, Hyperdrive, AI Gateway, Worker version, custom-domain, and
-   binding identifiers into the release record. Do not export secret values into the archive.
-10. Generate SHA-256 checksums for every dump/export and write a manifest containing UTC time,
-    commit, Guild UUID, resource IDs, object counts, sizes, and checksums.
-11. Re-enable the prior Access policy only after the manifest and off-site copy verify.
+```sh
+--artifacts-repository /Volumes/Pensive/Operations/context-artifacts
+```
 
-Cloudflare documents the current [KV CLI](https://developers.cloudflare.com/workers/wrangler/commands/kv/)
-and [R2 `rclone` setup](https://developers.cloudflare.com/r2/examples/rclone/). Recheck those commands
-against the pinned Wrangler version before automating them.
+Creation uses restricted file modes, verifies the `pg_dump` catalog, compares the remote R2 tree,
+indexes every object, hashes every exported control file, and runs the same full verification used
+by `backup:verify`. Copy the finished directory off-site only after the command succeeds.
+
+## Prepare a restore
+
+Never restore into production in place. First verify and prepare an immutable backup into a separate
+directory:
+
+```sh
+pnpm restore:prepare -- \
+  --input /Volumes/EncryptedOps/guild-os/2026-08-12T010000Z \
+  --output /Volumes/EncryptedOps/guild-os-restore/2026-08-12T010000Z
+```
+
+This command verifies all manifest, file, KV, and R2 checksums again. It emits
+`restore-plan.json` and bounded `kv/<store>/batch-*.json` files compatible with Wrangler's binary
+bulk shape. It performs no network call and mutates no cloud resource.
 
 ## Restore rehearsal
 
-Never rehearse against production. Restore into a new PostgreSQL database, new KV namespaces, new R2
-buckets, new Hyperdrive configuration, and new Worker names.
+Create a new PostgreSQL database, Hyperdrive configuration, KV namespaces, R2 buckets, Access
+application, Worker names, Guild UUID, and HMAC secret. Keep Access restricted to recovery testers.
 
-1. Verify the manifest signature/checksums and scan the archive from an isolated machine.
-2. Restore PostgreSQL and inspect before exposing it:
+1. Restore PostgreSQL and verify the catalog:
 
    ```sh
-   createdb guild_os_restore
-   pg_restore --exit-on-error --no-owner --no-acl --dbname "$RESTORE_DATABASE_URL" guild-os.dump
+   pg_restore --list BACKUP/postgres/guild-os.dump
+   pg_restore --exit-on-error --no-owner --no-acl \
+     --dbname "$RESTORE_DATABASE_URL" BACKUP/postgres/guild-os.dump
+   DATABASE_URL="$RESTORE_DATABASE_URL" pnpm db:migrate
    ```
 
-3. Run `pnpm db:migrate` against the restored database. Existing migration checksums must match and
-   only newer migrations may apply.
-4. Copy R2 objects into the new buckets. Compare object counts, sizes, and sampled SHA-256 values
-   with PostgreSQL `knowledge_files.sha256` metadata.
-5. Restore KV files with `wrangler kv bulk put`, then compare key counts and sampled values.
-6. Point a new Hyperdrive configuration at the restored database. Use a separate Access
-   application and deny all users except recovery testers.
-7. Deploy the exact recorded Git commit with new Worker/resource names and a newly rotated HMAC
-   secret. Never reuse production Connector credentials in a rehearsal.
-8. Verify Root Owner integrity, cross-Guild RLS denial, published Knowledge/file reads, Ask citations,
-   Work/Decision/Inbox state, Chronicle ordering, and one synthetic Agent Run.
-9. Before broadening Access, rotate Break Glass codes in the restored deployment. A point-in-time
-   restore can revive the code-set pointer that was current at that historical point.
-10. Record measured RPO/RTO, failed checks, and remediation. Delete the rehearsal environment only
-   after the report is retained.
+2. For every generated KV batch, target the newly created namespace explicitly:
+
+   ```sh
+   pnpm exec wrangler kv bulk put RESTORE/kv/context/batch-00001.json \
+     --namespace-id "$NEW_CONTEXT_KV_ID" --remote
+   ```
+
+3. Copy each backed-up R2 directory into its new bucket, preserving metadata, then run `rclone
+   check` and compare the stored object count/bytes with `restore-plan.json`.
+4. Recreate the Access application and policies from `cloudflare/access.json`; review identities,
+   session duration, and hostname instead of applying the old object blindly.
+5. Configure a new `deployment.jsonc` and let the first deploy create a new lock. Never transplant
+   production resource IDs into the rehearsal.
+6. Deploy the exact source commit recorded by the backup, then apply only reviewed newer migrations.
+7. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
+   Inbox, Chronicle ordering, Agent approval/delivery, and Kill behavior.
+8. Rotate Break Glass codes. A point-in-time database restore can revive the generation pointer that
+   existed at that historical time.
+9. Record measured RPO/RTO and the release, backup, restore-plan, and smoke checksums.
 
 ## Production recovery
 
-Choose the newest verified recovery point before the incident. Preserve the failed environment for
-forensics, restore into new resources, rotate all potentially exposed secrets, and deploy the code
-commit recorded in the manifest. Switch the Access-protected hostname only after the rehearsal
-checks pass. Keep Access restricted to recovery operators and rotate Break Glass codes before the
-hostname switch; an older database can contain a historically active generation pointer. Keep the
-old environment denied but intact until owners approve disposal.
+Preserve the failed environment for forensics. Restore the newest verified set into new resources,
+rotate every possibly exposed secret, deploy the recorded commit, and run the production smoke plus
+the human acceptance matrix. Switch the Access-protected hostname only after owner approval. Keep
+the old environment denied but intact until its retention decision is recorded.
 
-If only an R2 object is missing, restore that exact immutable object key and verify its database
-checksum. If PostgreSQL is rolled back, restore R2/KV to the same backup boundary; mixing recovery
-points can expose dangling files or stale Cloudflare OS state.
+Never delete migrations to roll back. Never combine a PostgreSQL point from one backup with KV or R2
+from another. For one missing immutable R2 object, restore only that key and verify its SHA-256
+against PostgreSQL metadata and the backup index.
+
+## Break Glass custody
+
+The active Root generates ten one-time codes in **Settings > Emergency recovery**. Plaintext is
+shown once and is not in backups. Split current codes across trusted Human custodians and a separate
+failure domain. Rotate after custody changes, suspected exposure, Root transfer, or recovery use.
+The seller cannot reconstruct a code or bypass this process.

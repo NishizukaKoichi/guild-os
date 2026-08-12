@@ -72,5 +72,6 @@ jobs:
         run: |
           pnpm db:migrate
           pnpm db:migrate
+          pnpm db:verify -- --allow-insecure-localhost
           pnpm --filter @guild-os/postgres test:integration
           pnpm --filter @guild-os/gatekeeper test:integration

@@ -90,3 +90,11 @@ foundation is implemented but the user-visible end-to-end requirement is not yet
 - Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
   states plus the complete Knowledge, Ask, Goal-to-Step Work, Decision, Announcement, Inbox, and
   Chronicle and contextual Conversation paths have Playwright interaction and overflow checks.
+- Production operations fail closed on a dirty source tree, submodule drift, PostgreSQL below 17,
+  plaintext remote database connections, privileged database roles, migration checksum drift, or
+  missing forced RLS. First-deploy KV/R2 identifiers survive a partial deploy in a purchaser-local
+  lock. Release and smoke evidence are checksummed and stored outside the source template.
+- The backup command enforces a quiescent Chronicle boundary, exports PostgreSQL, binary-safe KV,
+  R2, Access, active Worker versions, exact recovery configuration, and optional Context Artifacts,
+  then verifies every checksum and object count. Restore preparation re-verifies the set and emits
+  bounded Wrangler KV batches without mutating a target.

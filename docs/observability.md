@@ -75,6 +75,22 @@ console.error({
 
 Use consistent event names and bounded scalar context. Log at `error` when action is required, `warn` for best-effort degradation, `info` for notable lifecycle events, and `debug` for noisy breadcrumbs. Do not log whole requests, responses, model prompts, credentials, or arbitrary user data.
 
+The Guild Gatekeeper exposes only two HTTP diagnostics; every other path returns `404`:
+
+- `GET /healthz` is process liveness and does not touch storage.
+- `GET /readyz` opens a Hyperdrive transaction and returns `200` only when PostgreSQL reports the
+  exact migration expected by the running code. Connection errors and schema drift return a generic
+  `503`; neither endpoint returns a connection string, migration name, Guild label, or exception.
+
+The Gatekeeper is private by default, so call these endpoints only through a purchaser-controlled
+internal monitor or temporary authenticated diagnostic route. Do not publish it merely for uptime
+monitoring.
+
+The five-minute maintenance trigger emits `guild.maintenance` with duration, expired/claimed/
+completed/deferred file counts, and completed Workflow-message count. A failure records only the
+error class. Knowledge text, object keys, identities, payloads, and exception messages are omitted.
+Readiness failures emit the bounded `guild.readiness` event.
+
 The Error Reporter intentionally flattens the normalized event and trusted producer props into one object. This makes high-value fields directly queryable and preserves the upstream event's occurrence ID, timestamp, exception, truncation marker, HTTP facts, correlation IDs, and attributes.
 
 ## Sampling and traces

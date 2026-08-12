@@ -1,6 +1,11 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  CURRENT_GUILD_SCHEMA_CHECKSUM,
+  CURRENT_GUILD_SCHEMA_MIGRATION,
+} from "./schema.js";
 
 const migrationUrl = new URL("../migrations/0001_guild_core.sql", import.meta.url);
 const productMigrationUrl = new URL("../migrations/0002_product_v1.sql", import.meta.url);
@@ -25,6 +30,20 @@ const breakGlassRecoveryMigrationUrl = new URL("../migrations/0024_break_glass_r
 const conversationGovernanceMigrationUrl = new URL("../migrations/0025_context_bound_conversations.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
+  it("keeps the runtime schema marker pinned to the latest migration", async () => {
+    const migrationDirectory = fileURLToPath(new URL("../migrations", import.meta.url));
+    const migrations = (await readdir(migrationDirectory))
+      .filter((name) => /^\d{4}_[a-z0-9_]+\.sql$/.test(name))
+      .sort();
+    expect(CURRENT_GUILD_SCHEMA_MIGRATION).toBe(migrations.at(-1));
+    const currentSql = await readFile(
+      new URL(`../migrations/${CURRENT_GUILD_SCHEMA_MIGRATION}`, import.meta.url),
+    );
+    expect(CURRENT_GUILD_SCHEMA_CHECKSUM).toBe(
+      createHash("sha256").update(currentSql).digest("hex"),
+    );
+  });
+
   it("covers every v1 aggregate and applies Guild row-level security", async () => {
     const sql = await readFile(fileURLToPath(migrationUrl), "utf8");
     const tables = [

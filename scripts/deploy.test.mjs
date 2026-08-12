@@ -3,8 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { parse } from "jsonc-parser";
 import {
+  applyProvisioningLock,
+  assertDeployableGitState,
+  deploymentVersionArgs,
   deploymentSecretsFromEnvironment,
   generateConfigs,
+  provisioningLockFromGenerated,
   validateConfig,
 } from "./deploy.mjs";
 
@@ -464,4 +468,131 @@ test("generates binding-only storage for automatic provisioning", async () => {
   assert.deepEqual(generated.workshop.r2_buckets, [{ binding: "BLUEPRINT_CONTENT" }]);
   assert.deepEqual(generated.context.kv_namespaces, [{ binding: "CONTEXT_COLLECTIONS" }]);
   assert.deepEqual(generated.guildGatekeeper.r2_buckets, [{ binding: "KNOWLEDGE_FILES" }]);
+});
+
+test("captures and reapplies automatically provisioned resource identities", async () => {
+  const automatic = structuredClone(validConfig);
+  automatic.context.kvNamespaceId = null;
+  automatic.resources = {
+    blueprintsKvNamespaceId: null,
+    avatarsKvNamespaceId: null,
+    blueprintContentBucket: null,
+    knowledgeFilesBucket: null,
+  };
+  const generated = generateConfigs(automatic, await baseConfigs());
+  generated.context.kv_namespaces[0].id = "context-kv-id";
+  generated.workshop.kv_namespaces[0].id = "blueprints-kv-id";
+  generated.workshop.kv_namespaces[1].id = "avatars-kv-id";
+  generated.workshop.r2_buckets[0].bucket_name = "cloudflare-os-blueprints";
+  generated.guildGatekeeper.r2_buckets[0].bucket_name = "acme-guild-knowledge";
+
+  const lock = provisioningLockFromGenerated(automatic, generated);
+  const resolved = applyProvisioningLock(automatic, lock);
+
+  assert.deepEqual(lock, {
+    format: "guild-os-deployment-lock/v1",
+    accountId: automatic.accountId,
+    guildId: automatic.guild.id,
+    workers: {
+      workshop: "acme-cloudflare-os",
+      context: "acme-cloudflare-os-context",
+      guildGatekeeper: "acme-guild-os-gatekeeper",
+      webhookReceiver: "acme-guild-os-webhook",
+      errorReporter: "acme-cloudflare-os-errors",
+    },
+    resources: {
+      contextKvNamespaceId: "context-kv-id",
+      blueprintsKvNamespaceId: "blueprints-kv-id",
+      avatarsKvNamespaceId: "avatars-kv-id",
+      blueprintContentBucket: "cloudflare-os-blueprints",
+      knowledgeFilesBucket: "acme-guild-knowledge",
+    },
+  });
+  assert.equal(resolved.context.kvNamespaceId, "context-kv-id");
+  assert.deepEqual(resolved.resources, validConfig.resources);
+});
+
+test("rejects stale, conflicting, or incomplete provisioning locks", () => {
+  const lock = {
+    format: "guild-os-deployment-lock/v1",
+    accountId: validConfig.accountId,
+    guildId: validConfig.guild.id,
+    workers: {
+      workshop: "acme-cloudflare-os",
+      context: "acme-cloudflare-os-context",
+      guildGatekeeper: "acme-guild-os-gatekeeper",
+      webhookReceiver: "acme-guild-os-webhook",
+      errorReporter: "acme-cloudflare-os-errors",
+    },
+    resources: {
+      contextKvNamespaceId: "context-kv-id",
+      blueprintsKvNamespaceId: "blueprints-kv-id",
+      avatarsKvNamespaceId: "avatars-kv-id",
+      blueprintContentBucket: "cloudflare-os-blueprints",
+      knowledgeFilesBucket: "acme-guild-knowledge",
+    },
+  };
+
+  const wrongGuild = structuredClone(lock);
+  wrongGuild.guildId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9f";
+  assert.throws(() => applyProvisioningLock(validConfig, wrongGuild), /does not belong/i);
+
+  const conflict = structuredClone(lock);
+  conflict.resources.knowledgeFilesBucket = "different-bucket";
+  assert.throws(() => applyProvisioningLock(validConfig, conflict), /conflicts/i);
+
+  const incomplete = structuredClone(lock);
+  delete incomplete.resources.avatarsKvNamespaceId;
+  assert.throws(() => applyProvisioningLock(validConfig, incomplete), /missing/i);
+});
+
+test("retains partial first-deploy resource identities without inventing missing IDs", async () => {
+  const automatic = structuredClone(validConfig);
+  automatic.context.kvNamespaceId = null;
+  automatic.resources = {
+    blueprintsKvNamespaceId: null,
+    avatarsKvNamespaceId: null,
+    blueprintContentBucket: null,
+    knowledgeFilesBucket: null,
+  };
+  const generated = generateConfigs(automatic, await baseConfigs());
+  generated.context.kv_namespaces[0].id = "context-created-before-failure";
+
+  const partial = provisioningLockFromGenerated(automatic, generated, {
+    allowIncomplete: true,
+  });
+  assert.deepEqual(partial.resources, {
+    contextKvNamespaceId: "context-created-before-failure",
+    blueprintsKvNamespaceId: null,
+    avatarsKvNamespaceId: null,
+    blueprintContentBucket: null,
+    knowledgeFilesBucket: null,
+  });
+  const resumed = applyProvisioningLock(automatic, partial);
+  assert.equal(resumed.context.kvNamespaceId, "context-created-before-failure");
+  assert.equal(resumed.resources.knowledgeFilesBucket, null);
+  assert.throws(
+    () => provisioningLockFromGenerated(automatic, generated),
+    /production resource identity is unknown/i,
+  );
+});
+
+test("production deploys require a clean pinned Git source and annotate every Worker version", () => {
+  assert.doesNotThrow(() => assertDeployableGitState(
+    "",
+    " bf7f762d7fa73553284d731ab6a978d3ea17be24 cloudflare-os\n",
+  ));
+  assert.throws(() => assertDeployableGitState(" M README.md\n", ""), /commit every/i);
+  assert.throws(() => assertDeployableGitState(
+    "",
+    "+bf7f762d7fa73553284d731ab6a978d3ea17be24 cloudflare-os\n",
+  ), /submodule/i);
+  assert.deepEqual(
+    deploymentVersionArgs("0123456789abcdef0123456789abcdef01234567"),
+    [
+      "--strict",
+      "--message", "Guild OS 0123456789abcdef0123456789abcdef01234567",
+      "--tag", "guild-os-0123456789ab",
+    ],
+  );
 });

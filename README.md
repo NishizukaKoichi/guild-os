@@ -62,6 +62,9 @@ Implemented and tested:
   approval, result, usage, and Kill management surface
 - English-first UI with complete Japanese dictionary and Japanese fallback for Simplified Chinese
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
+  evidence
+- Strict Gatekeeper liveness/readiness, bounded maintenance metrics, reproducible resource locking,
+  verified whole-system backup/restore preparation, release evidence, and Access production smoke
 
 Not exposed as finished product features yet:
 
@@ -143,6 +146,16 @@ pnpm --filter @guild-os/postgres migrate --dry-run
 The runner records SHA-256 hashes in `public.guild_schema_migrations` and refuses to continue if an
 already-applied migration was modified.
 
+Before production deploy, verify the actual target without changing it:
+
+```sh
+DATABASE_URL='postgresql://...' pnpm db:verify
+```
+
+This requires PostgreSQL 17+, TLS, a non-superuser role without `BYPASSRLS`, the exact migration
+set and checksums for the release, and forced RLS on every Guild table. Plaintext localhost is
+available only for explicit local diagnostics with `--allow-insecure-localhost`.
+
 CI applies every migration twice to an ephemeral PostgreSQL 17 database owned by a non-superuser,
 then verifies Guild RLS isolation, Root Owner integrity, and Chronicle immutability. Local
 integration verification uses the same command:
@@ -176,14 +189,21 @@ bytes and must never be stored in `deployment.jsonc` or a tracked environment fi
 ```sh
 read -r -s GUILD_WEBHOOK_SIGNING_SECRET
 export GUILD_WEBHOOK_SIGNING_SECRET
+read -r -s DATABASE_URL
+export DATABASE_URL
 pnpm deploy
-unset GUILD_WEBHOOK_SIGNING_SECRET
+unset DATABASE_URL GUILD_WEBHOOK_SIGNING_SECRET
 ```
 
 `scripts/deploy.mjs` validates every required secret before deploying any Worker, writes only the
 required values to mode-`0600` temporary files for Wrangler's `--secrets-file` option, removes the
 files in a `finally` block, and strips those values from child-process environments. When AI Gateway
 is enabled, provide `CF_AI_GATEWAY_API_TOKEN` the same way. `pnpm check` never requires secrets.
+
+The first live deploy stores automatically provisioned KV/R2 identities in the ignored
+`deployment.lock.json`; preserve that purchaser-instance file outside the sales template. Live
+deploys require a clean commit and pinned submodule and annotate every Worker Version with that Git
+SHA. See the deployment runbook for immutable release and smoke evidence commands.
 
 The receiving service must verify the signature and persist the idempotency key before applying an
 effect. See the [Agent Webhook contract](docs/agent-webhook.md).
@@ -243,6 +263,20 @@ pnpm deploy
 No Cloudflare resources are created by the test, build, lint, or typecheck commands.
 Follow the complete [deployment runbook](docs/deployment.md); a successful CLI deploy alone is not
 a production acceptance result.
+
+Purchaser-owned backup and recovery commands are:
+
+```sh
+pnpm backup:create -- --output /absolute/encrypted/path --r2-remote REMOTE \
+  --confirm-encrypted-destination
+pnpm backup:verify -- --input /absolute/backup/path
+pnpm restore:prepare -- --input /absolute/backup/path --output /absolute/restore/path
+```
+
+They capture and verify PostgreSQL, binary KV, R2, Access, Worker versions, and optional Context
+Artifacts without storing secrets. `restore:prepare` generates bounded KV bulk files and never
+mutates cloud state. Full requirements and the new-resource restore drill are in
+[backup and recovery](docs/backup-and-recovery.md).
 
 ## Upgrades
 
