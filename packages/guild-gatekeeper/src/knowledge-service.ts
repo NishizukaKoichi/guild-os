@@ -382,7 +382,7 @@ export async function searchAuthorizedKnowledge(
   assertLocale(locale);
   return withGuildTransaction(env.HYPERDRIVE.connectionString, env.GUILD_ID, async (connection) => {
     const candidates = await new GuildKnowledgeRepository(connection, env.GUILD_ID)
-      .searchAuthorizedCanonical(actorIdentityId, query, 32);
+      .searchAuthorizedCanonical(actorIdentityId, query, locale, 32);
     const snapshots = new Map<string, Promise<AuthorizationSnapshot>>();
     const authorized: AuthorizedKnowledgeCandidate[] = [];
     let usedCharacters = 0;

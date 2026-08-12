@@ -230,6 +230,14 @@ integration("Guild Knowledge service authorization boundary", () => {
     );
     expect(candidates.map((item) => item.candidate.id)).toEqual([ids.allowed]);
 
+    const naturalQuestionCandidates = await searchAuthorizedKnowledge(
+      env,
+      ids.member,
+      "What is phoenix containment?",
+      "en",
+    );
+    expect(naturalQuestionCandidates.map((item) => item.candidate.id)).toEqual([ids.allowed]);
+
     const response = await new GuildKnowledgeService(env, ids.member).ask({
       question: "phoenix containment",
       locale: "en",

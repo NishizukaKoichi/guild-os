@@ -52,7 +52,7 @@ export async function deliverSignedWebhook(
   );
   const response = await fetcher(endpointUrl, {
     method: "POST",
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
       "content-type": "application/json",
@@ -65,6 +65,9 @@ export async function deliverSignedWebhook(
     body,
   });
   await response.body?.cancel();
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error(`Webhook refused a redirect response (${response.status}).`);
+  }
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`Webhook returned a non-success status (${response.status}).`);
   }

@@ -4,6 +4,7 @@ import {
   assertKnowledgeReview,
   assertKnowledgeTransition,
   assertNonBlank,
+  type AppLocale,
   type ChronicleEvent,
   type Classification,
   type KnowledgeReview,
@@ -1008,6 +1009,7 @@ export class GuildKnowledgeRepository {
   async searchAuthorizedCanonical(
     actorIdentityId: string,
     query: string,
+    locale: AppLocale = "en",
     limit = 24,
   ): Promise<KnowledgeSearchCandidate[]> {
     assertNonBlank(query, "Knowledge search query", 500);
@@ -1016,7 +1018,13 @@ export class GuildKnowledgeRepository {
     }
     const result = await this.#connection.query<SearchRow>(
       `WITH RECURSIVE ${this.#knowledgeAuthorizationCtes()},
-       search AS (SELECT websearch_to_tsquery('simple', $3) AS terms)
+       search AS (
+         SELECT CASE WHEN $4::text = 'en'
+                THEN 'english'::regconfig ELSE 'simple'::regconfig END AS config
+       ), search_terms AS (
+         SELECT search.config, websearch_to_tsquery(search.config, $3) AS terms
+           FROM search
+       )
        SELECT k.id::text, k.guild_id::text, k.space_id::text, k.owner_identity_id::text,
               k.state, k.visibility, k.classification, k.allowed_identity_ids::text[],
               k.current_version, k.canonical_version, k.review_due_at::text,
@@ -1024,29 +1032,29 @@ export class GuildKnowledgeRepository {
               kv.title, kv.summary, kv.body, kv.source_ids::text[],
               kv.created_by_identity_id::text,
               ts_rank(
-                to_tsvector('simple', kv.title::text || ' ' || kv.summary::text || ' ' || kv.body::text),
-                search.terms
+                to_tsvector(search_terms.config, kv.title::text || ' ' || kv.summary::text || ' ' || kv.body::text),
+                search_terms.terms
               )::float8 AS rank
          FROM knowledge k
          JOIN knowledge_versions kv
            ON kv.guild_id = k.guild_id AND kv.knowledge_id = k.id
           AND kv.version = k.canonical_version AND kv.state = 'canonical'
          CROSS JOIN knowledge_access access
-         CROSS JOIN search
+         CROSS JOIN search_terms
         WHERE k.guild_id = $1
           AND ${this.#knowledgeReadPredicate()}
           AND (
-            numnode(search.terms) > 0
-              AND to_tsvector('simple', kv.title::text || ' ' || kv.summary::text || ' ' || kv.body::text)
-                    @@ search.terms
+            numnode(search_terms.terms) > 0
+              AND to_tsvector(search_terms.config, kv.title::text || ' ' || kv.summary::text || ' ' || kv.body::text)
+                    @@ search_terms.terms
             OR lower(kv.title::text || ' ' || kv.summary::text || ' ' || kv.body::text)
                  LIKE '%' || lower($3) || '%'
           )
         ORDER BY
           CASE WHEN lower(kv.title::text) LIKE '%' || lower($3) || '%' THEN 1 ELSE 0 END DESC,
           rank DESC, k.updated_at DESC, k.id
-        LIMIT $4`,
-      [this.#guildId, actorIdentityId, query, limit],
+        LIMIT $5`,
+      [this.#guildId, actorIdentityId, query, locale, limit],
     );
     return result.rows.map((row) => ({ ...summaryFromRow(row), body: row.body, rank: row.rank }));
   }

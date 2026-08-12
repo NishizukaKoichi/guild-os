@@ -268,12 +268,22 @@ describe("guild-gatekeeper", () => {
       new TextEncoder().encode(`${timestamp}.${body}`),
     )).resolves.toBe(true);
     expect(request.url).toBe(claim.endpointUrl);
-    expect(request.init.redirect).toBe("error");
+    expect(request.init.redirect).toBe("manual");
     expect(headers.get("idempotency-key")).toBe(claim.idempotencyKey);
     expect(JSON.parse(body)).toMatchObject({
       id: claim.runId,
       type: claim.eventType,
       data: { questId: "quest-1", completed: true },
     });
+
+    await expect(deliverSignedWebhook(
+      claim.endpointUrl,
+      "test-signing-secret-with-at-least-32-characters",
+      claim,
+      async () => new Response(null, {
+        status: 302,
+        headers: { location: "https://redirect.example.com/guild-events" },
+      }),
+    )).rejects.toThrow("Webhook refused a redirect response (302)");
   });
 });

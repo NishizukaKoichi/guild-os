@@ -61,7 +61,7 @@ product requirement must be resolved explicitly rather than silently weakened.
   proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
 - Role/Space editors and governed Knowledge/Ask Guild are implemented. Knowledge includes immutable
   versions, human approval, multilingual content, R2 files, acknowledgement, retirement, citations,
-  SQL-before-model authorization, rate limiting, and durable file cleanup.
+  locale-aware SQL-before-model authorization, rate limiting, and durable file cleanup.
 - Governed Work is implemented from Goal through Project, Quest, and Step. It includes bounded
   keyset lists, SQL-before-service authorization, legal status transitions, optimistic versions,
   hierarchical Space containment, active Human/Agent assignment, Inbox notification writes,
@@ -107,12 +107,12 @@ product requirement must be resolved explicitly rather than silently weakened.
   Cloudflare OS packages and Guild-owned packages. Supply-chain age policy, patched transitive
   overrides, peer validation, and high-severity audit are enforced before deployment without
   changing the pinned upstream submodule.
-- No Cloudflare resources have been created or deployed.
+- The purchaser-owned production deployment is live behind Cloudflare Access. Root initialization,
+  canonical Knowledge, comments, and cited Ask Guild answers have been verified against production.
 
 ## Next sequence
 
-1. Produce the clean committed local release evidence and complete release-source review.
-2. Provision the purchaser-owned PostgreSQL, Hyperdrive, Access, domain, and Cloudflare resources,
-   deploy, and run the complete owner-to-agent
-   smoke test.
-3. Record the production evidence in the v1 completion matrix and release manifest.
+1. Complete the owner-to-agent production journey, including approval, external Webhook delivery,
+   Work, Decision, communications, and immediate stop behavior.
+2. Capture and verify a purchaser-owned backup.
+3. Record final production smoke and release evidence for the exact deployed commit.
