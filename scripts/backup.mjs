@@ -185,14 +185,7 @@ function runChecked(command, args, options = {}) {
   return String(result.stdout ?? "");
 }
 
-async function databaseBoundary(connectionString, guildId) {
-  const client = new Client({ connectionString });
-  await client.connect();
-  try {
-    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    await client.query("SELECT set_config('app.guild_id', $1, true)", [guildId]);
-    const result = await client.query(
-      `SELECT
+export const DATABASE_BOUNDARY_SQL = `SELECT
          EXISTS (SELECT 1 FROM guilds WHERE id = $1) AS initialized,
          COALESCE((SELECT max(sequence) FROM chronicle_events WHERE guild_id = $1), 0)::text
            AS chronicle_sequence,
@@ -201,12 +194,18 @@ async function databaseBoundary(connectionString, guildId) {
            AS active_agent_runs,
          (SELECT count(*)::integer FROM outbox
            WHERE guild_id = $1 AND status IN ('pending', 'processing')) AS active_outbox_items,
-         (SELECT count(*)::integer FROM knowledge_files
+         (SELECT count(*)::integer FROM files
            WHERE guild_id = $1 AND status = 'pending') AS pending_file_uploads,
          (SELECT name FROM public.guild_schema_migrations
-           ORDER BY name DESC LIMIT 1) AS latest_migration`,
-      [guildId],
-    );
+           ORDER BY name DESC LIMIT 1) AS latest_migration`;
+
+async function databaseBoundary(connectionString, guildId) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await client.query("SELECT set_config('app.guild_id', $1, true)", [guildId]);
+    const result = await client.query(DATABASE_BOUNDARY_SQL, [guildId]);
     const guildTables = (await client.query(
       `SELECT class.relname AS table_name
          FROM pg_class class

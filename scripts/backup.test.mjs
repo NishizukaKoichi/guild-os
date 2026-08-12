@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   assertQuiescentBoundary,
+  DATABASE_BOUNDARY_SQL,
   exportR2BucketWithCloudflare,
   importAccessSnapshot,
   listCloudflarePages,
@@ -20,6 +21,15 @@ import {
   verifyPostgresDump,
 } from "./backup.mjs";
 import { sha256File, sha256Object } from "./ops-core.mjs";
+
+test("backup quiescence checks the canonical file upload table", async () => {
+  const pendingUploadQuery = DATABASE_BOUNDARY_SQL.match(
+    /\(SELECT count\(\*\)::integer FROM ([a-z_]+)\s+WHERE guild_id = \$1 AND status = 'pending'\)/,
+  );
+
+  assert.equal(pendingUploadQuery?.[1], "files");
+  assert.doesNotMatch(DATABASE_BOUNDARY_SQL, /FROM knowledge_files\b/);
+});
 
 test("backup arguments require an external absolute encrypted destination", () => {
   assert.deepEqual(parseBackupArguments([
