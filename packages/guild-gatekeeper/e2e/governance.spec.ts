@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { navigateToMore } from "./navigation";
 
 const guildName = "Commonweal Research Guild";
 
@@ -15,7 +16,7 @@ test("Root Owner updates the versioned Constitution and cannot delegate its auth
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
 
   await expect(page.getByRole("heading", { name: "Constitution", exact: true })).toBeVisible();
   await expect(page.locator(".constitution-summary dd").first()).toHaveText("1");
@@ -42,7 +43,7 @@ test("Root Owner updates the versioned Constitution and cannot delegate its auth
   await expect(roleDialog.getByText("break-glass.use", { exact: true })).toHaveCount(0);
   await roleDialog.getByRole("button", { name: "Close", exact: true }).click();
 
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await expect(page.getByText("constitution.updated", { exact: true })).toBeVisible();
   const constitutionEvent = page.locator(".chronicle-event").filter({
     hasText: "constitution.updated",
@@ -56,8 +57,7 @@ test("Constitution remains readable but immutable for a non-Root member on mobil
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=member");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
 
   await expect(page.getByRole("heading", { name: "Constitution", exact: true })).toBeVisible();
   await expect(page.getByText("This policy is read-only for your current Guild identity.")).toBeVisible();
@@ -74,8 +74,7 @@ test("Root Constitution editor remains usable in a mobile viewport", async ({ pa
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
   await expect(page.locator(".sidebar-scrim")).toHaveCount(0);
   await page.getByRole("button", { name: "Edit Constitution", exact: true }).click();
 
@@ -94,7 +93,7 @@ test("current Root proposes and cancels a two-party ownership transfer with Chro
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
 
   await expect(page.getByRole("heading", { name: "Root ownership", exact: true })).toBeVisible();
   await expect(page.locator(".ownership-summary")).toContainText("Avery Morgan");
@@ -124,7 +123,7 @@ test("current Root proposes and cancels a two-party ownership transfer with Chro
 
   await expect(cancelDialog).toHaveCount(0);
   await expect(page.getByText("There is no pending Root ownership transfer.")).toBeVisible();
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await expect(page.getByText("root_ownership.transfer.proposed", { exact: true })).toBeVisible();
   await expect(page.getByText("root_ownership.transfer.cancelled", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
@@ -134,8 +133,7 @@ test("designated Human accepts Root ownership from a separate mobile session", a
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=transfer-target");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
 
   await expect(page.getByRole("heading", { name: "Root ownership", exact: true })).toBeVisible();
   await expect(page.locator(".ownership-summary")).toContainText("Avery Morgan");
@@ -161,7 +159,7 @@ test("designated Human accepts Root ownership from a separate mobile session", a
   await expect(page.locator(".recovery-summary")).toContainText("Inactive");
   await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await expect(page.getByText("root_ownership.transfer.accepted", { exact: true })).toBeVisible();
   await expect(page.getByText("break_glass.codes.revoked", { exact: true })).toBeVisible();
   const viewportAfterAccept = await page.evaluate(() => ({
@@ -176,7 +174,7 @@ test("Root rotates, stores, and revokes one-time emergency recovery codes", asyn
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
 
   await expect(page.getByRole("heading", { name: "Emergency recovery", exact: true })).toBeVisible();
   await expect(page.locator(".recovery-summary")).toContainText("Ready");
@@ -210,7 +208,7 @@ test("Root rotates, stores, and revokes one-time emergency recovery codes", asyn
   await expect(revokeDialog).toHaveCount(0);
   await expect(page.locator(".recovery-summary")).toContainText("Inactive");
 
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await expect(page.getByText("break_glass.codes.rotated", { exact: true })).toBeVisible();
   await expect(page.getByText("break_glass.codes.revoked", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
@@ -235,7 +233,7 @@ test("an authenticated unknown Human can use audited recovery on mobile", async 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await expect(page.getByText("break_glass.used", { exact: true })).toBeVisible();
   const viewport = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -249,8 +247,7 @@ test("an active non-Root Human can reach recovery without management authority",
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=recovery-human");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await navigateToMore(page, "Settings");
 
   await expect(page.getByRole("button", { name: "Edit Constitution", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Emergency recovery", exact: true })).toBeVisible();

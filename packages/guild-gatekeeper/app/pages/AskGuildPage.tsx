@@ -52,7 +52,16 @@ export function AskGuildPage({ api, onOpenKnowledge }: {
       </form>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {!response ? (
-        <div className="ask-empty"><BookOpen size={24} /><p>{t("ask.empty")}</p></div>
+        <div className="ask-empty">
+          <BookOpen size={24} />
+          <p>{t("ask.empty")}</p>
+          <div className="ask-suggestions" aria-label={t("ask.suggestionsTitle")}>
+            <span>{t("ask.suggestionsTitle")}</span>
+            {[t("ask.suggestionOne"), t("ask.suggestionTwo"), t("ask.suggestionThree")].map((suggestion) => (
+              <button type="button" key={suggestion} onClick={() => setQuestion(suggestion)}>{suggestion}</button>
+            ))}
+          </div>
+        </div>
       ) : (
         <div className="ask-result">
           <section className="ask-answer" aria-live="polite">

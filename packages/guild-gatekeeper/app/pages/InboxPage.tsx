@@ -21,6 +21,7 @@ import type {
   UiInboxPage,
 } from "../../src/management-types";
 import { AnnouncementEditorDialog } from "../components/AnnouncementEditorDialog";
+import { EmptyState } from "../components/EmptyState";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import {
@@ -263,7 +264,9 @@ export function InboxPage({
             </button>
           </div>
 
-          {!inboxPage?.items.length ? <p className="empty-state">{t("inbox.empty")}</p> : (
+          {!inboxPage?.items.length ? (
+            <EmptyState icon={CheckCircle2} title={t("inbox.emptyTitle")} description={t("inbox.empty")} />
+          ) : (
             <div className="inbox-list">
               {inboxPage.items.map((notification) => (
                 <article className={notification.readAt ? "inbox-item" : "inbox-item inbox-item-unread"} key={notification.id}>

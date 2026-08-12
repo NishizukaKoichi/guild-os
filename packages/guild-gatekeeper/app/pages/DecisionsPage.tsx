@@ -25,6 +25,7 @@ import { CommentsPanel } from "../components/CommentsPanel";
 import { DecisionEditorDialog } from "../components/DecisionEditorDialog";
 import { DecisionReviewDialog } from "../components/DecisionReviewDialog";
 import { DecisionSupersedeDialog } from "../components/DecisionSupersedeDialog";
+import { EmptyState } from "../components/EmptyState";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import {
@@ -178,7 +179,16 @@ export function DecisionsPage({
       {loading ? (
         <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("decision.loading")}</div>
       ) : !page?.items.length ? (
-        <p className="empty-state">{t("decision.empty")}</p>
+        <EmptyState
+          icon={Scale}
+          title={t("decision.emptyTitle")}
+          description={t("decision.empty")}
+          action={page?.canCreate && directory ? (
+            <button className="primary-button" type="button" onClick={() => setEditor("create")}>
+              <Plus size={17} /><span>{t("decision.create")}</span>
+            </button>
+          ) : undefined}
+        />
       ) : (
         <section className="content-section decision-workspace">
           <nav className="decision-list" aria-label={t("decision.title")}>

@@ -10,6 +10,7 @@ import type {
 } from "../../src/management-types";
 import { AgentDialog } from "../components/AgentDialog";
 import { AgentRunsPanel } from "../components/AgentRunsPanel";
+import { EmptyState } from "../components/EmptyState";
 import { IdentityRoleDialog } from "../components/IdentityRoleDialog";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
@@ -69,7 +70,18 @@ export function AgentsPage({
         ) : undefined}
       />
       {error ? <Notice kind="error">{error}</Notice> : null}
-      {agents.length === 0 ? <section className="content-section"><p className="empty-state">{t("agents.noAgents")}</p></section> : (
+      {agents.length === 0 ? (
+        <EmptyState
+          icon={Bot}
+          title={t("agents.emptyTitle")}
+          description={t("agents.noAgents")}
+          action={directory.capabilities.manageAgents && directory.capabilities.manageRoles ? (
+            <button className="primary-button" type="button" onClick={() => setCreateOpen(true)}>
+              <Plus size={17} />{t("agents.create")}
+            </button>
+          ) : undefined}
+        />
+      ) : (
         <section className="content-section agent-list">
           <div className="agent-list-head" aria-hidden="true">
             <span>{t("agents.name")}</span>

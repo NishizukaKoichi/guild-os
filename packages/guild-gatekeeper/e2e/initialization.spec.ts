@@ -67,7 +67,7 @@ test("requires explicit confirmation before the Workshop administrator becomes R
   }).click();
 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
-  await expect(page.getByText("Human Root Owner", { exact: true })).toBeVisible();
+  await expect(page.locator(".sidebar-account")).toContainText("Root");
   expect(errors).toEqual([]);
 });
 

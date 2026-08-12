@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { navigateToMore } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -37,7 +38,7 @@ test("publishes a governed announcement and records delivery in Inbox and Chroni
   await page.getByRole("tab", { name: /^Notifications/ }).click();
   await expect(page.getByText("Research intake procedure", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await page.getByLabel("Search actions", { exact: true }).fill("published");
   await page.getByRole("button", { name: "Apply filters", exact: true }).click();
   await expect(page.getByText("announcement.published", { exact: true })).toBeVisible();
@@ -61,8 +62,7 @@ test("keeps Inbox, announcement editing, and Chronicle usable on mobile", async 
   expect(viewport.scrollWidth).toBe(viewport.clientWidth);
 
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name: "Chronicle", exact: true }).click();
+  await navigateToMore(page, "Activity");
   await expect(page.getByText("decision.proposed", { exact: true })).toBeVisible();
   viewport = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,

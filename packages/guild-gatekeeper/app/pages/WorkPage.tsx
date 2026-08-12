@@ -33,6 +33,7 @@ import { CommentsPanel } from "../components/CommentsPanel";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import { WorkEditorDialog, type WorkCreateKind } from "../components/WorkEditorDialog";
+import { EmptyState } from "../components/EmptyState";
 import { useI18n, workStatusTranslationKey } from "../i18n";
 
 type WorkKind = WorkStatusRequest["kind"];
@@ -330,7 +331,16 @@ export function WorkPage({
       {loading ? (
         <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("work.loading")}</div>
       ) : !work?.goals.length ? (
-        <p className="empty-state">{t("work.emptyGoals")}</p>
+        <EmptyState
+          icon={ListTodo}
+          title={t("work.emptyTitle")}
+          description={t("work.emptyGoals")}
+          action={work?.canCreate && directory ? (
+            <button className="primary-button" type="button" onClick={() => setCreateKind("goal")}>
+              <Plus size={17} /><span>{t("work.createGoal")}</span>
+            </button>
+          ) : undefined}
+        />
       ) : (
         <>
           <div className="work-hierarchy">

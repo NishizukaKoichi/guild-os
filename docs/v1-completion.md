@@ -89,7 +89,8 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
 - The optional reference receiver verifies exact signed bytes before parsing, rejects stale events,
   and gives each Guild/idempotency-key pair an independent SQLite-backed Durable Object. Unit tests
   cover forgery, replay-window, envelope mismatch, oversized input, exact duplicate, and conflict.
-- Desktop and 390 px mobile Home, People, Agents, Settings, invitation, uninvited, and suspended
+- Desktop plus 320 px and 390 px mobile action-first Home, progressive navigation, Team, AI Agents, Settings,
+  invitation, uninvited, and suspended
   states plus the complete Knowledge, Ask, Goal-to-Step Work, Decision, Announcement, Inbox, and
   Chronicle and contextual Conversation paths have Playwright interaction and overflow checks.
 - Production operations fail closed on a dirty source tree, submodule drift, PostgreSQL below 17,

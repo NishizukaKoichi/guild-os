@@ -23,6 +23,7 @@ import type {
   UiKnowledgePage,
 } from "../../src/management-types";
 import { CommentsPanel } from "../components/CommentsPanel";
+import { EmptyState } from "../components/EmptyState";
 import { KnowledgeEditorDialog } from "../components/KnowledgeEditorDialog";
 import { KnowledgeReviewDialog } from "../components/KnowledgeReviewDialog";
 import { Notice } from "../components/Notice";
@@ -210,7 +211,16 @@ export function KnowledgePage({ api, directory, requestedKnowledgeId }: {
       {loading ? (
         <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("common.loading")}</div>
       ) : !page?.items.length ? (
-        <p className="empty-state">{t("knowledge.empty")}</p>
+        <EmptyState
+          icon={BookOpen}
+          title={t("knowledge.emptyTitle")}
+          description={t("knowledge.empty")}
+          action={page?.canCreate && directory ? (
+            <button className="primary-button" type="button" onClick={() => setEditorMode("create")}>
+              <Plus size={17} /><span>{t("knowledge.create")}</span>
+            </button>
+          ) : undefined}
+        />
       ) : (
         <div className="knowledge-workspace">
           <aside className="knowledge-list" aria-label={t("knowledge.title")}>

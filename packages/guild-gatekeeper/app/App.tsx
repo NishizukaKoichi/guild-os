@@ -141,22 +141,26 @@ export function App({ api }: { api: GuildUiApi }) {
     await loadDirectory(activeBootstrap);
   }
 
+  function navigate(nextPage: AppPage) {
+    if (nextPage === "knowledge") setKnowledgeTarget(null);
+    setPage(nextPage);
+  }
+
   return (
     <AppShell
       bootstrap={bootstrap}
       page={visiblePage}
       peopleAvailable={directory !== null}
       agentsAvailable={directory !== null}
-      onPageChange={(nextPage) => {
-        if (nextPage === "knowledge") setKnowledgeTarget(null);
-        setPage(nextPage);
-      }}
+      onPageChange={navigate}
       onLocaleChange={async (locale) => {
         await api.setPreferredLocale(locale);
         setBootstrap((current) => current ? { ...current, preferredLocale: locale } : current);
       }}
     >
-      {visiblePage === "home" ? <HomePage bootstrap={bootstrap} directory={directory} /> : null}
+      {visiblePage === "home" ? (
+        <HomePage api={api} bootstrap={bootstrap} directory={directory} onNavigate={navigate} />
+      ) : null}
       {visiblePage === "inbox" ? <InboxPage api={api} directory={directory} /> : null}
       {visiblePage === "ask" ? (
         <AskGuildPage

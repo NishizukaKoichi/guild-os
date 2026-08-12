@@ -34,7 +34,8 @@ Implemented and tested:
 - Hyperdrive transaction boundary
 - Guild Gatekeeper with explicit administrator-confirmed bootstrap, privacy-minimized nonmember
   responses, one-time invitation binding, observation approval, and permission-filtered discovery
-- Sandboxed, mobile-responsive Home, People, Agents, invitation, offboarding, and Settings UI
+- Action-first, role-aware Home and progressive navigation with a four-item mobile tab bar
+- Sandboxed, mobile-responsive Team, AI Agents, invitation, offboarding, and Settings UI
 - Human, Agent, and Service registration with scoped Role assignment and lifecycle controls
 - Custom Role and hierarchical Space administration with database-enforced invariants
 - Governed Knowledge creation, immutable versions, human review, publication, deprecation,

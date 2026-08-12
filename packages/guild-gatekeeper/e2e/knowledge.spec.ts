@@ -61,9 +61,9 @@ test("runs the governed Knowledge and Ask Guild path", async ({ page }) => {
   await page.getByRole("button", { name: "Confirm understood", exact: true }).click();
   await expect(page.getByText("Understanding confirmed", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Ask Guild", exact: true }).click();
-  await page.getByLabel("Question").fill("How do we handle an operational incident?");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await page.getByLabel("Question").fill("How do we handle an operational incident?");
+  await page.getByRole("button", { name: "Get answer", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Answer" })).toBeVisible();
   await page.getByRole("button", { name: /Incident response guide/ }).click();
   await expect(page.getByRole("heading", { name: "Incident response guide" })).toBeVisible();

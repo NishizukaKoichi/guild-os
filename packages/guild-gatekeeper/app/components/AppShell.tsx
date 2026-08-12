@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Bot,
+  ChevronDown,
   History,
   Home,
   Inbox as InboxIcon,
@@ -13,8 +14,9 @@ import {
   ShieldCheck,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { UiMemberBootstrapState } from "../../src/management-types";
 import { membershipTranslationKey, useI18n } from "../i18n";
 
@@ -30,6 +32,9 @@ export type AppPage =
   | "chronicle"
   | "settings";
 
+const WORKSPACE_PAGES: readonly AppPage[] = ["knowledge", "work", "decisions"];
+const MORE_PAGES: readonly AppPage[] = ["people", "agents", "chronicle", "settings"];
+
 interface AppShellProps {
   bootstrap: UiMemberBootstrapState;
   page: AppPage;
@@ -38,6 +43,12 @@ interface AppShellProps {
   onPageChange(page: AppPage): void;
   onLocaleChange(locale: "en" | "ja" | "zh-CN"): Promise<void>;
   children: ReactNode;
+}
+
+interface NavItem {
+  id: AppPage;
+  label: string;
+  icon: LucideIcon;
 }
 
 export function AppShell({
@@ -51,13 +62,21 @@ export function AppShell({
 }: AppShellProps) {
   const { locale, setLocale, t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = [
+  const [workspaceOpen, setWorkspaceOpen] = useState(
+    peopleAvailable || bootstrap.membershipState === "preboarding" || WORKSPACE_PAGES.includes(page),
+  );
+  const [moreOpen, setMoreOpen] = useState(MORE_PAGES.includes(page));
+  const primaryItems: readonly NavItem[] = [
     { id: "home" as const, label: t("nav.home"), icon: Home },
-    { id: "inbox" as const, label: t("nav.inbox"), icon: InboxIcon },
     { id: "ask" as const, label: t("nav.ask"), icon: MessageCircleQuestion },
+    { id: "inbox" as const, label: t("nav.inbox"), icon: InboxIcon },
+  ];
+  const workspaceItems: readonly NavItem[] = [
     { id: "knowledge" as const, label: t("nav.knowledge"), icon: BookOpen },
     { id: "work" as const, label: t("nav.work"), icon: ListTodo },
     { id: "decisions" as const, label: t("nav.decisions"), icon: Scale },
+  ];
+  const moreItems: readonly NavItem[] = [
     ...(peopleAvailable
       ? [{ id: "people" as const, label: t("nav.people"), icon: Users }]
       : []),
@@ -69,6 +88,11 @@ export function AppShell({
       : []),
     { id: "settings" as const, label: t("nav.settings"), icon: Settings },
   ];
+
+  useEffect(() => {
+    if (WORKSPACE_PAGES.includes(page)) setWorkspaceOpen(true);
+    if (MORE_PAGES.includes(page)) setMoreOpen(true);
+  }, [page]);
 
   function navigate(nextPage: AppPage) {
     onPageChange(nextPage);
@@ -83,6 +107,24 @@ export function AppShell({
     } catch {
       setLocale(previousLocale);
     }
+  }
+
+  function renderItems(items: readonly NavItem[]) {
+    return items.map((item) => {
+      const Icon = item.icon;
+      return (
+        <button
+          key={item.id}
+          className={page === item.id ? "nav-item nav-item-active" : "nav-item"}
+          type="button"
+          aria-current={page === item.id ? "page" : undefined}
+          onClick={() => navigate(item.id)}
+        >
+          <Icon size={18} />
+          <span>{item.label}</span>
+        </button>
+      );
+    });
   }
 
   return (
@@ -105,20 +147,31 @@ export function AppShell({
           </button>
         </div>
         <nav className="primary-nav" aria-label={t("app.name")}>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                className={page === item.id ? "nav-item nav-item-active" : "nav-item"}
-                type="button"
-                onClick={() => navigate(item.id)}
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          <div className="nav-section">{renderItems(primaryItems)}</div>
+          <div className="nav-section">
+            <button
+              className={WORKSPACE_PAGES.includes(page) ? "nav-group-toggle nav-group-toggle-active" : "nav-group-toggle"}
+              type="button"
+              aria-expanded={workspaceOpen}
+              onClick={() => setWorkspaceOpen((open) => !open)}
+            >
+              <span>{t("nav.workspace")}</span>
+              <ChevronDown className={workspaceOpen ? "nav-chevron nav-chevron-open" : "nav-chevron"} size={16} />
+            </button>
+            {workspaceOpen ? <div className="nav-group-items">{renderItems(workspaceItems)}</div> : null}
+          </div>
+          <div className="nav-section nav-section-more">
+            <button
+              className={MORE_PAGES.includes(page) ? "nav-group-toggle nav-group-toggle-active" : "nav-group-toggle"}
+              type="button"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              <span>{t("nav.manage")}</span>
+              <ChevronDown className={moreOpen ? "nav-chevron nav-chevron-open" : "nav-chevron"} size={16} />
+            </button>
+            {moreOpen ? <div className="nav-group-items">{renderItems(moreItems)}</div> : null}
+          </div>
         </nav>
         <div className="sidebar-account">
           <span className={`status-dot status-${bootstrap.membershipState ?? "invited"}`} />
@@ -163,8 +216,36 @@ export function AppShell({
             </select>
           </label>
         </header>
-        <main className="content">{children}</main>
+        <main className="content"><div className="page-surface" key={page}>{children}</div></main>
       </div>
+
+      <nav className="mobile-tabbar" aria-label={t("nav.mobilePrimary")}>
+        {primaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              className={page === item.id ? "mobile-tab mobile-tab-active" : "mobile-tab"}
+              type="button"
+              aria-current={page === item.id ? "page" : undefined}
+              onClick={() => navigate(item.id)}
+            >
+              <Icon size={20} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+        <button
+          className={WORKSPACE_PAGES.includes(page) || MORE_PAGES.includes(page) ? "mobile-tab mobile-tab-active" : "mobile-tab"}
+          type="button"
+          aria-current={WORKSPACE_PAGES.includes(page) || MORE_PAGES.includes(page) ? "page" : undefined}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen(true)}
+        >
+          <Menu size={20} />
+          <span>{t("nav.more")}</span>
+        </button>
+      </nav>
     </div>
   );
 }
