@@ -57,6 +57,11 @@ SELECT existing.guild_id, existing.role_id, mapping.new_permission
     ON mapping.old_permission = existing.permission
 ON CONFLICT (guild_id, role_id, permission) DO NOTHING;
 
+-- PostgreSQL 18 keeps referential-integrity trigger events pending until the
+-- transaction reaches an explicit constraint boundary. Flush them before the
+-- final RLS ALTER statements so this migration behaves consistently on 17+.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 CREATE OR REPLACE FUNCTION guild_runtime.permission_is_human_only(candidate text)
 RETURNS boolean LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
   SELECT candidate IN (

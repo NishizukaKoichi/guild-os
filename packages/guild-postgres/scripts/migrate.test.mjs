@@ -99,6 +99,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[29].sql, /CREATE TABLE resource_custody/);
   assert.match(migrations[30].sql, /CREATE TABLE private_threads/);
   assert.match(migrations[30].sql, /CREATE TABLE onboarding_paths/);
+  assert.match(migrations[30].sql, /SET CONSTRAINTS ALL IMMEDIATE/);
   assert.match(migrations[31].sql, /ALTER TABLE connectors/);
   assert.match(migrations[31].sql, /CREATE TABLE workflow_definitions/);
   assert.match(migrations[31].sql, /CREATE TABLE federation_links/);
