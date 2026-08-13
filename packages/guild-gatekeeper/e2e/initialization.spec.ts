@@ -88,6 +88,32 @@ test("requires explicit confirmation before the Workshop administrator becomes R
   expect(errors).toEqual([]);
 });
 
+test("turns the selected purpose into a complete initial context and Role preset", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("?standalone=uninitialized-admin");
+
+  await page.getByRole("button", { name: /Research Collective/ }).click();
+  const preview = page.locator(".initialization-profile-preview .context-profile-preview");
+  await expect(preview.getByText("Research lead", { exact: true })).toBeVisible();
+  await expect(preview.getByText("Researcher", { exact: true })).toBeVisible();
+  await expect(preview.getByText("Reviewer", { exact: true })).toBeVisible();
+  await expect(preview.getByText("Experiment", { exact: true }).first()).toBeVisible();
+  await expect(preview.getByText("Research synthesizer", { exact: true })).toBeVisible();
+
+  await fillInitialization(page);
+  await page.getByRole("button", {
+    name: "Initialize and become Root Owner",
+    exact: true,
+  }).click();
+
+  await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await expect(page.locator(".identity-table")).toContainText("Research lead");
+  await expect(page.getByText(/Admin|Manager|Staff/)).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("does not expose initialization controls to a non-administrator on mobile", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

@@ -19,6 +19,7 @@ import type {
   UiInitializationBootstrapState,
 } from "../../src/management-types";
 import { localizeTemplate } from "../collective-language";
+import { ContextProfilePreview } from "../components/ContextProfilePreview";
 import { Notice } from "../components/Notice";
 import { useI18n } from "../i18n";
 
@@ -49,6 +50,8 @@ export function InitializationPage({
   const [confirmation, setConfirmation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const selectedTemplate = templates.find((template) => template.key === templateKey) ??
+    templates[0];
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -127,6 +130,13 @@ export function InitializationPage({
               );
             })}
           </div>
+          {selectedTemplate ? (
+            <div className="initialization-profile-preview">
+              <ContextProfilePreview template={selectedTemplate} />
+              <Notice kind="info">{t("collective.profileEffect")}</Notice>
+              <Notice>{t("collective.roleSafety")}</Notice>
+            </div>
+          ) : null}
           <footer className="initialization-actions">
             <button className="primary-button" type="button" onClick={() => setStep("details")}>
               <span>{t("common.continue")}</span><ArrowRight size={17} />
@@ -139,6 +149,7 @@ export function InitializationPage({
           <span className="step-kicker">2 / 2</span>
           <h1>{t("initialization.detailsTitle")}</h1>
           <p>{t("initialization.detailsDescription")}</p>
+          {selectedTemplate ? <ContextProfilePreview template={selectedTemplate} showDescription={false} /> : null}
           <Notice kind="info">{t("initialization.warning")}</Notice>
           <form className="stack-form" onSubmit={submit}>
             <label>

@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Workflow,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
@@ -26,6 +27,10 @@ import type {
   UiMemory,
   UiMemoryPage,
 } from "../../src/management-types";
+import {
+  contextProfileForSpace,
+  visibleMemoryTypes,
+} from "../collective-context";
 import { memoryTypeLabel } from "../collective-language";
 import { EmptyState } from "../components/EmptyState";
 import { Notice } from "../components/Notice";
@@ -62,10 +67,10 @@ function MemoryEditor({
   onClose(): void;
 }) {
   const { locale, t } = useI18n();
-  const dialogTitle = memory ? t("memory.editTitle") : t("memory.createTitle");
   const spaces = collective.spaces.filter((space) => page.creatableSpaceIds.includes(space.id));
   const defaultSpaceId = memory?.spaceId ?? spaces[0]?.id ?? null;
-  const [type, setType] = useState<MemoryType>(memory?.type ?? collective.template.memoryTypes[0] ?? "fact");
+  const defaultProfile = contextProfileForSpace(collective, defaultSpaceId);
+  const [type, setType] = useState<MemoryType>(memory?.type ?? defaultProfile.memoryTypes[0] ?? "fact");
   const [title, setTitle] = useState(memory ? localized(memory.title, locale) : "");
   const [summary, setSummary] = useState(memory ? localized(memory.summary, locale) : "");
   const [body, setBody] = useState(memory ? localized(memory.body, locale) : "");
@@ -77,6 +82,18 @@ function MemoryEditor({
   const [changeNote, setChangeNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeProfile = contextProfileForSpace(collective, spaceId);
+  const workflowOptions = activeProfile.workflows.filter((workflow) => workflow.memoryType);
+  const dialogTitle = memory ? t("memory.editTitle") : activeProfile.labels.remember;
+
+  function chooseSpace(nextSpaceId: string) {
+    const nextProfile = contextProfileForSpace(collective, nextSpaceId);
+    setSpaceId(nextSpaceId);
+    setType((current) => nextProfile.memoryTypes.includes(current)
+      ? current
+      : nextProfile.memoryTypes[0] ?? "fact");
+    if (!nextSpaceId && visibility === "space") setVisibility("guild");
+  }
 
   function content(existing: LocalizedText | undefined, value: string): LocalizedText {
     return { ...(existing ?? {}), [locale]: value.trim() };
@@ -136,24 +153,32 @@ function MemoryEditor({
         <form className="stack-form" onSubmit={(event) => void submit(event)}>
           {error ? <Notice kind="error">{error}</Notice> : null}
           {!memory ? (
-            <div className="form-grid">
-              <label>
-                <span>{t("memory.type")}</span>
-                <select aria-label={t("memory.type")} value={type} onChange={(event) => setType(event.target.value as MemoryType)}>
-                  {collective.template.memoryTypes.map((value) => <option key={value} value={value}>{memoryTypeLabel(value, locale)}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>{t("memory.space")}</span>
-                <select aria-label={t("memory.space")} value={spaceId} onChange={(event) => {
-                  setSpaceId(event.target.value);
-                  if (event.target.value === "" && visibility === "space") setVisibility("guild");
-                }}>
-                  <option value="">{t("people.global")}</option>
-                  {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-                </select>
-              </label>
-            </div>
+            <>
+              <div className="form-grid">
+                <label>
+                  <span>{t("memory.space")}</span>
+                  <select aria-label={t("memory.space")} value={spaceId} onChange={(event) => chooseSpace(event.target.value)}>
+                    <option value="">{t("people.global")}</option>
+                    {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>{t("memory.type")}</span>
+                  <select aria-label={t("memory.type")} value={type} onChange={(event) => setType(event.target.value as MemoryType)}>
+                    {activeProfile.memoryTypes.map((value) => <option key={value} value={value}>{memoryTypeLabel(value, locale)}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="context-profile-indicator"><span>{t("collective.profilePreview")}</span><strong>{activeProfile.name}</strong></div>
+              {workflowOptions.length ? (
+                <div className="context-workflow-options">
+                  <span><Workflow size={15} />{t("collective.workflows")}</span>
+                  <div>{workflowOptions.map((workflow) => workflow.memoryType ? (
+                    <button type="button" key={workflow.key} aria-pressed={type === workflow.memoryType} onClick={() => setType(workflow.memoryType ?? type)}>{workflow.name}</button>
+                  ) : null)}</div>
+                </div>
+              ) : null}
+            </>
           ) : null}
           <label htmlFor="memory-title">
             <span>{t("memory.titleField")}</span>
@@ -208,7 +233,7 @@ function MemoryEditor({
             <button className="secondary-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
             <button className="primary-button" type="submit" disabled={busy}>
               {busy ? <LoaderCircle className="spin" size={17} /> : memory ? <Pencil size={17} /> : <Plus size={17} />}
-              <span>{memory ? t("common.save") : t("memory.create")}</span>
+              <span>{memory ? t("common.save") : activeProfile.labels.remember}</span>
             </button>
           </footer>
         </form>
@@ -236,6 +261,7 @@ export function MemoryPage({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const filterTypes = useMemo(() => visibleMemoryTypes(collective), [collective]);
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }), [locale]);
 
   const load = useCallback(async () => {
@@ -289,7 +315,7 @@ export function MemoryPage({
       />
       <section className="collection-toolbar" aria-label={t("memory.title")}>
         <label className="search-field"><Search size={17} /><span className="sr-only">{t("common.search")}</span><input value={search} placeholder={t("memory.searchPlaceholder")} onChange={(event) => setSearch(event.target.value)} /></label>
-        <label><span className="sr-only">{t("memory.type")}</span><select value={type} onChange={(event) => setType(event.target.value as MemoryType | "")}><option value="">{t("memory.allTypes")}</option>{collective.template.memoryTypes.map((value) => <option key={value} value={value}>{memoryTypeLabel(value, locale)}</option>)}</select></label>
+        <label><span className="sr-only">{t("memory.type")}</span><select value={type} onChange={(event) => setType(event.target.value as MemoryType | "")}><option value="">{t("memory.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{memoryTypeLabel(value, locale)}</option>)}</select></label>
       </section>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {loading && !page ? <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("common.loading")}</div> : null}

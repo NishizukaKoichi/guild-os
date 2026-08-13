@@ -9,6 +9,7 @@ import type {
   SetSpaceVocabularyRequest,
   UiCollectiveContext,
 } from "../../src/management-types";
+import { ContextProfilePreview } from "./ContextProfilePreview";
 import { Notice } from "./Notice";
 import { useI18n } from "../i18n";
 
@@ -28,6 +29,8 @@ export function CollectiveSettings({
   const [spaceBusy, setSpaceBusy] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const selectedTemplate = collective.templates.find((template) => template.key === templateKey) ??
+    collective.template;
 
   useEffect(() => {
     setTemplateKey(collective.template.key);
@@ -90,6 +93,9 @@ export function CollectiveSettings({
           {collective.templates.map((template) => <option key={template.key} value={template.key}>{template.name}</option>)}
         </select>
       </label>
+      <ContextProfilePreview template={selectedTemplate} />
+      <Notice kind="info">{t("collective.profileEffect")}</Notice>
+      <Notice>{t("collective.roleSafety")}</Notice>
       {collective.canConfigure ? (
         <fieldset>
           <legend>{t("collective.overrides")}</legend>
@@ -100,13 +106,13 @@ export function CollectiveSettings({
               ["activity", "collective.activityLabel"],
               ["decisions", "collective.decisionsLabel"],
             ] as const).map(([key, label]) => (
-              <label key={key}><span>{t(label)}</span><input maxLength={200} value={overrides[key] ?? ""} placeholder={collective.template.labels[key]} onChange={(event) => setOverride(key, event.target.value)} /></label>
+              <label key={key}><span>{t(label)}</span><input maxLength={200} value={overrides[key] ?? ""} placeholder={selectedTemplate.labels[key]} onChange={(event) => setOverride(key, event.target.value)} /></label>
             ))}
           </div>
         </fieldset>
       ) : null}
       {collective.canConfigureSpaces ? (
-        <div className="space-vocabulary-list">
+        <div className="space-context-profile-list">
           <h3>{t("collective.spaceVocabulary")}</h3>
           {collective.spaces.map((space) => (
             <label key={space.id} htmlFor={`space-vocabulary-${space.id}`}><span>{space.name}</span><select id={`space-vocabulary-${space.id}`} data-space-name={space.name} disabled={!space.canConfigure || spaceBusy === space.id} value={space.vocabularyProfileKey ?? ""} onChange={(event) => void setSpace(space.id, event.target.value)}><option value="">{t("collective.inherit")}</option>{collective.templates.map((template) => <option key={template.key} value={template.key}>{template.name}</option>)}</select></label>

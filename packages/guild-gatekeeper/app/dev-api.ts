@@ -1354,7 +1354,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     },
     async setSpaceVocabulary(input) {
       if (!collective.canConfigureSpaces) {
-        throw new Error("Only a Guild steward can configure Space vocabulary.");
+        throw new Error("Only a Guild steward can configure a Space Context Profile.");
       }
       if (!collective.spaces.some((space) => space.id === input.spaceId)) {
         throw new Error("Space was not found.");

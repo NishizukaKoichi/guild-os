@@ -86,7 +86,9 @@ export function HomePage({ api, bootstrap, collective, directory, onNavigate }: 
     },
     {
       id: "agent",
-      label: t("home.setupAgent"),
+      label: collective.template.suggestedAgent
+        ? `${t("home.setupAgent")}: ${collective.template.suggestedAgent}`
+        : t("home.setupAgent"),
       complete: Boolean(directory?.agentProfiles.length),
       icon: Bot,
       page: "members" as const,
@@ -102,36 +104,46 @@ export function HomePage({ api, bootstrap, collective, directory, onNavigate }: 
   const completedSetupSteps = setupSteps.filter((step) => step.complete).length;
   const showSetup = bootstrap.rootOwner && directory !== null && completedSetupSteps < setupSteps.length;
 
-  const actions = [
-    {
+  const actionsByIntent = {
+    ask: {
       id: "ask",
       title: t("home.actionAskTitle"),
       description: t("home.actionAskDescription"),
       icon: MessageCircleQuestion,
       page: "ask" as const,
     },
-    {
+    remember: {
       id: "memory",
       title: collective.labels.remember,
       description: t("home.actionKnowledgeDescription"),
       icon: BookOpen,
       page: "memory" as const,
     },
-    {
+    start: {
       id: "activity",
       title: collective.labels.startActivity,
       description: t("home.actionWorkDescription"),
       icon: ListTodo,
       page: "activity" as const,
     },
-    {
+    review: {
       id: "inbox",
       title: t("home.actionInboxTitle"),
       description: t("home.actionInboxDescription"),
       icon: Inbox,
       page: "inbox" as const,
     },
-  ];
+    members: {
+      id: "members",
+      title: collective.labels.members,
+      description: t("home.actionMembersDescription"),
+      icon: Users,
+      page: "members" as const,
+    },
+  };
+  const actions = collective.template.dashboardIntents
+    .filter((intent) => intent !== "members" || directory !== null)
+    .map((intent) => actionsByIntent[intent]);
 
   const attentionItems = [
     overview.unreadCount !== null && overview.unreadCount > 0 ? {

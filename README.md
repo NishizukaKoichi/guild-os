@@ -22,7 +22,8 @@ Implemented and tested:
 - Global Actor plus Guild-scoped Membership for Human, Agent, Service, and Guild Actor kinds
 - Neutral Membership lifecycle and Role/Capability engine with hierarchical Space scopes
 - Blank, Company, Community, Research, Creator, Open Source, and Agent Collective Templates
-- Editable Guild vocabulary plus per-Space Vocabulary Profile overrides
+- Complete Guild and per-Space Context Profiles for labels, creation choices, Decision methods,
+  workflows, dashboard order, and suggested Agents
 - Root Owner and private-data invariants
 - Root-only, versioned Constitution management with mandatory Chronicle reasons
 - Two-party, expiring Root ownership transfer with outgoing Role preservation and atomic Chronicle
@@ -114,7 +115,8 @@ Migrations preserve UUIDs and mirror legacy writes into the canonical tables. Ne
 must target Actor, Memory, and Activity; compatibility removal is governed by
 [the migration runbook](docs/collective-migration.md), not by an ad hoc table drop.
 
-See [architecture](docs/architecture.md), [security](docs/security.md), and the
+See [architecture](docs/architecture.md), [Context Profiles](docs/context-profiles.md),
+[security](docs/security.md), and the
 [accepted decisions](docs/adr/). Operational owners should also keep the
 [deployment](docs/deployment.md) and [backup and recovery](docs/backup-and-recovery.md) runbooks.
 

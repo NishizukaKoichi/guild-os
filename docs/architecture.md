@@ -48,7 +48,7 @@ Guild
 |- Decisions and Conversations
 |- Connections and Runs
 |- Events
-`- Templates and Vocabulary Profiles
+`- Templates and Context Profiles
 ```
 
 An Actor is a global subject of kind `human`, `agent`, `service`, or `guild`. A Membership places
@@ -63,10 +63,11 @@ Goal -> Project -> Quest -> Step depth and may be assigned to any active operati
 effect of an assignment is still constrained by that Actor's Capability, Space, Connection, risk,
 and approval policy.
 
-Templates configure initial Roles, vocabulary, Memory and Activity types, decision methods,
+Templates configure initial Roles, vocabulary, Memory and Activity types, Decision methods,
 workflows, dashboard intentions, and a suggested Agent. They do not branch the database schema or
-authorization semantics. Blank is the default. A Space can select a different Vocabulary Profile,
-so multiple operating cultures can coexist inside one Guild.
+authorization semantics. Blank is the default. A Space can select a complete Context Profile, so
+multiple operating cultures can coexist inside one Guild. The compatibility database column remains
+`vocabulary_profile_key`; runtime resolution applies the whole Template, not labels alone.
 
 ## Packages
 

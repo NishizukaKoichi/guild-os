@@ -4384,6 +4384,149 @@ textarea:focus-visible {
   padding-top: 20px;
 }
 
+.initialization-profile-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.context-profile-preview {
+  display: grid;
+  gap: 16px;
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.context-profile-preview > header {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: 20px;
+  align-items: end;
+}
+
+.context-profile-preview > header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.context-profile-preview > header span,
+.context-profile-grid dt,
+.context-profile-indicator span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.context-profile-preview h3,
+.context-profile-preview p,
+.context-profile-grid,
+.context-profile-grid dd {
+  margin: 0;
+}
+
+.context-profile-preview h3 {
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.context-profile-preview p {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.context-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.context-profile-grid > div {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+}
+
+.context-profile-grid dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.context-profile-grid dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.context-profile-grid dd span {
+  max-width: 100%;
+  padding: 3px 6px;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.context-profile-indicator {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-subtle);
+}
+
+.context-profile-indicator strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.context-workflow-options {
+  display: grid;
+  gap: 7px;
+}
+
+.context-workflow-options > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.context-workflow-options > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.context-workflow-options button {
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.context-workflow-options button:hover,
+.context-workflow-options button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
 .initialization-details-panel {
   width: min(100%, 720px);
   margin-top: 42px;
@@ -4638,7 +4781,7 @@ textarea:focus-visible {
 
 .settings-section > label,
 .settings-section fieldset,
-.space-vocabulary-list {
+.space-context-profile-list {
   display: grid;
   gap: 8px;
   margin: 0 0 18px;
@@ -4646,7 +4789,7 @@ textarea:focus-visible {
 
 .settings-section > label > span,
 .settings-section legend,
-.space-vocabulary-list label > span {
+.space-context-profile-list label > span {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
@@ -4670,18 +4813,18 @@ textarea:focus-visible {
   color: var(--text);
 }
 
-.space-vocabulary-list {
+.space-context-profile-list {
   padding-top: 18px;
   border-top: 1px solid var(--border);
 }
 
-.space-vocabulary-list h3 {
+.space-context-profile-list h3 {
   margin: 0 0 4px;
   font-size: 14px;
   letter-spacing: 0;
 }
 
-.space-vocabulary-list label {
+.space-context-profile-list label {
   display: grid;
   min-height: 48px;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
@@ -5166,6 +5309,10 @@ textarea:focus-visible {
   .conversation-mention-search {
     grid-column: 1 / -1;
   }
+
+  .context-profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -5178,6 +5325,15 @@ textarea:focus-visible {
     flex: 1 1 0;
   }
 
+  .context-profile-preview > header,
+  .context-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .context-profile-preview > header {
+    gap: 7px;
+  }
+
   .activity-row {
     padding-left: calc(2px + min(var(--activity-depth), 5) * 10px);
   }
@@ -5186,7 +5342,7 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .space-vocabulary-list label {
+  .space-context-profile-list label {
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     padding: 10px 0;

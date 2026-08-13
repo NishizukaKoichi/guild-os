@@ -6,25 +6,32 @@ import {
   type AgentLimits,
   type Classification,
 } from "@guild-os/domain";
-import type { CreateAgentRequest, UiDirectory } from "../../src/management-types";
+import type {
+  CreateAgentRequest,
+  UiCollectiveContext,
+  UiDirectory,
+} from "../../src/management-types";
+import { contextProfileForSpace } from "../collective-context";
 import { classificationTranslationKey, useI18n } from "../i18n";
 import { Notice } from "./Notice";
 
 export function AgentDialog({
   directory,
   defaults,
+  collective,
   onCreate,
   onClose,
 }: {
   directory: UiDirectory;
   defaults: AgentLimits;
+  collective?: UiCollectiveContext;
   onCreate(input: CreateAgentRequest): Promise<void>;
   onClose(): void;
 }) {
   const { t } = useI18n();
   const roles = useMemo(() => directory.roles.filter((role) =>
     !role.permissions.some((permission) => HUMAN_ONLY_PERMISSIONS.has(permission))), [directory.roles]);
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(collective?.template.suggestedAgent ?? "");
   const [clearance, setClearance] = useState<Classification>("internal");
   const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
   const [spaceId, setSpaceId] = useState("");
@@ -34,6 +41,19 @@ export function AgentDialog({
   const [limits, setLimits] = useState<AgentLimits>(defaults);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function chooseSpace(nextSpaceId: string) {
+    if (!collective) {
+      setSpaceId(nextSpaceId);
+      return;
+    }
+    const currentSuggestion = contextProfileForSpace(collective, spaceId).suggestedAgent ?? "";
+    const nextSuggestion = contextProfileForSpace(collective, nextSpaceId).suggestedAgent ?? "";
+    setSpaceId(nextSpaceId);
+    setDisplayName((current) => current === "" || current === currentSuggestion
+      ? nextSuggestion
+      : current);
+  }
 
   function setLimit<Key extends keyof AgentLimits>(key: Key, value: AgentLimits[Key]) {
     setLimits((current) => ({ ...current, [key]: value }));
@@ -108,7 +128,7 @@ export function AgentDialog({
           </div>
           <label>
             <span>{t("people.space")}</span>
-            <select value={spaceId} onChange={(event) => setSpaceId(event.target.value)}>
+            <select value={spaceId} onChange={(event) => chooseSpace(event.target.value)}>
               <option value="">{t("people.global")}</option>
               {directory.spaces.filter((space) => space.status === "active").map((space) => (
                 <option key={space.id} value={space.id}>{space.name}</option>

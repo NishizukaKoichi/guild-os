@@ -41,7 +41,7 @@ These controls remain authoritative during and after the ontology migration.
 | Activity | Every activity must be Goal -> Project -> Quest -> Step | Recursive Activity plus typed relationships and optional dependencies |
 | Assignment | Work is assignable only to Human or Agent | Activity is assignable to any active Actor; execution policy still limits effects |
 | Decisions | Formal approval is the only modeled decision method | Method and participants are explicit; high-risk effects retain Human approval |
-| UI copy | Work, People, onboarding, departed, Manager | Template vocabulary over neutral primitives, overridable per Space |
+| UI copy | Work, People, onboarding, departed, Manager | Complete Template Context Profiles over neutral primitives, overridable per Space |
 | Ask | Searches only Canonical Knowledge | Searches authorized Memory before model context construction |
 | Tests/docs | Company-shaped fixtures reproduce the same assumptions | Blank, Community, Research, Creator, Agent, Open Source, and Company scenarios |
 
@@ -68,7 +68,7 @@ scope, and clearance. Human, Agent, Service, and Guild profiles add kind-specifi
 changing Membership semantics.
 
 Templates configure vocabulary, initial Roles, suggested types, Decision methods, workflows,
-dashboard intentions, and recommended Agents. Each Space may select its own Vocabulary Profile, so
+dashboard intentions, and recommended Agents. Each Space may select its own complete Context Profile, so
 one Guild can speak research language in a laboratory Space and community language in an events
 Space while using the same Memory and Activity rows.
 

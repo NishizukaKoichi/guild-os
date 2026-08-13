@@ -30,7 +30,7 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
 | Neutral Membership and Capability vocabulary | Complete | Neutral canonical states/capabilities; Company wording isolated to its Template |
 | Broad Memory with optional governance | Complete | Direct versioned Memory plus Canonical Knowledge workflow adapter and immutable version tests |
 | Recursive Activity without fixed depth | Complete | Parent Activity, typed recursion, any operational Actor assignment, Space containment tests |
-| Seven Templates with Blank default | Complete | Domain registry, initialization, Guild/Space vocabulary settings, all-Template E2E |
+| Seven Templates with Blank default | Complete | Initialization Role presets plus Guild/Space Context Profiles for labels, choices, workflows, dashboard order, and Agents |
 | Ask over authorized Memory | Complete | SQL prefilter, domain recheck, Canonical-version selection, citations, leakage integration tests |
 | Agent safety after Members integration | Complete | Agent/requester/Workflow/Connector intersection, active Agent delegation check, Human-only governance |
 | Lossless additive migration | Complete | ID-preserving backfills, count guards, compatibility triggers, clean PostgreSQL 17 replay twice |

@@ -241,6 +241,7 @@ export interface UiCollectiveSpace {
   id: string;
   parentSpaceId: string | null;
   name: string;
+  /** Compatibility wire name for the Space's complete Context Profile. */
   vocabularyProfileKey: CollectiveTemplateKey | null;
   labels: CollectiveTemplateLabels;
   canConfigure: boolean;

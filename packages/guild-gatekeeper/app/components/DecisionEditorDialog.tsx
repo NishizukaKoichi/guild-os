@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2, X } from "lucide-react";
+import { Plus, Save, Trash2, Workflow, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   CLASSIFICATIONS,
@@ -15,6 +15,7 @@ import type {
   UiCollectiveContext,
   UiDirectory,
 } from "../../src/management-types";
+import { contextProfileForSpace } from "../collective-context";
 import { decisionMethodLabel } from "../collective-language";
 import {
   classificationTranslationKey,
@@ -64,12 +65,6 @@ function initialOptions(detail: UiDecisionDetail | null): DraftOption[] {
   }));
 }
 
-function templateForSpace(collective: UiCollectiveContext, targetSpaceId: string) {
-  const profileKey = collective.spaces.find((space) => space.id === targetSpaceId)
-    ?.vocabularyProfileKey;
-  return collective.templates.find((template) => template.key === profileKey) ?? collective.template;
-}
-
 export function DecisionEditorDialog({
   api,
   collective,
@@ -89,13 +84,15 @@ export function DecisionEditorDialog({
   const [rationale, setRationale] = useState(current?.rationale ?? "");
   const [spaceId, setSpaceId] = useState(current?.spaceId ?? activeSpaces[0]?.id ?? "");
   const [method, setMethod] = useState<DecisionMethod>(
-    current?.method ?? templateForSpace(collective, current?.spaceId ?? activeSpaces[0]?.id ?? "")
+    current?.method ?? contextProfileForSpace(collective, current?.spaceId ?? activeSpaces[0]?.id ?? "")
       .decisionMethods[0] ?? "custodian",
   );
+  const activeProfile = contextProfileForSpace(collective, spaceId);
+  const workflowOptions = activeProfile.workflows.filter((workflow) => workflow.decisionMethod);
   const methodOptions = useMemo(() => {
-    const methods = templateForSpace(collective, spaceId).decisionMethods;
+    const methods = activeProfile.decisionMethods;
     return methods.includes(method) ? methods : [method, ...methods];
-  }, [collective, method, spaceId]);
+  }, [activeProfile.decisionMethods, method]);
   const [visibility, setVisibility] = useState<Visibility>(current?.visibility ?? "space");
   const [classification, setClassification] = useState<Classification>(
     current?.classification ?? "internal",
@@ -194,7 +191,7 @@ export function DecisionEditorDialog({
               <span>{t("decision.space")}</span>
               <select value={spaceId} onChange={(event) => {
                 const nextSpaceId = event.target.value;
-                const nextMethods = templateForSpace(collective, nextSpaceId).decisionMethods;
+                const nextMethods = contextProfileForSpace(collective, nextSpaceId).decisionMethods;
                 setSpaceId(nextSpaceId);
                 if (!nextMethods.includes(method)) setMethod(nextMethods[0] ?? "custodian");
               }}>
@@ -215,6 +212,15 @@ export function DecisionEditorDialog({
               </select>
             </label>
           </div>
+          <div className="context-profile-indicator"><span>{t("collective.profilePreview")}</span><strong>{activeProfile.name}</strong></div>
+          {workflowOptions.length ? (
+            <div className="context-workflow-options">
+              <span><Workflow size={15} />{t("collective.workflows")}</span>
+              <div>{workflowOptions.map((workflow) => workflow.decisionMethod ? (
+                <button type="button" key={workflow.key} aria-pressed={method === workflow.decisionMethod} onClick={() => setMethod(workflow.decisionMethod ?? method)}>{workflow.name}</button>
+              ) : null)}</div>
+            </div>
+          ) : null}
           <div className="form-grid">
             <label>
               <span>{t("decision.visibility")}</span>

@@ -39,6 +39,38 @@ test("shows Human, Agent, Service, and Guild in one Members surface", async ({ p
   expect(errors).toEqual([]);
 });
 
+test("orders Home intents and Agent guidance from the active Guild profile", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("?standalone=root");
+
+  await expect(page.locator(".home-action-copy strong")).toHaveText([
+    "Ask a question",
+    "Start research",
+    "Record findings",
+    "Review updates",
+    "Researchers",
+  ]);
+  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await page.getByRole("button", { name: "Create agent", exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel("Agent name", { exact: true }))
+    .toHaveValue("Research synthesizer");
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+
+  await navigateToMore(page, "Settings");
+  await page.locator("#collective-template").selectOption("company");
+  await page.locator(".collective-settings").getByRole("button", { name: "Apply profile", exact: true }).click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page.locator(".home-action-copy strong")).toHaveText([
+    "Review updates",
+    "Start work",
+    "Ask a question",
+    "Document",
+    "People",
+  ]);
+  expect(errors).toEqual([]);
+});
+
 test("creates broad Memory and recursive Activity without the legacy hierarchy", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -53,7 +85,7 @@ test("creates broad Memory and recursive Activity without the legacy hierarchy",
   await dialog.getByLabel("Summary", { exact: true }).fill("A working observation for review.");
   await dialog.getByLabel("Content", { exact: true }).fill("The fictional sample suggests a repeatable pattern.");
   await dialog.getByLabel("Change note", { exact: true }).fill("Capture the initial observation.");
-  await dialog.getByRole("button", { name: "Remember", exact: true }).click();
+  await dialog.getByRole("button", { name: "Record findings", exact: true }).click();
   const memory = page.locator(".memory-row").filter({ hasText: "Fictional migration observation" });
   await expect(memory).toBeVisible();
   await memory.getByRole("button", { name: "Edit", exact: true }).click();
@@ -85,7 +117,7 @@ test("creates broad Memory and recursive Activity without the legacy hierarchy",
   expect(errors).toEqual([]);
 });
 
-test("switches purpose templates and persists a Space vocabulary override", async ({ page }) => {
+test("switches purpose profiles and applies a complete Space Context Profile", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
@@ -104,7 +136,7 @@ test("switches purpose templates and persists a Space vocabulary override", asyn
   ] as const;
   for (const [value, members, memory, activity] of expected) {
     await template.selectOption(value);
-    await settings.getByRole("button", { name: "Apply template", exact: true }).click();
+    await settings.getByRole("button", { name: "Apply profile", exact: true }).click();
     await expect(page.locator(".sidebar").getByRole("button", { name: members, exact: true })).toBeVisible();
     await expect(page.locator(".sidebar").getByRole("button", { name: memory, exact: true })).toBeVisible();
     await expect(page.locator(".sidebar").getByRole("button", { name: activity, exact: true })).toBeVisible();
@@ -113,6 +145,48 @@ test("switches purpose templates and persists a Space vocabulary override", asyn
   const researchSpace = settings.locator('select[data-space-name="Research"]');
   await researchSpace.selectOption("creator");
   await expect(researchSpace).toHaveValue("creator");
+
+  await page.getByRole("button", { name: "Studies", exact: true }).click();
+  await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
+    "Study",
+    "Experiment",
+    "Investigation",
+    "Discussion",
+  ]);
+  await dialog.getByRole("combobox", { name: "Space", exact: true }).selectOption({ label: "Research" });
+  await expect(dialog.getByText("Creator Collective", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Editorial review", exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
+    "Creation",
+    "Project",
+    "Session",
+    "Campaign",
+  ]);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+  await page.getByRole("button", { name: "Research memory", exact: true }).click();
+  await page.getByRole("button", { name: "Record findings", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Space", { exact: true }).selectOption({ label: "Research" });
+  await expect(dialog.getByText("Creator Collective", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Editorial review", exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
+    "Artifact",
+    "Experience",
+    "Document",
+    "Learning",
+  ]);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await page.getByRole("button", { name: "Create agent", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Agent name", { exact: true })).toHaveValue("Research synthesizer");
+  await dialog.getByRole("combobox", { name: "Space", exact: true }).selectOption({ label: "Research" });
+  await expect(dialog.getByLabel("Agent name", { exact: true })).toHaveValue("Editing companion");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
   expect(errors).toEqual([]);
 });
 
@@ -124,13 +198,17 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
   async function applyTemplate(value: string) {
     await navigateToMore(page, "Settings");
     await page.locator("#collective-template").selectOption(value);
-    await page.locator(".collective-settings").getByRole("button", { name: "Apply template", exact: true }).click();
+    await page.locator(".collective-settings").getByRole("button", { name: "Apply profile", exact: true }).click();
   }
 
   await applyTemplate("community");
   await page.getByRole("button", { name: "Collective decisions", exact: true }).click();
   await page.locator(".page-header").getByRole("button", { name: "Create Decision", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Create a Decision", exact: true });
+  await expect(dialog.getByRole("button", { name: "Community vote", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Community vote", exact: true }).click();
+  await expect(dialog.getByRole("combobox", { name: "Decision method", exact: true }))
+    .toHaveValue("vote");
   await expect(dialog.getByRole("combobox", { name: "Decision method", exact: true }).locator("option")).toHaveText([
     "Consent",
     "Vote",
@@ -150,7 +228,7 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
   await applyTemplate("creator");
   await page.getByRole("button", { name: "Creative memory", exact: true }).click();
   await page.getByRole("button", { name: "Save an idea", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Add to memory", exact: true });
+  dialog = page.getByRole("dialog", { name: "Save an idea", exact: true });
   await expect(dialog.getByLabel("Type", { exact: true }).locator("option").first()).toHaveText("Artifact");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Creations", exact: true }).click();
@@ -215,6 +293,10 @@ for (const width of [390, 320] as const) {
     await tabs.getByRole("button", { name: "Studies", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Studies", exact: true })).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
     await tabs.getByRole("button", { name: "More", exact: true }).click();
     await page.getByRole("button", { name: "Researchers", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Researchers", exact: true, level: 1 })).toBeVisible();

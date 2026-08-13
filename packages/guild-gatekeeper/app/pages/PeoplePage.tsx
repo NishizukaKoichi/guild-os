@@ -316,7 +316,7 @@ export function PeoplePage({
 
       {inviteOpen ? <InviteDialog collective={collective} directory={directory} onClose={() => setInviteOpen(false)} onIssue={issue} /> : null}
       {serviceOpen ? <ServiceDialog directory={directory} onCreate={onCreateService} onClose={() => setServiceOpen(false)} /> : null}
-      {agentOpen ? <AgentDialog directory={directory} defaults={bootstrap.agentDefaults} onCreate={onCreateAgent} onClose={() => setAgentOpen(false)} /> : null}
+      {agentOpen ? <AgentDialog directory={directory} defaults={bootstrap.agentDefaults} collective={collective} onCreate={onCreateAgent} onClose={() => setAgentOpen(false)} /> : null}
       {roleIdentity ? (
         <IdentityRoleDialog
           directory={directory}

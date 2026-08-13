@@ -64,4 +64,23 @@ describe("Actor-neutral Collective primitives", () => {
     expect(collectiveTemplate("community").decisionMethods).toContain("vote");
     expect(collectiveTemplate("agent-collective").workflows[0]?.decisionMethod).toBe("hybrid");
   });
+
+  it("keeps every Context Profile internally complete and self-consistent", () => {
+    const intents = ["ask", "remember", "start", "review", "members"];
+    for (const template of COLLECTIVE_TEMPLATES) {
+      expect([...template.dashboardIntents].sort()).toEqual([...intents].sort());
+      expect(new Set(template.dashboardIntents).size).toBe(template.dashboardIntents.length);
+      expect(template.roles.length).toBeGreaterThanOrEqual(2);
+      expect(template.activityTypes.length).toBeGreaterThan(0);
+      expect(template.memoryTypes.length).toBeGreaterThan(0);
+      expect(template.decisionMethods.length).toBeGreaterThan(0);
+      for (const workflow of template.workflows) {
+        if (workflow.activityType) expect(template.activityTypes).toContain(workflow.activityType);
+        if (workflow.memoryType) expect(template.memoryTypes).toContain(workflow.memoryType);
+        if (workflow.decisionMethod) {
+          expect(template.decisionMethods).toContain(workflow.decisionMethod);
+        }
+      }
+    }
+  });
 });

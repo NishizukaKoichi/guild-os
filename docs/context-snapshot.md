@@ -33,8 +33,8 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Cloudflare OS Gatekeepers remain the only path from agents and Gadgets to Guild data or external
   side effects.
 - No central seller-operated API, licensing server, database, or mandatory subscription is allowed.
-- Company is one Template. Blank remains the default, and Space vocabulary may mix Templates
-  without changing the schema or authorization engine.
+- Company is one Template. Blank remains the default, and complete Space Context Profiles may mix
+  Templates without forking the neutral core or changing the schema or authorization engine.
 
 ## Security invariants
 
@@ -61,7 +61,7 @@ product requirement must be resolved explicitly rather than silently weakened.
   invitations and Membership lifecycle writes, and provides a sandboxed responsive management UI.
 - The canonical substrate now persists global Actors, Guild-scoped neutral Memberships, Actor Role
   bindings and kind profiles, broad versioned Memory, recursive Activity, seven built-in Templates,
-  Guild settings, and per-Space Vocabulary Profiles. Human, Agent, Service, and Guild appear in one
+  Guild settings, and per-Space Context Profiles. Human, Agent, Service, and Guild appear in one
   Members surface. Root is a separate Human Custodian boundary.
 - Migrations 0026-0029 preserve legacy UUIDs, grants, security boundaries, versions, file links,
   Work relationships, and Chronicle history. Identity, Knowledge, and fixed Work writes mirror to

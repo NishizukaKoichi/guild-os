@@ -1,5 +1,7 @@
 # ADR 0029: Make Actor, Memory, and Activity the Collective substrate
 
+Space profile behavior is refined by [ADR 0030](0030-space-context-profiles.md).
+
 ## Status
 
 Accepted

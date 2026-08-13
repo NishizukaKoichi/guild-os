@@ -13,16 +13,19 @@ Use `/admin` for runtime policy that should not require a deployment:
 
 Authentication and authorization are deliberately absent. Sign-in configuration and administrator identities remain deployment-controlled so a compromised admin session cannot redefine the trust boundary.
 
-## Collective Templates and vocabulary
+## Collective Templates and Context Profiles
 
-Choose **Guild > Settings > Collective language** to apply Blank, Company, Community, Research,
-Creator, Open Source, or Agent Collective. This changes vocabulary and the offered Memory/Activity
-types; it never changes RLS or bypasses Capabilities. The four primary labels can be overridden for
-the Guild, and every Space can inherit the Guild vocabulary or select another built-in profile.
+Choose **More > Settings > Context profiles** to apply Blank, Company, Community, Research,
+Creator, Open Source, or Agent Collective. The Guild Profile controls labels, Home action order,
+Memory and Activity choices, Decision methods, workflow suggestions, and the suggested Agent. The
+four primary labels can be overridden, and every Space can inherit the Guild Profile or select a
+different built-in Profile. See the complete [Context Profile guide](context-profiles.md).
 
-Roles remain ordinary editable data under Guild Settings. Applying a Template after initialization
-does not silently replace existing Roles, Actors, or data. This prevents a display change from
-becoming an authorization migration. Blank is the initialization default.
+The selected Template's built-in Role preset is created during initialization. Custom Roles remain
+editable data under Guild Settings; built-in Roles are protected from accidental mutation.
+Applying a Profile after initialization does not silently replace existing Roles, assignments,
+Actors, or data. This prevents an operating-context change from becoming an authorization
+migration. Blank is the initialization default.
 
 Built-in definitions live in `packages/guild-domain/src/templates.ts`; translated display copy
 lives in `packages/guild-gatekeeper/app/collective-language.ts`. To add a purchaser-owned Template:
@@ -32,8 +35,8 @@ lives in `packages/guild-gatekeeper/app/collective-language.ts`. To add a purcha
 2. Add localized copy without changing the internal key.
 3. Add a forward-only migration that seeds `collective_templates` and `vocabulary_profiles` for
    existing Guilds. Never edit an applied migration.
-4. Add domain tests for the definition and E2E coverage for navigation, type choices, and one Space
-   override at 1440, 390, and 320 pixels.
+4. Add domain tests for the definition and E2E coverage for Home ordering, type choices, workflows,
+   the suggested Agent, and one Space override at 1440, 390, and 320 pixels.
 
 To remove a Template, first migrate every `guild_collective_settings.template_key` and
 `spaces.vocabulary_profile_key` reference to Blank or another retained Template. Only then remove
