@@ -72,6 +72,8 @@ jobs:
           PGPASSWORD: postgres
         run: |
           psql -h 127.0.0.1 -U postgres -d guild_os -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS vector;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
           CREATE ROLE guild_app LOGIN PASSWORD 'guild_app' NOSUPERUSER NOBYPASSRLS;
           ALTER DATABASE guild_os OWNER TO guild_app;
           SQL
