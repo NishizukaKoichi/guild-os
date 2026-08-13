@@ -17,9 +17,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import {
+  activeWorkerReleaseCommit,
   assertCommand,
   assertResolvedResources,
-  assertWorkerDeploymentsMatchRelease,
   captureWorkerDeployments,
   deploymentLockSnapshot,
   deploymentRecoveryConfiguration,
@@ -47,6 +47,7 @@ const KV_CONCURRENCY = 4;
 const R2_CONCURRENCY = 4;
 const KV_RESTORE_BATCH_ENTRIES = 5_000;
 const KV_RESTORE_BATCH_BYTES = 50 * 1024 * 1024;
+const INDIRECT_GUILD_SCOPED_TABLES = new Set(["human_profiles"]);
 
 class CloudflareRequestError extends Error {
   constructor(message, retryable) {
@@ -199,6 +200,37 @@ export const DATABASE_BOUNDARY_SQL = `SELECT
          (SELECT name FROM public.guild_schema_migrations
            ORDER BY name DESC LIMIT 1) AS latest_migration`;
 
+export function guildBackupTableNames(tables) {
+  const scoped = [];
+  const unscoped = [];
+  const unsafeRls = [];
+  for (const table of tables) {
+    const name = table.table_name;
+    if (typeof name !== "string" || !/^[a-z][a-z0-9_]*$/.test(name)) {
+      throw new Error("The database contains an unsafe Guild table name.");
+    }
+    if (name === "guild_schema_migrations") continue;
+    const belongsToGuild = name === "guilds" || table.has_guild_id ||
+      table.has_home_guild_id || INDIRECT_GUILD_SCOPED_TABLES.has(name);
+    if (!belongsToGuild) {
+      unscoped.push(name);
+      continue;
+    }
+    if (!table.row_security || !table.force_row_security) unsafeRls.push(name);
+    scoped.push(name);
+  }
+  if (unscoped.length) {
+    throw new Error(`Guild backup found unscoped public tables: ${unscoped.join(", ")}.`);
+  }
+  if (unsafeRls.length) {
+    throw new Error(`Guild backup requires forced RLS on: ${unsafeRls.join(", ")}.`);
+  }
+  scoped.sort();
+  const guilds = scoped.indexOf("guilds");
+  if (guilds >= 0) scoped.unshift(scoped.splice(guilds, 1)[0]);
+  return scoped;
+}
+
 async function databaseBoundary(connectionString, guildId) {
   const client = new Client({ connectionString });
   await client.connect();
@@ -206,45 +238,33 @@ async function databaseBoundary(connectionString, guildId) {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     await client.query("SELECT set_config('app.guild_id', $1, true)", [guildId]);
     const result = await client.query(DATABASE_BOUNDARY_SQL, [guildId]);
-    const guildTables = (await client.query(
-      `SELECT class.relname AS table_name
+    const publicTables = (await client.query(
+      `SELECT class.relname AS table_name,
+              class.relrowsecurity AS row_security,
+              class.relforcerowsecurity AS force_row_security,
+              EXISTS (
+                SELECT 1 FROM pg_attribute attribute
+                 WHERE attribute.attrelid = class.oid
+                   AND attribute.attname = 'guild_id'
+                   AND attribute.attnum > 0
+                   AND NOT attribute.attisdropped
+              ) AS has_guild_id,
+              EXISTS (
+                SELECT 1 FROM pg_attribute attribute
+                 WHERE attribute.attrelid = class.oid
+                   AND attribute.attname = 'home_guild_id'
+                   AND attribute.attnum > 0
+                   AND NOT attribute.attisdropped
+              ) AS has_home_guild_id
          FROM pg_class class
          JOIN pg_namespace namespace ON namespace.oid = class.relnamespace
-         JOIN pg_attribute attribute ON attribute.attrelid = class.oid
         WHERE namespace.nspname = 'public'
           AND class.relkind IN ('r', 'p')
-          AND attribute.attname = 'guild_id'
-          AND attribute.attnum > 0
-          AND NOT attribute.attisdropped
         ORDER BY class.relname`,
-    )).rows.map((table) => table.table_name);
-    const unexpectedUnscopedTables = (await client.query(
-      `SELECT class.relname AS table_name
-         FROM pg_class class
-         JOIN pg_namespace namespace ON namespace.oid = class.relnamespace
-        WHERE namespace.nspname = 'public'
-          AND class.relkind IN ('r', 'p')
-          AND class.relname NOT IN ('guilds', 'guild_schema_migrations')
-          AND NOT EXISTS (
-            SELECT 1 FROM pg_attribute attribute
-             WHERE attribute.attrelid = class.oid
-               AND attribute.attname = 'guild_id'
-               AND attribute.attnum > 0
-               AND NOT attribute.attisdropped
-          )
-        ORDER BY class.relname`,
-    )).rows.map((table) => table.table_name);
-    if (unexpectedUnscopedTables.length) {
-      throw new Error(
-        `Guild backup found unscoped public tables: ${unexpectedUnscopedTables.join(", ")}.`,
-      );
-    }
-    guildTables.unshift("guilds");
+    )).rows;
+    const guildTables = guildBackupTableNames(publicTables);
     const guildTableRows = {};
     for (const table of guildTables) {
-      if (typeof table !== "string" || !/^[a-z][a-z0-9_]*$/.test(table)) {
-        throw new Error("The database contains an unsafe Guild table name.");
-      }
       const count = await client.query(`SELECT count(*)::text AS count FROM "${table}"`);
       guildTableRows[table] = count.rows[0]?.count ?? "0";
     }
@@ -1033,7 +1053,7 @@ async function createBackup(options) {
       ? await importAccessSnapshot(config, options.accessSnapshot, accessPath)
       : await exportAccess(config, cloudflareToken, accessPath);
     const deployments = captureWorkerDeployments(config);
-    assertWorkerDeploymentsMatchRelease(deployments, sourceSnapshot.commit);
+    const deployedReleaseCommit = activeWorkerReleaseCommit(deployments);
     await writeAtomicJson(join(options.path, "cloudflare/deployments.json"), deployments);
     await writeAtomicJson(
       join(options.path, "cloudflare/deployment-summary.json"),
@@ -1084,6 +1104,7 @@ async function createBackup(options) {
       encryption: "destination-confirmed",
       guildId: config.guild.id,
       source: sourceSnapshot,
+      deployedReleaseCommit,
       migrations,
       tools,
       databaseBoundary: boundaryBefore,
@@ -1202,6 +1223,8 @@ export async function verifyBackupDirectory(root) {
   }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     .test(manifest.guildId ?? "") ||
+      manifest.deployedReleaseCommit !== undefined &&
+      !/^[a-f0-9]{40}$/i.test(manifest.deployedReleaseCommit) ||
       manifest.stores?.postgres?.scope !== "guild-forced-rls" ||
       manifest.stores.postgres.format !== "plain-column-inserts" ||
       typeof manifest.databaseBoundary?.chronicleSequence !== "string" ||

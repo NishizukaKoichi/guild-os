@@ -7,6 +7,7 @@ import {
   assertQuiescentBoundary,
   DATABASE_BOUNDARY_SQL,
   exportR2BucketWithCloudflare,
+  guildBackupTableNames,
   importAccessSnapshot,
   listCloudflarePages,
   listKvKeys,
@@ -29,6 +30,30 @@ test("backup quiescence checks the canonical file upload table", async () => {
 
   assert.equal(pendingUploadQuery?.[1], "files");
   assert.doesNotMatch(DATABASE_BOUNDARY_SQL, /FROM knowledge_files\b/);
+});
+
+test("backup table discovery accepts forced direct and indirect Guild scope", () => {
+  const table = (table_name, extra = {}) => ({
+    table_name,
+    row_security: true,
+    force_row_security: true,
+    has_guild_id: false,
+    has_home_guild_id: false,
+    ...extra,
+  });
+  assert.deepEqual(guildBackupTableNames([
+    table("actors", { has_home_guild_id: true }),
+    table("guild_schema_migrations", { row_security: false, force_row_security: false }),
+    table("guilds"),
+    table("human_profiles"),
+    table("identities", { has_guild_id: true }),
+  ]), ["guilds", "actors", "human_profiles", "identities"]);
+  assert.throws(() => guildBackupTableNames([
+    table("unknown_global_table"),
+  ]), /unscoped public tables/i);
+  assert.throws(() => guildBackupTableNames([
+    table("actors", { has_home_guild_id: true, force_row_security: false }),
+  ]), /forced RLS/i);
 });
 
 test("backup arguments require an external absolute encrypted destination", () => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  activeWorkerReleaseCommit,
   assertResolvedResources,
   assertWorkerDeploymentsMatchRelease,
   deploymentLockSnapshot,
@@ -124,6 +125,24 @@ test("active Worker versions must identify the exact source release", () => {
     release,
     () => JSON.stringify({ annotations: { "workers/message": "Guild OS stale" } }),
   ), /not running release/i);
+});
+
+test("active Workers expose one shared release for pre-deploy backups", () => {
+  const release = "0123456789abcdef0123456789abcdef01234567";
+  const deployments = ["workshop", "gatekeeper"].map((workerName, index) => ({
+    workerName,
+    versions: [{ id: `version-${index}`, percentage: 100 }],
+  }));
+  assert.equal(activeWorkerReleaseCommit(
+    deployments,
+    () => JSON.stringify({ annotations: { "workers/message": `Guild OS ${release}` } }),
+  ), release);
+  let call = 0;
+  assert.throws(() => activeWorkerReleaseCommit(deployments, () => {
+    call += 1;
+    const active = call === 1 ? release : "abcdef0123456789abcdef0123456789abcdef01";
+    return JSON.stringify({ annotations: { "workers/message": `Guild OS ${active}` } });
+  }), /do not share one Guild OS release/i);
 });
 
 test("production resources and URLs must resolve explicitly", () => {

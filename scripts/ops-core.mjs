@@ -301,17 +301,14 @@ export function captureWorkerDeployments(config, runner = runCapture) {
   });
 }
 
-export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, runner = runCapture) {
-  if (!/^[a-f0-9]{40}$/i.test(releaseCommit ?? "")) {
-    throw new Error("A full release commit is required to verify active Worker versions.");
-  }
+export function activeWorkerReleaseCommit(deployments, runner = runCapture) {
   const env = { ...process.env };
   delete env.DATABASE_URL;
   delete env.GUILD_WEBHOOK_SIGNING_SECRET;
   delete env.CF_AI_GATEWAY_API_TOKEN;
   delete env.CF_ACCESS_CLIENT_ID;
   delete env.CF_ACCESS_CLIENT_SECRET;
-  const expectedMessage = `Guild OS ${releaseCommit}`;
+  const releases = new Set();
   for (const deployment of deployments) {
     if (!Array.isArray(deployment?.versions) || deployment.versions.length !== 1 ||
         deployment.versions[0]?.percentage !== 100 ||
@@ -324,9 +321,32 @@ export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, 
     ], { env: { ...env, ...(process.env.CLOUDFLARE_API_TOKEN
       ? { CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN }
       : {}) } }));
-    if (version?.annotations?.["workers/message"] !== expectedMessage) {
-      throw new Error(`${deployment.workerName} is not running release ${releaseCommit}.`);
+    const match = /^Guild OS ([a-f0-9]{40})$/i.exec(
+      version?.annotations?.["workers/message"] ?? "",
+    );
+    if (!match) {
+      throw new Error(`${deployment.workerName} does not identify one Guild OS release.`);
     }
+    releases.add(match[1].toLowerCase());
+  }
+  if (releases.size !== 1) {
+    throw new Error("Active Workers do not share one Guild OS release.");
+  }
+  return [...releases][0];
+}
+
+export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, runner = runCapture) {
+  if (!/^[a-f0-9]{40}$/i.test(releaseCommit ?? "")) {
+    throw new Error("A full release commit is required to verify active Worker versions.");
+  }
+  let activeRelease;
+  try {
+    activeRelease = activeWorkerReleaseCommit(deployments, runner);
+  } catch (error) {
+    throw new Error(`Workers are not running release ${releaseCommit}. ${error.message}`);
+  }
+  if (activeRelease !== releaseCommit.toLowerCase()) {
+    throw new Error(`Workers are not running release ${releaseCommit}.`);
   }
   return deployments;
 }

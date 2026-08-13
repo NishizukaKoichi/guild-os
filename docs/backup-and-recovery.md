@@ -79,6 +79,12 @@ the remote R2 tree, indexes every object, hashes every exported control file, an
 verification used by `backup:verify`. Copy the finished directory off-site only after the command
 succeeds.
 
+The source checkout may be ahead of the active deployment during a pre-deploy backup. The manifest
+records the clean backup-tool commit and active Worker release separately, requires every Worker to
+be on the same 100-percent release, and refuses a database migration mismatch. Direct `guild_id`,
+Actor `home_guild_id`, and explicitly reviewed relationship-scoped tables must all use forced RLS;
+any unknown unscoped table stops the backup.
+
 For large R2 stores, `rclone` remains an optional high-throughput path. Configure a purchaser-owned
 R2 remote, then add `--r2-remote purchaser-r2`. The backup still indexes and verifies the local
 object tree after `rclone check` succeeds.
