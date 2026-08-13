@@ -229,9 +229,10 @@ This requires PostgreSQL 17+, TLS, a non-superuser role without `BYPASSRLS`, the
 set and checksums for the release, and forced RLS on every Guild table. Plaintext localhost is
 available only for explicit local diagnostics with `--allow-insecure-localhost`.
 
-CI applies every migration twice to an ephemeral PostgreSQL 17 database owned by a non-superuser,
-then verifies Guild RLS isolation, Root Owner integrity, and Chronicle immutability. For local
-integration verification, supply a migrated, disposable test database; these commands mutate it:
+CI enables `vector` and `pg_trgm` as a database administrator, then applies every migration twice
+to an ephemeral PostgreSQL 18 database owned by a non-superuser. It verifies Guild RLS isolation,
+Root Owner integrity, Chronicle immutability, and the semantic-search schema. For local integration
+verification, supply a migrated, disposable test database; these commands mutate it:
 
 ```sh
 read -r -s DATABASE_URL

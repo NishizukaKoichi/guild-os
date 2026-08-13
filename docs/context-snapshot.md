@@ -1,6 +1,6 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-13
+Updated: 2026-08-14
 
 ## Current goal
 
@@ -52,9 +52,10 @@ product requirement must be resolved explicitly rather than silently weakened.
 
 ## Current implementation state
 
-- Cloudflare OS Starter is cloned under the canonical Pensive workspace.
-- Upstream Cloudflare OS is pinned at `bf7f762d7fa73553284d731ab6a978d3ea17be24`.
-- Starter baseline tests pass locally on Node.js 22; Node.js 24 remains the supported release target.
+- Cloudflare OS is pinned as the `cloudflare-os` Git submodule at
+  `bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5`, including the verified reauthentication boundary
+  required by Guild OS Level 3 actions.
+- Node.js 24 is the supported development, CI, and release target.
 - Guild domain policy, PostgreSQL persistence, migration tooling, and Guild Gatekeeper are
   implemented. The Gatekeeper requires explicit Workshop-admin initialization, serializes the
   first-Root claim in PostgreSQL, minimizes bootstrap data for nonmembers, supports one-time Human
@@ -63,12 +64,14 @@ product requirement must be resolved explicitly rather than silently weakened.
   bindings and kind profiles, broad versioned Memory, recursive Activity, seven built-in Templates,
   Guild settings, and per-Space Context Profiles. Human, Agent, Service, and Guild appear in one
   Members surface. Root is a separate Human Custodian boundary.
-- Migrations 0026-0029 preserve legacy UUIDs, grants, security boundaries, versions, file links,
+- Migrations 0026-0045 preserve legacy UUIDs, grants, security boundaries, versions, file links,
   Work relationships, and Chronicle history. Identity, Knowledge, and fixed Work writes mirror to
-  Actor, Memory, and Activity during the explicit compatibility window. Migration 0029 also
-  backfills and enforces model-token limits without invalidating an older Worker rollback.
-- PostgreSQL 17 integration verification applies migrations twice using a non-superuser owner, then
-  proves tenant RLS isolation and Chronicle immutability. The same checks run in CI.
+  Actor, Memory, and Activity during the explicit compatibility window. Later migrations add the
+  Context Graph, Memory custody and semantic index, lifecycle, private communication, Contribution,
+  Connections, Automation, Federation, risk-level execution, portability, and retention.
+- Production supports PostgreSQL 17 or newer and currently runs PostgreSQL 18. CI enables `vector`
+  and `pg_trgm` as an administrator, then applies all migrations twice on PostgreSQL 18 using a
+  non-superuser application owner before running the PostgreSQL and Gatekeeper integration suites.
 - Role/Space editors and governed Knowledge are implemented. Knowledge includes immutable
   versions, human approval, multilingual content, R2 files, acknowledgement, retirement, citations,
   locale-aware SQL-before-model authorization, rate limiting, and durable file cleanup. Ask Guild
@@ -87,8 +90,10 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Governed Announcements, Inbox read state, Knowledge-update notifications, and Chronicle queries
   are implemented with SQL-before-service authorization, current-authority revocation, set-based
   fan-out, immutable payloads, keyset pagination, and responsive browser flows.
-- Governed Agent execution is implemented for one deployment-owned Risk Level 2 HTTPS Webhook.
-  It includes Cloudflare OS action approval, Guild Human quorum, permission-filtered discovery,
+- Governed Agent execution supports Risk Levels 0 through 3 and multiple purchaser-owned typed
+  Connections, including Cloudflare OS Gatekeepers/MCP and fixed HTTPS Webhooks. It includes
+  verified reauthentication for Level 3, Cloudflare OS action approval, Guild Human quorum,
+  permission-filtered discovery,
   immutable plans and authority snapshots, execution-time rechecks, HMAC and idempotency, hard
   limits, Cloudflare Workflows, transactional dispatch, Kill/offboarding cancellation, late-race
   audit evidence, management UI, and integration/browser tests.
@@ -130,7 +135,8 @@ product requirement must be resolved explicitly rather than silently weakened.
 1. Produce a clean commit with all local, PostgreSQL, E2E, build, lint, type, dependency, and visual
    gates green.
 2. Capture and verify a purchaser-owned encrypted production backup before any migration.
-3. Run migration dry-run, apply the additive migration, and reconcile legacy/canonical counts.
+3. Run migration dry-run, apply the forward-only migration set, and reconcile legacy/canonical
+   counts.
 4. Push and deploy only the tested commit; verify every Worker identifies that exact SHA.
 5. Record checksummed release and production-smoke evidence outside the source repository, then
    prepare an isolated restore and compare Guild table counts plus Chronicle sequence.

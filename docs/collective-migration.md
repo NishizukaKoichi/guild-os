@@ -9,7 +9,7 @@ During each backfill transaction, the migration-owning non-superuser temporarily
 on only the source and target tables needed for an all-Guild reconciliation. RLS remains enabled,
 the transaction is not externally visible, deferred constraints and count guards are resolved
 before the tables are forced behind tenant RLS again, and any failure rolls the entire migration
-back. This ordering is covered by migration tests and a populated PostgreSQL 17 upgrade rehearsal.
+back. This ordering is covered by migration tests and a populated PostgreSQL 18 upgrade rehearsal.
 
 ## Mapping
 
@@ -41,10 +41,14 @@ versions can be rolled between while the release is evaluated.
    pnpm --filter @guild-os/postgres migrate --dry-run
    ```
 
-5. Apply the full migration set twice to an empty PostgreSQL 17 database owned by a non-superuser,
-   then run both integration suites. The second migration pass must report no work.
+5. Enable `vector` and `pg_trgm` as the database administrator. Then apply the full migration set
+   twice to an empty PostgreSQL 18 database owned by a non-superuser and run both integration
+   suites. The second migration pass must report no work.
 
    ```sh
+   psql "$REHEARSAL_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
+     -c 'CREATE EXTENSION IF NOT EXISTS vector' \
+     -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm'
    DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm db:migrate
    DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm db:migrate
    DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm --filter @guild-os/postgres test:integration

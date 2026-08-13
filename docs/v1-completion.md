@@ -41,7 +41,8 @@ the migration runbook and is not a v1 release shortcut.
 
 ## Current verified slice
 
-- PostgreSQL 17 migrations are checksum-pinned and idempotent.
+- PostgreSQL 18 release verification applies all checksum-pinned migrations twice; the supported
+  production floor remains PostgreSQL 17.
 - Page load cannot create a Guild. Explicit initialization requires trusted Workshop-admin context
   and exact Guild-name confirmation, while a Guild-scoped advisory lock permits one Root winner.
   Nonmembers receive no Root, Constitution, ownership-transfer, or Agent-default bootstrap fields.
