@@ -12,3 +12,4 @@ export * from "./agent.js";
 export * from "./conversation.js";
 export * from "./collective.js";
 export * from "./templates.js";
+export * from "./fabric.js";

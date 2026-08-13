@@ -27,11 +27,16 @@ import { ActivityPage } from "./pages/ActivityPage";
 import { AskGuildPage } from "./pages/AskGuildPage";
 import { ChroniclePage } from "./pages/ChroniclePage";
 import { DecisionsPage } from "./pages/DecisionsPage";
+import { ContributionsPage } from "./pages/ContributionsPage";
+import { ContextPage } from "./pages/ContextPage";
 import { HomePage } from "./pages/HomePage";
 import { InboxPage } from "./pages/InboxPage";
 import { InitializationPage } from "./pages/InitializationPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
+import { LifecyclePage } from "./pages/LifecyclePage";
 import { MemoryPage } from "./pages/MemoryPage";
+import { MessagesPage } from "./pages/MessagesPage";
+import { OperationsPage } from "./pages/OperationsPage";
 import { PeoplePage } from "./pages/PeoplePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkPage } from "./pages/WorkPage";
@@ -179,13 +184,21 @@ export function App({ api }: { api: GuildUiApi }) {
         <HomePage api={api} bootstrap={bootstrap} collective={collective} directory={directory} onNavigate={navigate} />
       ) : null}
       {visiblePage === "inbox" ? <InboxPage api={api} directory={directory} /> : null}
+      {visiblePage === "messages" ? <MessagesPage api={api} directory={directory} /> : null}
+      {visiblePage === "lifecycle" ? <LifecyclePage api={api} directory={directory} /> : null}
+      {visiblePage === "contributions" ? <ContributionsPage api={api} directory={directory} /> : null}
+      {visiblePage === "context" ? <ContextPage api={api} /> : null}
       {visiblePage === "ask" ? (
         <AskGuildPage
           api={api}
           onNavigate={navigate}
-          onOpenCitation={(memoryId, governed) => {
-            if (governed) setKnowledgeTarget(memoryId);
-            setPage(governed ? "knowledge" : "memory");
+          onOpenCitation={(citation) => {
+            if (citation.resourceType === "memory") {
+              if (citation.governed) setKnowledgeTarget(citation.resourceId);
+              setPage(citation.governed ? "knowledge" : "memory");
+            } else {
+              setPage(citation.resourceType === "actor" ? "members" : "decisions");
+            }
           }}
         />
       ) : null}
@@ -250,6 +263,10 @@ export function App({ api }: { api: GuildUiApi }) {
             await api.changeMachineMembership(identityId, nextState);
             await refreshDirectory();
           }}
+          onOffboard={async (input) => {
+            await api.offboardActor(input);
+            await refreshDirectory();
+          }}
           onAssignRole={async (input: AssignRoleRequest) => {
             await api.assignRole(input);
             await refreshDirectory();
@@ -293,6 +310,7 @@ export function App({ api }: { api: GuildUiApi }) {
         />
       ) : null}
       {visiblePage === "chronicle" ? <ChroniclePage api={api} directory={directory} /> : null}
+      {visiblePage === "operations" ? <OperationsPage api={api} /> : null}
       {visiblePage === "settings" ? (
         <SettingsPage
           bootstrap={bootstrap}

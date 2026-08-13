@@ -39,6 +39,22 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0027_memory_activity_core.sql",
     "0028_collective_compatibility.sql",
     "0029_agent_token_limits.sql",
+    "0030_memory_context_and_custody.sql",
+    "0031_lifecycle_communication_and_contribution.sql",
+    "0032_connections_automation_and_federation.sql",
+    "0033_agent_action_levels_and_models.sql",
+    "0034_decision_method_semantics.sql",
+    "0035_activity_dependencies_and_outcomes.sql",
+    "0036_data_portability_and_retention.sql",
+    "0037_intent_proposals.sql",
+    "0038_private_promotion_and_contribution_review.sql",
+    "0039_durable_automation_execution.sql",
+    "0040_production_federation_transport.sql",
+    "0041_purchaser_connection_agent_action.sql",
+    "0042_access_verifier_service_backfill.sql",
+    "0043_federation_runtime_service.sql",
+    "0044_onboarding_role_scope.sql",
+    "0045_private_promotion_request_fingerprint.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -80,4 +96,24 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[27].sql, /sync_identity_actor/);
   assert.match(migrations[28].sql, /agent_usage_within_limits/);
   assert.match(migrations[28].sql, /maxTokens/);
+  assert.match(migrations[29].sql, /CREATE TABLE resource_custody/);
+  assert.match(migrations[30].sql, /CREATE TABLE private_threads/);
+  assert.match(migrations[30].sql, /CREATE TABLE onboarding_paths/);
+  assert.match(migrations[31].sql, /ALTER TABLE connectors/);
+  assert.match(migrations[31].sql, /CREATE TABLE workflow_definitions/);
+  assert.match(migrations[31].sql, /CREATE TABLE federation_links/);
+  assert.match(migrations[32].sql, /agent_runs_action_kind_check/);
+  assert.match(migrations[33].sql, /CREATE TABLE decision_method_snapshots/);
+  assert.match(migrations[34].sql, /CREATE TABLE activity_dependency_versions/);
+  assert.match(migrations[35].sql, /CREATE TABLE retention_runs/);
+  assert.match(migrations[36].sql, /CREATE TABLE intent_proposals/);
+  assert.match(migrations[37].sql, /CREATE TABLE private_message_promotions/);
+  assert.match(migrations[38].sql, /ALTER TABLE workflow_run_requests/);
+  assert.match(migrations[38].sql, /enforce_workflow_run_execution_transition/);
+  assert.match(migrations[39].sql, /CREATE TABLE federation_inbound_resources/);
+  assert.match(migrations[39].sql, /SET CONSTRAINTS ALL IMMEDIATE/);
+  assert.match(migrations[40].sql, /connection\.invoke/);
+  assert.match(migrations[41].sql, /Access verification Service backfill/);
+  assert.match(migrations[42].sql, /Federation runtime Service backfill/);
+  assert.match(migrations[43].sql, /CREATE TABLE onboarding_path_roles/);
 });

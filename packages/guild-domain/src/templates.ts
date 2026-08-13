@@ -20,6 +20,13 @@ const READ_CAPABILITIES: readonly Capability[] = [
   "run.read",
   "event.read",
   "template.read",
+  "relation.read",
+  "lifecycle.read",
+  "message.read",
+  "contribution.read",
+  "automation.read",
+  "federation.read",
+  "data.read",
   "inbox.read",
   // Compatibility aliases for the v1 adapters.
   "identity.read",
@@ -45,6 +52,8 @@ const PARTICIPATE_CAPABILITIES: readonly Capability[] = [
   "work.create",
   "agent.run",
   "integration.execute",
+  "message.create",
+  "contribution.correct",
 ];
 
 const COORDINATE_CAPABILITIES: readonly Capability[] = [
@@ -61,6 +70,7 @@ const COORDINATE_CAPABILITIES: readonly Capability[] = [
   "work.assign",
   "agent.approve",
   "agent.stop",
+  "relation.manage",
 ];
 
 const ADMINISTER_CAPABILITIES: readonly Capability[] = [
@@ -75,6 +85,10 @@ const ADMINISTER_CAPABILITIES: readonly Capability[] = [
   "integration.manage",
   "agent.manage",
   "template.manage",
+  "lifecycle.manage",
+  "automation.manage",
+  "federation.manage",
+  "data.manage",
 ];
 
 function unique(capabilities: readonly Capability[]): readonly Capability[] {
@@ -309,10 +323,12 @@ const templates: Record<CollectiveTemplateKey, CollectiveTemplate> = {
     ],
     activityTypes: ["task", "project", "maintenance", "investigation", "discussion"],
     memoryTypes: ["document", "artifact", "decision", "failure", "learning"],
-    decisionMethods: ["review", "consent"],
-    dashboardIntents: ["review", "start", "ask", "remember", "members"],
+    decisionMethods: ["review", "consent", "custodian"],
+    dashboardIntents: ["start", "review", "ask", "remember", "members"],
     workflows: [
-      { key: "maintainer-review", name: "Maintainer review", activityType: "task", memoryType: null, decisionMethod: "review" },
+      { key: "pull-request-review", name: "Pull request review", activityType: "maintenance", memoryType: "artifact", decisionMethod: "review" },
+      { key: "rfc-consent", name: "RFC consent", activityType: "discussion", memoryType: "document", decisionMethod: "consent" },
+      { key: "maintainer-decision", name: "Maintainer decision", activityType: "discussion", memoryType: "decision", decisionMethod: "custodian" },
     ],
     suggestedAgent: "Repository guide",
   },
@@ -349,7 +365,7 @@ const templates: Record<CollectiveTemplateKey, CollectiveTemplate> = {
     activityTypes: ["task", "investigation", "maintenance", "creation"],
     memoryTypes: ["agent_output", "fact", "data", "failure", "learning"],
     decisionMethods: ["policy", "hybrid"],
-    dashboardIntents: ["review", "start", "ask", "remember", "members"],
+    dashboardIntents: ["review", "ask", "start", "remember", "members"],
     workflows: [
       { key: "policy-gated-run", name: "Policy-gated run", activityType: "task", memoryType: "agent_output", decisionMethod: "hybrid" },
     ],

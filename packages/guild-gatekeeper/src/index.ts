@@ -1,5 +1,14 @@
 export * from "./guild.js";
 export { AgentExecutionWorkflow } from "./agent-workflow.js";
+export {
+  offboardLifecycleActor,
+  reconcilePublishedCanonicalMemory,
+  synchronizeLifecycleOnboarding,
+  type LifecycleOffboardingResult,
+  type OffboardLifecycleActorInput,
+  type ReconcilePublishedCanonicalMemoryInput,
+  type SynchronizeLifecycleOnboardingInput,
+} from "./lifecycle-service.js";
 
 import {
   CURRENT_GUILD_SCHEMA_CHECKSUM,
@@ -9,6 +18,14 @@ import {
 import type { GuildEnv } from "./config.js";
 import { drainKnowledgeFileDeletionQueue } from "./knowledge-service.js";
 import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
+import { drainMemoryEmbeddingJobs, scanMemoryHealth } from "./memory-intelligence.js";
+import { drainDataExportJobs } from "./portability-service.js";
+import { drainAutomationRuns } from "./automation-adapter.js";
+import { drainRetentionRuns } from "./retention-adapter.js";
+import {
+  drainGuildFederationOutbound,
+  handleGuildFederationInbound,
+} from "./federation-postgres-adapter.js";
 
 const SERVICE_NAME = "guild-gatekeeper";
 const JSON_HEADERS = {
@@ -23,6 +40,16 @@ export interface GuildSchemaVersion {
 }
 
 export type ReadinessProbe = (env: GuildEnv) => Promise<GuildSchemaVersion | null>;
+
+interface RequestDependencies {
+  readinessProbe: ReadinessProbe;
+  handleFederation(request: Request, env: GuildEnv): Promise<Response>;
+}
+
+const requestDependencies: RequestDependencies = {
+  readinessProbe: readLatestGuildMigration,
+  handleFederation: handleGuildFederationInbound,
+};
 
 export async function readLatestGuildMigration(env: GuildEnv): Promise<GuildSchemaVersion | null> {
   return withGuildTransaction(
@@ -80,9 +107,28 @@ export async function handleHealthRequest(
   }
 }
 
+export async function handleGatekeeperRequest(
+  request: Request,
+  env: GuildEnv,
+  dependencies: RequestDependencies = requestDependencies,
+): Promise<Response> {
+  const path = new URL(request.url).pathname;
+  if (path === "/api/federation/v1/deliveries" ||
+      path === "/api/federation/v1/revocations") {
+    return dependencies.handleFederation(request, env);
+  }
+  return handleHealthRequest(request, env, dependencies.readinessProbe);
+}
+
 interface MaintenanceDependencies {
   deleteFiles: typeof drainKnowledgeFileDeletionQueue;
   drainWorkflows: typeof drainAgentWorkflowOutbox;
+  drainEmbeddings: typeof drainMemoryEmbeddingJobs;
+  scanMemory: typeof scanMemoryHealth;
+  drainExports: typeof drainDataExportJobs;
+  drainAutomation: typeof drainAutomationRuns;
+  drainRetention: typeof drainRetentionRuns;
+  drainFederation: typeof drainGuildFederationOutbound;
   now: () => number;
   info: (message: string) => void;
   error: (message: string) => void;
@@ -91,6 +137,12 @@ interface MaintenanceDependencies {
 const maintenanceDependencies: MaintenanceDependencies = {
   deleteFiles: drainKnowledgeFileDeletionQueue,
   drainWorkflows: drainAgentWorkflowOutbox,
+  drainEmbeddings: drainMemoryEmbeddingJobs,
+  scanMemory: scanMemoryHealth,
+  drainExports: drainDataExportJobs,
+  drainAutomation: drainAutomationRuns,
+  drainRetention: drainRetentionRuns,
+  drainFederation: drainGuildFederationOutbound,
   now: Date.now,
   info: (message) => console.info(message),
   error: (message) => console.error(message),
@@ -107,9 +159,16 @@ export async function runGuildMaintenance(
 ): Promise<void> {
   const startedAt = dependencies.now();
   try {
-    const [files, workflowMessages] = await Promise.all([
+    const [files, workflowMessages, embeddings, memoryHealth, dataExports, automation, retention,
+      federation] = await Promise.all([
       dependencies.deleteFiles(env),
       dependencies.drainWorkflows(env),
+      dependencies.drainEmbeddings(env),
+      dependencies.scanMemory(env),
+      dependencies.drainExports(env),
+      dependencies.drainAutomation(env),
+      dependencies.drainRetention(env),
+      dependencies.drainFederation(env),
     ]);
     dependencies.info(JSON.stringify({
       event: "guild.maintenance",
@@ -117,6 +176,20 @@ export async function runGuildMaintenance(
       durationMs: Math.max(0, dependencies.now() - startedAt),
       files,
       workflowMessages,
+      embeddings,
+      memoryHealth,
+      dataExports,
+      automation: {
+        processed: automation.filter((item) => item.status !== "idle").length,
+        dispatched: automation.filter((item) => item.status === "dispatched").length,
+      },
+      retention: {
+        processed: retention.length,
+        completed: retention.filter((item) => item.status === "completed").length,
+        failed: retention.filter((item) => item.status === "failed").length,
+        leaseLost: retention.filter((item) => item.status === "lease_lost").length,
+      },
+      federation: { status: federation.status },
     }));
   } catch (error) {
     dependencies.error(JSON.stringify({
@@ -131,7 +204,7 @@ export async function runGuildMaintenance(
 
 export default {
   async fetch(request: Request, env: GuildEnv): Promise<Response> {
-    return handleHealthRequest(request, env);
+    return handleGatekeeperRequest(request, env);
   },
   async scheduled(
     _controller: ScheduledController,

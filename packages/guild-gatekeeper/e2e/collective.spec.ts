@@ -51,6 +51,9 @@ test("orders Home intents and Agent guidance from the active Guild profile", asy
     "Review updates",
     "Researchers",
   ]);
+  await expect(page.getByRole("button", { name: /Agent runs in progress/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Memory reviews/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Runs needing attention/ })).toBeVisible();
   await page.getByRole("button", { name: "Researchers", exact: true }).click();
   await page.getByRole("button", { name: "Create agent", exact: true }).click();
   await expect(page.getByRole("dialog").getByLabel("Agent name", { exact: true }))
@@ -280,6 +283,37 @@ test("keeps Ask, Plan, and Act as explicit safety modes", async ({ page }) => {
 });
 
 for (const width of [390, 320] as const) {
+  test(`switches every collective profile without losing its vocabulary at ${width}px`, async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("?standalone=root");
+    const expected = [
+      ["blank", "Members", "Memory", "Activity"],
+      ["company", "People", "Knowledge", "Work"],
+      ["community", "Members", "Shared memory", "Initiatives"],
+      ["creator", "Collaborators", "Creative memory", "Creations"],
+      ["open-source", "Contributors", "Project memory", "Issues and initiatives"],
+      ["agent-collective", "Actors", "Collective memory", "Runs and activities"],
+      ["research", "Researchers", "Research memory", "Studies"],
+    ] as const;
+
+    for (const [value, members, memory, activity] of expected) {
+      await navigateToMore(page, "Settings");
+      await page.locator("#collective-template").selectOption(value);
+      await page.locator(".collective-settings")
+        .getByRole("button", { name: "Apply profile", exact: true }).click();
+      await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar.getByRole("button", { name: members, exact: true })).toBeVisible();
+      await expect(sidebar.getByRole("button", { name: memory, exact: true })).toBeVisible();
+      await expect(sidebar.getByRole("button", { name: activity, exact: true })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+    }
+
+    await page.locator(".sidebar").getByRole("button", { name: "Close navigation", exact: true }).click();
+    expect(errors).toEqual([]);
+  });
+
   test(`keeps the neutral primary journeys operable at ${width}px`, async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await page.setViewportSize({ width, height: 844 });

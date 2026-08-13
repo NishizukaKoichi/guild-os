@@ -26,7 +26,8 @@ test("approves one external Agent action and kills another run", async ({ page }
   await dialog.getByLabel("Reason").fill("The endpoint, payload, authority, and limits are approved.");
   await dialog.locator('button[type="submit"]').click();
   await expect(page.getByText("Succeeded", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Webhook delivered", { exact: true })).toBeVisible();
+  await expect(page.getByText("Execution completed", { exact: true })).toBeVisible();
+  await expect(page.getByText(/HTTP status 202/)).toBeVisible();
 
   await page.getByRole("button", { name: "Plan action", exact: true }).click();
   dialog = page.getByRole("dialog");

@@ -2,10 +2,12 @@ import {
   CLASSIFICATIONS,
   COLLECTIVE_TEMPLATES,
   VISIBILITIES,
+  assertNonBlank,
   assertActivityStatus,
   assertActivityText,
   assertActivityType,
   assertMemoryContent,
+  assertMemoryLayer,
   assertMemoryType,
   authorize,
   collectiveTemplate,
@@ -22,6 +24,7 @@ import {
   loadActorAuthorizationSnapshot,
   withGuildTransaction,
   type CollectiveListCursor,
+  type CollectiveActivityDependency,
   type GuildTransactionConnection,
   type MemorySummary,
 } from "@guild-os/postgres";
@@ -29,15 +32,19 @@ import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
 import type {
   ArchiveMemoryRequest,
+  AddActivityDependencyRequest,
   AssignActivityRequest,
   ChangeActivityStatusRequest,
+  CompleteActivityRequest,
   ConfigureCollectiveRequest,
   CreateActivityRequest,
   CreateMemoryRequest,
   SaveMemoryRequest,
+  RemoveActivityDependencyRequest,
   SetSpaceVocabularyRequest,
   UiActivity,
   UiActivityCapabilities,
+  UiActivityDependency,
   UiActivityPage,
   UiActivityPageRequest,
   UiCollectiveContext,
@@ -168,29 +175,51 @@ function activityCapabilities(
   snapshot: AuthorizationSnapshot,
   actorId: string,
   resource: ActorSecuredResource & {
+    status: string;
     compatibilitySourceType?: "goal" | "project" | "quest" | "step" | null;
   },
 ): UiActivityCapabilities {
   const secured = toSecuredResource(resource);
   if (resource.compatibilitySourceType) {
-    return { changeStatus: false, assign: false, addChild: false };
+    return {
+      changeStatus: false,
+      assign: false,
+      addChild: false,
+      manageDependencies: false,
+      recordOutcome: false,
+    };
   }
+  const canChange = isAuthorized(snapshot, {
+    actorIdentityId: actorId,
+    permission: "activity.create",
+    resource: secured,
+  });
   return {
-    changeStatus: isAuthorized(snapshot, {
-      actorIdentityId: actorId,
-      permission: "activity.create",
-      resource: secured,
-    }),
+    changeStatus: canChange,
     assign: isAuthorized(snapshot, {
       actorIdentityId: actorId,
       permission: "activity.assign",
       resource: secured,
     }),
-    addChild: isAuthorized(snapshot, {
-      actorIdentityId: actorId,
-      permission: "activity.create",
-      resource: secured,
-    }),
+    addChild: canChange,
+    manageDependencies: canChange,
+    recordOutcome: canChange && resource.status === "active",
+  };
+}
+
+function activityDependencyForUi(
+  value: CollectiveActivityDependency,
+): UiActivityDependency {
+  return {
+    id: value.dependency.id,
+    activityId: value.dependency.activityId,
+    dependsOnActivityId: value.dependency.dependsOnActivityId,
+    kind: value.dependency.kind,
+    version: value.dependency.version,
+    createdByActorId: value.dependency.createdByActorId,
+    createdAt: value.dependency.createdAt,
+    activity: value.activity,
+    dependsOnActivity: value.dependsOnActivity,
   };
 }
 
@@ -345,12 +374,27 @@ export class GuildCollectiveService {
   async createMemory(input: CreateMemoryRequest): Promise<string> {
     assertMemoryType(input.type);
     assertMemoryContent(input.title, input.summary, input.body);
+    assertMemoryLayer(input.layer);
+    if (input.layer === "canonical") {
+      throw new Error("Canonical Memory must pass through the governed Knowledge workflow.");
+    }
+    if (!input.provenance || typeof input.provenance !== "object" || Array.isArray(input.provenance)) {
+      throw new Error("Memory provenance must be a JSON object.");
+    }
+    assertTimestamp(input.lastVerifiedAt, "Memory verification time");
     assertBoundary(input);
     assertReferences(input.sourceIds, "Memory source IDs");
     if (input.changeNote.length > 2_000) throw new Error("Change note is too long.");
     if (input.confidence !== null &&
         (!Number.isFinite(input.confidence) || input.confidence < 0 || input.confidence > 1)) {
       throw new Error("Memory confidence must be between 0 and 1.");
+    }
+    if (input.custody !== "guild" && input.custody !== "personal") {
+      throw new Error("Memory custody is invalid.");
+    }
+    if (input.custody === "personal" &&
+        (input.visibility !== "private" || input.allowedActorIds.length > 0)) {
+      throw new Error("Personal Memory must remain private until its owner explicitly shares it.");
     }
     const id = crypto.randomUUID();
     await withGuildTransaction(
@@ -363,6 +407,7 @@ export class GuildCollectiveService {
         await this.#assertMemorySources(connection, input.sourceIds);
         await new GuildCollectiveRepository(connection, this.#env.GUILD_ID).createMemory({
           ...input,
+          layer: input.layer === "external" ? "external" : "working",
           id,
           actorId: this.#accountId,
           ownerActorId: this.#accountId,
@@ -448,6 +493,10 @@ export class GuildCollectiveService {
           search: request.search,
         });
         const snapshots = new Map<string, Promise<AuthorizationSnapshot>>();
+        const graphs = await repository.listActivityGraphs(
+          this.#accountId,
+          page.items.map((activity) => activity.id),
+        );
         const items: UiActivity[] = [];
         for (const activity of page.items) {
           const snapshot = await snapshotFor(
@@ -463,8 +512,21 @@ export class GuildCollectiveService {
             resource: toSecuredResource(activity),
           });
           const { guildId: _guildId, ...value } = activity;
+          const graph = graphs.get(activity.id);
+          const outcome = graph?.outcome ?? null;
           items.push({
             ...value,
+            dependencies: graph?.dependencies.map(activityDependencyForUi) ?? [],
+            dependents: graph?.dependents.map(activityDependencyForUi) ?? [],
+            outcome: outcome === null ? null : {
+              activityId: outcome.activityId,
+              version: outcome.version,
+              activityVersion: outcome.activityVersion,
+              summary: outcome.summary,
+              evidenceSourceIds: outcome.evidenceSourceIds,
+              completedByActorId: outcome.completedByActorId,
+              completedAt: outcome.completedAt,
+            },
             capabilities: activityCapabilities(snapshot, this.#accountId, activity),
           });
         }
@@ -581,6 +643,114 @@ export class GuildCollectiveService {
             resource,
           ),
         });
+      },
+    );
+  }
+
+  async addActivityDependency(input: AddActivityDependencyRequest): Promise<number> {
+    assertUuid(input.activityId, "Activity ID");
+    assertUuid(input.dependsOnActivityId, "Predecessor Activity ID");
+    assertVersion(input.expectedVersion);
+    if (!["blocks", "relates_to", "follows"].includes(input.kind)) {
+      throw new Error("Activity dependency kind is invalid.");
+    }
+    return withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => {
+        const repository = new GuildCollectiveRepository(connection, this.#env.GUILD_ID);
+        const activity = await repository.getActivity(input.activityId);
+        const predecessor = await repository.getActivity(input.dependsOnActivityId);
+        const resource = toSecuredResource(activity);
+        await this.#authorize(connection, resource, "activity.create");
+        await this.#authorize(connection, toSecuredResource(predecessor), "activity.read");
+        const result = await repository.addActivityDependency({
+          ...input,
+          id: crypto.randomUUID(),
+          actorId: this.#accountId,
+          chronicleEvent: this.#event(
+            "activity.dependency.added",
+            "activity",
+            input.activityId,
+            { dependsOnActivityId: input.dependsOnActivityId, kind: input.kind },
+            resource,
+          ),
+        });
+        return result.activityVersion;
+      },
+    );
+  }
+
+  async removeActivityDependency(input: RemoveActivityDependencyRequest): Promise<number> {
+    assertUuid(input.activityId, "Activity ID");
+    assertUuid(input.dependencyId, "Activity dependency ID");
+    assertVersion(input.expectedVersion);
+    assertVersion(input.expectedDependencyVersion);
+    return withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => {
+        const repository = new GuildCollectiveRepository(connection, this.#env.GUILD_ID);
+        const activity = await repository.getActivity(input.activityId);
+        const dependency = await repository.getActivityDependency(input.dependencyId);
+        if (dependency.activityId !== input.activityId) {
+          throw new Error("Activity dependency does not belong to this Activity.");
+        }
+        const predecessor = await repository.getActivity(dependency.dependsOnActivityId);
+        const resource = toSecuredResource(activity);
+        await this.#authorize(connection, resource, "activity.create");
+        await this.#authorize(connection, toSecuredResource(predecessor), "activity.read");
+        const result = await repository.removeActivityDependency({
+          ...input,
+          actorId: this.#accountId,
+          chronicleEvent: this.#event(
+            "activity.dependency.removed",
+            "activity",
+            input.activityId,
+            {
+              dependencyId: input.dependencyId,
+              dependsOnActivityId: dependency.dependsOnActivityId,
+              kind: dependency.kind,
+              dependencyVersion: input.expectedDependencyVersion,
+            },
+            resource,
+          ),
+        });
+        return result.activityVersion;
+      },
+    );
+  }
+
+  async completeActivity(input: CompleteActivityRequest): Promise<number> {
+    assertUuid(input.activityId, "Activity ID");
+    assertVersion(input.expectedVersion);
+    assertNonBlank(input.summary, "Activity outcome summary", 10_000);
+    assertReferences(input.evidenceSourceIds, "Activity outcome evidence source IDs");
+    return withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => {
+        const repository = new GuildCollectiveRepository(connection, this.#env.GUILD_ID);
+        const activity = await repository.getActivity(input.activityId);
+        const resource = toSecuredResource(activity);
+        await this.#authorize(connection, resource, "activity.create");
+        await this.#assertMemorySources(connection, input.evidenceSourceIds);
+        const result = await repository.completeActivity({
+          ...input,
+          actorId: this.#accountId,
+          chronicleEvent: this.#event(
+            "activity.completed",
+            "activity",
+            input.activityId,
+            {
+              from: activity.status,
+              to: "completed",
+              evidenceSourceCount: input.evidenceSourceIds.length,
+            },
+            resource,
+          ),
+        });
+        return result.activityVersion;
       },
     );
   }

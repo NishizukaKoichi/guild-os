@@ -2,6 +2,7 @@ import {
   BookCheck,
   BookOpen,
   ChevronDown,
+  CloudCog,
   History,
   Home,
   Inbox as InboxIcon,
@@ -9,10 +10,14 @@ import {
   ListTodo,
   Menu,
   MessageCircleQuestion,
+  MessagesSquare,
+  Network,
   Scale,
   Settings,
   ShieldCheck,
   Users,
+  UserRoundCheck,
+  Waypoints,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -28,18 +33,28 @@ export type AppPage =
   | "memory"
   | "activity"
   | "inbox"
+  | "messages"
+  | "lifecycle"
+  | "contributions"
+  | "context"
   | "decisions"
   | "knowledge"
   | "work"
   | "chronicle"
+  | "operations"
   | "settings";
 
 const MORE_PAGES: readonly AppPage[] = [
   "inbox",
+  "messages",
+  "lifecycle",
+  "contributions",
+  "context",
   "decisions",
   "knowledge",
   "work",
   "chronicle",
+  "operations",
   "settings",
 ];
 
@@ -82,12 +97,17 @@ export function AppShell({
   ];
   const moreItems: readonly NavItem[] = [
     { id: "inbox", label: t("nav.inbox"), icon: InboxIcon },
+    { id: "messages", label: t("nav.messages"), icon: MessagesSquare },
+    { id: "lifecycle", label: t("nav.lifecycle"), icon: UserRoundCheck },
+    { id: "contributions", label: t("nav.contributions"), icon: Waypoints },
+    { id: "context", label: t("nav.context"), icon: Network },
     { id: "decisions", label: collective.labels.decisions, icon: Scale },
     { id: "knowledge", label: t("nav.canonicalMemory"), icon: BookCheck },
     { id: "work", label: t("nav.structuredWork"), icon: ListTodo },
     ...(bootstrap.membershipState === "active"
       ? [{ id: "chronicle" as const, label: collective.labels.history, icon: History }]
       : []),
+    { id: "operations", label: t("nav.operations"), icon: CloudCog },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ];
 

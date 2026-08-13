@@ -1,5 +1,6 @@
 import {
   PERMISSIONS,
+  assertConnectionKind,
   assertAgentLimits,
   assertAgentRunPlan,
   assertNonBlank,
@@ -8,6 +9,7 @@ import {
   type AgentApprovalVote,
   type AgentLimits,
   type AgentRun,
+  type AgentRunPlan,
   type AgentRunResult,
   type AgentRunUsage,
   type ApprovalStatus,
@@ -15,6 +17,7 @@ import {
   type Classification,
   type Connector,
   type ConnectorStatus,
+  type JsonObject,
   type Permission,
   type RiskLevel,
   type Visibility,
@@ -25,11 +28,69 @@ import type { GuildTransactionConnection } from "./transaction.js";
 
 const DEFAULT_PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 100;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const AGENT_OUTBOX_TOPICS = [
   "agent.workflow.start",
   "agent.workflow.signal",
   "agent.workflow.terminate",
 ] as const;
+
+type AgentActionKind = AgentRunPlan["action"]["kind"];
+export type StoredAgentActionKind =
+  | "memory.search"
+  | "activity.draft"
+  | "agent.delegate"
+  | "connection.invoke"
+  | "https_webhook.post"
+  | "federation.publish";
+
+export const AGENT_RUN_ACTION_POLICIES = {
+  memory_search: {
+    storedKind: "memory.search",
+    riskLevels: [0],
+    permissions: ["memory.read"],
+    external: false,
+  },
+  activity_draft: {
+    storedKind: "activity.draft",
+    riskLevels: [1],
+    permissions: ["activity.create"],
+    external: false,
+  },
+  agent_delegate: {
+    storedKind: "agent.delegate",
+    riskLevels: [1],
+    permissions: ["agent.run"],
+    external: false,
+  },
+  connection_invoke: {
+    storedKind: "connection.invoke",
+    riskLevels: [0, 1, 2, 3],
+    permissions: ["connection.execute"],
+    external: true,
+  },
+  https_webhook: {
+    storedKind: "https_webhook.post",
+    riskLevels: [2],
+    permissions: ["integration.execute"],
+    external: true,
+  },
+  federation_publish: {
+    storedKind: "federation.publish",
+    riskLevels: [2, 3],
+    permissions: ["federation.read", "integration.execute"],
+    external: true,
+  },
+} as const satisfies Record<AgentActionKind, {
+  storedKind: StoredAgentActionKind;
+  riskLevels: readonly RiskLevel[];
+  permissions: readonly Permission[];
+  external: boolean;
+}>;
+
+export function agentRunActionPolicy(kind: AgentActionKind) {
+  return AGENT_RUN_ACTION_POLICIES[kind];
+}
 
 export type AgentOutboxTopic = (typeof AGENT_OUTBOX_TOPICS)[number];
 
@@ -42,6 +103,10 @@ export interface StoredAgentRun extends AgentRun {
   agentDisplayName: string;
   requesterDisplayName: string;
   connectorName: string;
+  actionKind: StoredAgentActionKind;
+  parentRunId: string | null;
+  workflowDefinitionId: string | null;
+  externalAttemptedAt: string | null;
   approval: AgentApprovalRequest | null;
   workflowPermissions: readonly Permission[];
   connectorPermissionsSnapshot: readonly Permission[];
@@ -75,8 +140,38 @@ export interface EnsureDeploymentWebhookInput {
 export interface CreateAgentRunInput {
   run: AgentRun;
   approval: AgentApprovalRequest | null;
+  workflowPermissions?: readonly Permission[];
+  parentRunId?: string | null;
+  workflowDefinitionId?: string | null;
   chronicleEvent: ChronicleEvent;
 }
+
+export interface CreateDelegatedAgentRunInput extends CreateAgentRunInput {
+  parentRunId: string;
+  fromAgentActorId: string;
+  toAgentActorId: string;
+  requesterActorId: string;
+  objective: string;
+  permissionSnapshot: readonly Permission[];
+  depth: number;
+  delegationChronicleEvent: ChronicleEvent;
+}
+
+export interface ExternalAgentActionScope {
+  runId: string;
+  idempotencyKey: string;
+  requestHash: string;
+  actionKind: "https_webhook" | "federation_publish";
+}
+
+export interface ExternalAgentActionExecutionRecord {
+  result: AgentRunResult;
+  usage: AgentRunUsage;
+}
+
+export type ExternalAgentActionClaim =
+  | { state: "execute" }
+  | { state: "completed"; record: ExternalAgentActionExecutionRecord };
 
 export interface ReviewAgentRunInput {
   runId: string;
@@ -119,6 +214,13 @@ type ConnectorRow = QueryResultRow & {
   classification: Classification;
   allowed_identity_ids: string[];
   deployment_managed: boolean;
+  description: string;
+  provider: string;
+  configuration: JsonObject;
+  auth_kind: NonNullable<Connector["authKind"]>;
+  write_risk_level: RiskLevel;
+  health_status: NonNullable<Connector["healthStatus"]>;
+  last_checked_at: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -134,7 +236,7 @@ type AgentRunRow = QueryResultRow & {
   allowed_identity_ids: string[];
   agent_identity_id: string;
   requester_identity_id: string;
-  connector_id: string;
+  connector_id: string | null;
   quest_id: string | null;
   risk_level: RiskLevel;
   status: AgentRun["status"];
@@ -147,6 +249,10 @@ type AgentRunRow = QueryResultRow & {
   workflow_instance_id: string;
   idempotency_key: string;
   request_hash: string;
+  action_kind: StoredAgentActionKind;
+  parent_run_id: string | null;
+  workflow_definition_id: string | null;
+  external_attempted_at: string | null;
   estimated_budget_minor: number;
   kill_requested_at: string | null;
   started_at: string | null;
@@ -189,6 +295,12 @@ type OutboxRow = QueryResultRow & {
   attempt_count: number;
 };
 
+type ExternalActionLedgerRow = QueryResultRow & {
+  status: "processing" | "completed" | "failed" | "cancelled" | "pending";
+  payload: unknown;
+  last_error: string | null;
+};
+
 type RunnableAgentRow = QueryResultRow & {
   identity_id: string;
   display_name: string;
@@ -217,9 +329,7 @@ function parsePermissions(values: readonly string[]): Permission[] {
 }
 
 function connectorFromRow(row: ConnectorRow): Connector {
-  if (row.kind !== "https_webhook" || !row.endpoint_url || !row.secret_reference) {
-    throw new Error("Database contains an unsupported or incomplete Connector.");
-  }
+  assertConnectionKind(row.kind);
   return {
     id: row.id,
     guildId: row.guild_id,
@@ -229,16 +339,78 @@ function connectorFromRow(row: ConnectorRow): Connector {
     classification: row.classification,
     allowedIdentityIds: row.allowed_identity_ids,
     name: row.name,
-    kind: "https_webhook",
+    kind: row.kind,
     status: row.status,
     capabilityPermissions: parsePermissions(row.capability_permissions),
     endpointUrl: row.endpoint_url,
     secretReference: row.secret_reference,
+    description: row.description,
+    provider: row.provider,
+    configuration: row.configuration,
+    authKind: row.auth_kind,
+    writeRiskLevel: row.write_risk_level,
+    healthStatus: row.health_status,
+    lastCheckedAt: optionalTimestamp(row.last_checked_at),
     deploymentManaged: row.deployment_managed,
     version: row.version,
     createdAt: isoTimestamp(row.created_at),
     updatedAt: isoTimestamp(row.updated_at),
   };
+}
+
+function resultFrom(value: unknown): AgentRunResult | null {
+  if (value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Database contains an invalid Agent run result.");
+  }
+  const candidate = value as Record<string, unknown>;
+  switch (candidate.kind) {
+    case "memory_search":
+      if (!Array.isArray(candidate.memoryIds) ||
+          candidate.memoryIds.length > 50 ||
+          new Set(candidate.memoryIds).size !== candidate.memoryIds.length ||
+          !candidate.memoryIds.every((id) => typeof id === "string" && UUID_PATTERN.test(id)) ||
+          typeof candidate.completedAt !== "string") break;
+      return {
+        kind: "memory_search",
+        memoryIds: candidate.memoryIds,
+        completedAt: isoTimestamp(candidate.completedAt),
+      };
+    case "activity_draft":
+      if (typeof candidate.activityId !== "string" || !UUID_PATTERN.test(candidate.activityId) ||
+          typeof candidate.completedAt !== "string") break;
+      return {
+        kind: "activity_draft",
+        activityId: candidate.activityId,
+        completedAt: isoTimestamp(candidate.completedAt),
+      };
+    case "agent_delegate":
+      if (typeof candidate.childRunId !== "string" || !UUID_PATTERN.test(candidate.childRunId) ||
+          typeof candidate.completedAt !== "string") break;
+      return {
+        kind: "agent_delegate",
+        childRunId: candidate.childRunId,
+        completedAt: isoTimestamp(candidate.completedAt),
+      };
+    case "https_webhook":
+      if (!Number.isSafeInteger(candidate.statusCode) ||
+          (candidate.statusCode as number) < 200 || (candidate.statusCode as number) >= 300 ||
+          typeof candidate.deliveredAt !== "string") break;
+      return {
+        kind: "https_webhook",
+        statusCode: candidate.statusCode as number,
+        deliveredAt: isoTimestamp(candidate.deliveredAt),
+      };
+    case "federation_publish":
+      if (typeof candidate.deliveryId !== "string" || !UUID_PATTERN.test(candidate.deliveryId) ||
+          typeof candidate.completedAt !== "string") break;
+      return {
+        kind: "federation_publish",
+        deliveryId: candidate.deliveryId,
+        completedAt: isoTimestamp(candidate.completedAt),
+      };
+  }
+  throw new Error("Database contains an invalid Agent run result.");
 }
 
 function usageFrom(value: unknown): AgentRunUsage {
@@ -267,10 +439,14 @@ function runFromRow(row: AgentRunRow): StoredAgentRun {
   assertAgentLimits(limits);
   const usage = usageFrom(row.usage);
   assertUsageWithinLimits(limits, usage);
-  const result = row.result as AgentRunResult | null;
-  if (result !== null && (result.kind !== "https_webhook" ||
-      !Number.isSafeInteger(result.statusCode) || typeof result.deliveredAt !== "string")) {
-    throw new Error("Database contains an invalid Agent run result.");
+  const result = resultFrom(row.result);
+  const policy = agentRunActionPolicy(plan.action.kind);
+  if (policy.storedKind !== row.action_kind ||
+      !(policy.riskLevels as readonly RiskLevel[]).includes(row.risk_level)) {
+    throw new Error("Database Agent action metadata does not match its plan or risk.");
+  }
+  if (result !== null && result.kind !== plan.action.kind) {
+    throw new Error("Database Agent result does not match its planned action.");
   }
   const approval = row.approval_id === null ? null : {
     id: row.approval_id,
@@ -319,6 +495,10 @@ function runFromRow(row: AgentRunRow): StoredAgentRun {
     agentDisplayName: row.agent_display_name,
     requesterDisplayName: row.requester_display_name,
     connectorName: row.connector_name,
+    actionKind: row.action_kind,
+    parentRunId: row.parent_run_id,
+    workflowDefinitionId: row.workflow_definition_id,
+    externalAttemptedAt: optionalTimestamp(row.external_attempted_at),
     approval,
     workflowPermissions: parsePermissions(row.workflow_permissions),
     connectorPermissionsSnapshot: parsePermissions(row.connector_permissions_snapshot),
@@ -603,16 +783,55 @@ export class GuildAgentRunRepository {
     assertAgentRunPlan(run.plan);
     assertAgentLimits(run.limits);
     assertUsageWithinLimits(run.limits, run.plan.estimatedUsage);
+    const policy = agentRunActionPolicy(run.plan.action.kind);
+    if (!(policy.riskLevels as readonly RiskLevel[]).includes(run.riskLevel)) {
+      throw new Error("Agent action risk does not match its planned action kind.");
+    }
+    if (policy.external !== (run.connectorId !== null)) {
+      throw new Error(policy.external
+        ? "External Agent actions require a Connection."
+        : "Internal Agent actions cannot inherit a Connection.");
+    }
+    const workflowPermissions = input.workflowPermissions ?? policy.permissions;
+    const workflowPermissionSet = new Set(workflowPermissions);
+    if (workflowPermissionSet.size !== workflowPermissions.length ||
+        !workflowPermissions.every((permission) => PERMISSIONS.includes(permission)) ||
+        !policy.permissions.every((permission) => workflowPermissionSet.has(permission))) {
+      throw new Error("Workflow permissions do not authorize every capability required by the Agent action.");
+    }
+    if (run.status === "awaiting_approval" && input.approval === null) {
+      throw new Error("An Agent action awaiting approval requires an approval record.");
+    }
+    if (run.status !== "awaiting_approval" && input.approval !== null) {
+      throw new Error("An Agent approval record requires awaiting-approval status.");
+    }
+    if (!["planning", "awaiting_approval", "running"].includes(run.status)) {
+      throw new Error("A new Agent action must begin in planning, approval, or running state.");
+    }
+    let connectorPermissions: readonly Permission[] = policy.permissions;
+    if (run.connectorId !== null) {
+      const connector = await this.getConnector(run.connectorId, true);
+      if (connector.status !== "active") throw new Error("Agent action Connection is not active.");
+      if (connector.writeRiskLevel !== run.riskLevel) {
+        throw new Error("Agent action risk must match the immutable Connection write policy.");
+      }
+      const capabilities = new Set(connector.capabilityPermissions);
+      if (!policy.permissions.every((permission) => capabilities.has(permission))) {
+        throw new Error("Agent action Connection does not provide every required capability.");
+      }
+      connectorPermissions = connector.capabilityPermissions;
+    }
     const inserted = await this.#connection.query(
       `INSERT INTO agent_runs
          (id, guild_id, agent_identity_id, requester_identity_id, quest_id, risk_level,
           status, limits, usage, idempotency_key, plan, workflow_instance_id,
           estimated_budget_minor, space_id, owner_identity_id, visibility, classification,
           allowed_identity_ids, connector_id, action_kind, source, request_hash,
-          workflow_permissions, connector_permissions_snapshot, version)
+          workflow_permissions, connector_permissions_snapshot, parent_run_id,
+          workflow_definition_id, version)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10,
                $11::jsonb, $12, $13, $14, $15, $16, $17, $18::uuid[], $19,
-               'https_webhook.post', $20, $21, $22, $23, 1)
+               $20, $21, $22, $23, $24, $25, $26, 1)
        ON CONFLICT (id) DO NOTHING`,
       [
         run.id,
@@ -634,10 +853,13 @@ export class GuildAgentRunRepository {
         run.classification,
         run.allowedIdentityIds ?? [],
         run.connectorId,
+        policy.storedKind,
         run.source,
         run.requestHash,
-        ["integration.execute"],
-        ["integration.execute"],
+        workflowPermissions,
+        connectorPermissions,
+        input.parentRunId ?? null,
+        input.workflowDefinitionId ?? null,
       ],
     );
     if (inserted.rowCount === 0) {
@@ -660,6 +882,79 @@ export class GuildAgentRunRepository {
     return true;
   }
 
+  async createDelegatedRun(input: CreateDelegatedAgentRunInput): Promise<string> {
+    if (!Number.isSafeInteger(input.depth) || input.depth < 1 || input.depth > 100) {
+      throw new Error("Agent delegation depth must be between 1 and 100.");
+    }
+    if (input.fromAgentActorId === input.toAgentActorId ||
+        input.run.agentIdentityId !== input.toAgentActorId ||
+        input.run.requesterIdentityId !== input.requesterActorId) {
+      throw new Error("Agent delegation crosses its Agent or requester boundary.");
+    }
+    this.#assertEvent(
+      input.delegationChronicleEvent,
+      input.fromAgentActorId,
+      "agent_run",
+      input.parentRunId,
+    );
+    await this.#connection.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`agent-delegation:${this.#guildId}:${input.parentRunId}`],
+    );
+    const parent = await this.getRun(input.parentRunId, true);
+    const chain = await this.getDelegationChain(input.parentRunId);
+    if (chain.includes(input.toAgentActorId)) {
+      throw new Error("Agent delegation cycle is forbidden.");
+    }
+    if (input.depth !== chain.length || input.depth > parent.limits.maxDelegationDepth) {
+      throw new Error("Agent delegation exceeds its immutable depth limit.");
+    }
+    const existing = (await this.#connection.query<{
+      child_run_id: string;
+      to_agent_actor_id: string;
+      requester_actor_id: string;
+      objective: string;
+      depth: number;
+    }>(
+      `SELECT child_run_id::text, to_agent_actor_id::text, requester_actor_id::text,
+              objective, depth
+         FROM agent_delegations
+        WHERE guild_id = $1 AND parent_run_id = $2
+        ORDER BY created_at, id LIMIT 1
+        FOR UPDATE`,
+      [this.#guildId, input.parentRunId],
+    )).rows[0];
+    if (existing) {
+      if (existing.to_agent_actor_id !== input.toAgentActorId ||
+          existing.requester_actor_id !== input.requesterActorId ||
+          existing.objective !== input.objective || existing.depth !== input.depth) {
+        throw new Error("This parent Agent run already delegated different work.");
+      }
+      return existing.child_run_id;
+    }
+    await this.createRun({
+      run: input.run,
+      approval: input.approval,
+      parentRunId: input.parentRunId,
+      workflowDefinitionId: input.workflowDefinitionId ?? null,
+      chronicleEvent: input.chronicleEvent,
+    });
+    await this.#connection.query(
+      `INSERT INTO agent_delegations
+         (id, guild_id, parent_run_id, child_run_id, from_agent_actor_id,
+          to_agent_actor_id, requester_actor_id, objective, permission_snapshot,
+          depth, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::text[], $10, 'running')`,
+      [
+        crypto.randomUUID(), this.#guildId, input.parentRunId, input.run.id,
+        input.fromAgentActorId, input.toAgentActorId, input.requesterActorId,
+        input.objective, input.permissionSnapshot, input.depth,
+      ],
+    );
+    await this.#chronicle.appendChronicle(input.delegationChronicleEvent);
+    return input.run.id;
+  }
+
   async openStagedApproval(
     runId: string,
     approval: AgentApprovalRequest,
@@ -670,6 +965,9 @@ export class GuildAgentRunRepository {
     if (run.status !== "planning") {
       if (run.approval) return run;
       throw new Error("Only a staged Agent run can enter Guild approval.");
+    }
+    if (run.riskLevel < 2) {
+      throw new Error("Level 0 and Level 1 Agent actions do not enter Human approval.");
     }
     await this.#insertApproval(approval, run);
     await this.#connection.query(
@@ -868,15 +1166,21 @@ export class GuildAgentRunRepository {
     if (run.status === "running") {
       throw new Error("Agent run execution was already claimed; duplicate delivery is refused.");
     }
-    if (run.status !== "awaiting_approval" || run.approval?.status !== "approved") {
-      throw new Error("Agent run is not durably approved for execution.");
+    const automaticReady = run.approval === null && run.status === "planning";
+    const approvedReady = run.status === "awaiting_approval" &&
+      run.approval?.status === "approved" &&
+      new Date(run.approval.expiresAt).valueOf() > Date.now();
+    if (!automaticReady && !approvedReady) {
+      throw new Error("Agent run is not durably authorized for execution.");
     }
     const updated = await this.#connection.query(
       `UPDATE agent_runs
           SET status = 'running', started_at = COALESCE(started_at, now()),
-              external_attempted_at = now(), version = version + 1
-        WHERE guild_id = $1 AND id = $2 AND status = 'awaiting_approval'`,
-      [this.#guildId, runId],
+              external_attempted_at = CASE WHEN connector_id IS NULL
+                THEN external_attempted_at ELSE now() END,
+              version = version + 1
+        WHERE guild_id = $1 AND id = $2 AND status = $3`,
+      [this.#guildId, runId, automaticReady ? "planning" : "awaiting_approval"],
     );
     if (updated.rowCount !== 1) throw new Error("Agent run execution claim was lost.");
     return this.getRunDetail(runId);
@@ -891,7 +1195,16 @@ export class GuildAgentRunRepository {
   ): Promise<"succeeded" | "killed"> {
     this.#assertEvent(chronicleEvent, chronicleEvent.actorIdentityId, "agent_run", runId);
     const run = await this.getRun(runId, true);
+    const validatedResult = resultFrom(result);
+    if (validatedResult === null || validatedResult.kind !== run.plan.action.kind) {
+      throw new Error("Agent result does not match its immutable planned action.");
+    }
     if (run.workflowInstanceId !== workflowInstanceId) throw new Error("Workflow ownership changed.");
+    for (const key of Object.keys(run.usage) as (keyof AgentRunUsage)[]) {
+      if (usage[key] < run.usage[key]) {
+        throw new Error(`Agent ${key} usage cannot move backwards during completion.`);
+      }
+    }
     if (run.status === "succeeded") return "succeeded";
     if (run.status === "killed") {
       const alreadyRecorded = (await this.#connection.query(
@@ -906,7 +1219,7 @@ export class GuildAgentRunRepository {
           action: "agent.run.delivery_after_kill",
           details: {
             ...chronicleEvent.details,
-            deliveredAt: result.deliveredAt,
+            completedAt: "deliveredAt" in result ? result.deliveredAt : result.completedAt,
             killRequestedAt: run.killRequestedAt,
             usageBudgetMinor: usage.budgetMinor,
             usageDurationSeconds: usage.durationSeconds,
@@ -918,7 +1231,7 @@ export class GuildAgentRunRepository {
       }
       return "killed";
     }
-    if (run.status !== "running" || !run.approval) throw new Error("Agent run is not running.");
+    if (run.status !== "running") throw new Error("Agent run is not running.");
     assertUsageWithinLimits(run.limits, usage);
     await this.#connection.query(
       `UPDATE agent_runs
@@ -927,11 +1240,20 @@ export class GuildAgentRunRepository {
         WHERE guild_id = $1 AND id = $2 AND status = 'running'`,
       [this.#guildId, runId, JSON.stringify(result), JSON.stringify(usage)],
     );
-    await this.#connection.query(
-      `UPDATE approval_requests SET status = 'applied'
-        WHERE guild_id = $1 AND id = $2 AND status = 'approved'`,
-      [this.#guildId, run.approval.id],
-    );
+    if (run.approval) {
+      await this.#connection.query(
+        `UPDATE approval_requests SET status = 'applied'
+          WHERE guild_id = $1 AND id = $2 AND status = 'approved'`,
+        [this.#guildId, run.approval.id],
+      );
+    }
+    if (run.parentRunId) {
+      await this.#connection.query(
+        `UPDATE agent_delegations SET status = 'completed', updated_at = now()
+          WHERE guild_id = $1 AND child_run_id = $2 AND status = 'running'`,
+        [this.#guildId, runId],
+      );
+    }
     await this.#chronicle.appendChronicle(chronicleEvent);
     return "succeeded";
   }
@@ -963,7 +1285,127 @@ export class GuildAgentRunRepository {
           AND status IN ('planning', 'awaiting_approval', 'running')`,
       [this.#guildId, runId, errorMessage, JSON.stringify(usage)],
     );
+    if (run.parentRunId) {
+      await this.#connection.query(
+        `UPDATE agent_delegations SET status = 'rejected', updated_at = now()
+          WHERE guild_id = $1 AND child_run_id = $2
+            AND status IN ('proposed', 'approved', 'running')`,
+        [this.#guildId, runId],
+      );
+    }
     await this.#chronicle.appendChronicle(chronicleEvent);
+  }
+
+  async isKillRequested(runId: string): Promise<boolean> {
+    const row = (await this.#connection.query<{
+      status: AgentRun["status"];
+      kill_requested_at: string | null;
+    }>(
+      `SELECT status, kill_requested_at::text
+         FROM agent_runs WHERE guild_id = $1 AND id = $2`,
+      [this.#guildId, runId],
+    )).rows[0];
+    if (!row) throw new Error("Agent run was not found in this Guild.");
+    return row.status === "killed" || row.kill_requested_at !== null;
+  }
+
+  async claimExternalAction(scope: ExternalAgentActionScope): Promise<ExternalAgentActionClaim> {
+    const run = await this.getRun(scope.runId, true);
+    if (run.idempotencyKey !== scope.idempotencyKey || run.requestHash !== scope.requestHash ||
+        run.plan.action.kind !== scope.actionKind || run.status !== "running") {
+      throw new Error("External Agent action idempotency scope does not match the running run.");
+    }
+    const idempotencyKey = this.#externalActionIdempotencyKey(scope);
+    const row = (await this.#connection.query<ExternalActionLedgerRow>(
+      `SELECT status, payload, last_error FROM outbox
+        WHERE guild_id = $1 AND idempotency_key = $2
+        FOR UPDATE`,
+      [this.#guildId, idempotencyKey],
+    )).rows[0];
+    if (row) {
+      const payload = row.payload as Record<string, unknown>;
+      if (payload.requestHash !== scope.requestHash || payload.actionKind !== scope.actionKind) {
+        throw new Error("External Agent action idempotency key was reused with different content.");
+      }
+      if (row.status === "completed") {
+        if (row.last_error === null) {
+          throw new Error("Completed external Agent action has no durable result record.");
+        }
+        return {
+          state: "completed",
+          record: this.#externalActionRecord(row.last_error),
+        };
+      }
+      throw new Error("External Agent action is already processing or failed without replay data.");
+    }
+    await this.#connection.query(
+      `INSERT INTO outbox
+         (id, guild_id, topic, payload, idempotency_key, status, locked_at, attempt_count)
+       VALUES ($1, $2, 'agent.action.idempotency', $3::jsonb, $4,
+               'processing', now(), 1)`,
+      [
+        crypto.randomUUID(), this.#guildId,
+        JSON.stringify({
+          runId: scope.runId,
+          requestHash: scope.requestHash,
+          actionKind: scope.actionKind,
+        }),
+        idempotencyKey,
+      ],
+    );
+    return { state: "execute" };
+  }
+
+  async completeExternalAction(
+    scope: ExternalAgentActionScope,
+    record: ExternalAgentActionExecutionRecord,
+  ): Promise<void> {
+    const updated = await this.#connection.query(
+      `UPDATE outbox
+          SET status = 'completed', completed_at = now(), locked_at = NULL,
+              last_error = $3
+        WHERE guild_id = $1 AND idempotency_key = $2 AND status = 'processing'`,
+      [
+        this.#guildId,
+        this.#externalActionIdempotencyKey(scope),
+        JSON.stringify({ result: record.result, usage: record.usage }),
+      ],
+    );
+    if (updated.rowCount !== 1) {
+      throw new Error("External Agent action completion lost its durable idempotency claim.");
+    }
+  }
+
+  async failExternalAction(scope: ExternalAgentActionScope, errorMessage: string): Promise<void> {
+    await this.#connection.query(
+      `UPDATE outbox
+          SET status = 'failed', completed_at = now(), locked_at = NULL, last_error = $3
+        WHERE guild_id = $1 AND idempotency_key = $2 AND status = 'processing'`,
+      [this.#guildId, this.#externalActionIdempotencyKey(scope), errorMessage],
+    );
+  }
+
+  async getDelegationChain(parentRunId: string): Promise<readonly string[]> {
+    const rows = (await this.#connection.query<{ agent_identity_id: string; depth: number }>(
+      `WITH RECURSIVE chain AS (
+         SELECT run.id, run.parent_run_id, run.agent_identity_id, 0 AS depth
+           FROM agent_runs run
+          WHERE run.guild_id = $1 AND run.id = $2
+         UNION ALL
+         SELECT parent.id, parent.parent_run_id, parent.agent_identity_id, chain.depth + 1
+           FROM chain
+           JOIN agent_runs parent
+             ON parent.guild_id = $1 AND parent.id = chain.parent_run_id
+          WHERE chain.depth < 100
+       )
+       SELECT agent_identity_id::text, depth FROM chain ORDER BY depth DESC`,
+      [this.#guildId, parentRunId],
+    )).rows;
+    if (rows.length === 0) throw new Error("Delegation parent run was not found.");
+    if (rows.length > 100) throw new Error("Agent delegation chain exceeds its hard limit.");
+    const chain = rows.map((row) => row.agent_identity_id);
+    if (new Set(chain).size !== chain.length) throw new Error("Agent delegation cycle is forbidden.");
+    return chain;
   }
 
   async expireApproval(
@@ -1049,8 +1491,9 @@ export class GuildAgentRunRepository {
   }
 
   async #insertApproval(approval: AgentApprovalRequest, run: AgentRun): Promise<void> {
+    const policy = agentRunActionPolicy(run.plan.action.kind);
     if (approval.guildId !== this.#guildId || approval.agentRunId !== run.id ||
-        approval.riskLevel !== run.riskLevel) {
+        approval.riskLevel !== run.riskLevel || approval.actionKind !== policy.storedKind) {
       throw new Error("Approval request crosses its Agent run boundary.");
     }
     await this.#connection.query(
@@ -1069,8 +1512,7 @@ export class GuildAgentRunRepository {
           expectedOutcome: run.plan.expectedOutcome,
           steps: run.plan.steps,
           connectorId: run.connectorId,
-          eventType: run.plan.action.eventType,
-          payload: run.plan.action.payload,
+          action: run.plan.action,
           estimatedUsage: run.plan.estimatedUsage,
         }),
         approval.requiredApprovals,
@@ -1078,6 +1520,24 @@ export class GuildAgentRunRepository {
         approval.expiresAt,
       ],
     );
+  }
+
+  #externalActionIdempotencyKey(scope: ExternalAgentActionScope): string {
+    return `agent-action-result:${scope.runId}:${scope.idempotencyKey}`;
+  }
+
+  #externalActionRecord(serialized: string): ExternalAgentActionExecutionRecord {
+    let payload: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(serialized) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+      payload = parsed as Record<string, unknown>;
+    } catch {
+      throw new Error("Completed external Agent action has an invalid durable result record.");
+    }
+    const result = resultFrom(payload.result);
+    if (result === null) throw new Error("Completed external Agent action has no durable result.");
+    return { result, usage: usageFrom(payload.usage) };
   }
 
   async #notifyEligibleApprovers(
@@ -1199,6 +1659,9 @@ export class GuildAgentRunRepository {
                    connector.status, connector.capability_permissions, connector.endpoint_url,
                    connector.secret_reference, connector.visibility, connector.classification,
                    connector.allowed_identity_ids::text[], connector.deployment_managed,
+                   connector.description, connector.provider, connector.configuration,
+                   connector.auth_kind, connector.write_risk_level, connector.health_status,
+                   connector.last_checked_at::text,
                    connector.version, connector.created_at::text, connector.updated_at::text
               FROM connectors connector`;
   }
@@ -1211,11 +1674,13 @@ export class GuildAgentRunRepository {
                    run.risk_level, run.status, run.source, run.plan, run.result,
                    run.error_message, run.limits, run.usage, run.workflow_instance_id,
                    run.idempotency_key, run.request_hash, run.estimated_budget_minor,
+                   run.action_kind, run.parent_run_id::text, run.workflow_definition_id::text,
+                   run.external_attempted_at::text,
                    run.kill_requested_at::text, run.started_at::text, run.finished_at::text,
                    run.version, run.created_at::text, run.updated_at::text,
                    agent.display_name AS agent_display_name,
                    requester.display_name AS requester_display_name,
-                   connector.name AS connector_name,
+                   COALESCE(connector.name, 'Internal Guild capability') AS connector_name,
                    approval.id::text AS approval_id,
                    approval.risk_level AS approval_risk_level,
                    approval.action_kind AS approval_action_kind,
@@ -1233,7 +1698,7 @@ export class GuildAgentRunRepository {
                 ON agent.guild_id = run.guild_id AND agent.id = run.agent_identity_id
               JOIN identities requester
                 ON requester.guild_id = run.guild_id AND requester.id = run.requester_identity_id
-              JOIN connectors connector
+              LEFT JOIN connectors connector
                 ON connector.guild_id = run.guild_id AND connector.id = run.connector_id
               LEFT JOIN approval_requests approval
                 ON approval.guild_id = run.guild_id AND approval.agent_run_id = run.id`;

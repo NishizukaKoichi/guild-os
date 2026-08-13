@@ -317,6 +317,7 @@ export class GuildAccount
         this.env,
         this.ctx.props.accountId,
         context.isAdmin,
+        context.verifiedAuthenticatedAt,
       )),
     };
   }

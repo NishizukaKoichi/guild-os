@@ -11,7 +11,9 @@ import type {
   CONVERSATION_STATUSES,
   CONVERSATION_SUBJECT_TYPES,
   CONNECTOR_STATUSES,
+  CONNECTION_KINDS,
   COLLECTIVE_TEMPLATE_KEYS,
+  DATA_CUSTODIES,
   DECISION_METHODS,
   DECISION_STATUSES,
   GOAL_STATUSES,
@@ -19,9 +21,15 @@ import type {
   IDENTITY_STATUSES,
   KNOWLEDGE_STATES,
   MEMORY_STATUSES,
+  MEMORY_LAYERS,
+  MEMORY_REVIEW_SIGNAL_KINDS,
+  MEMORY_REVIEW_SIGNAL_STATUSES,
   MEMORY_TYPES,
   MEMORY_WORKFLOWS,
   MEMBERSHIP_STATES,
+  RELATION_STATUSES,
+  AUTOMATION_TRIGGER_KINDS,
+  FEDERATION_DIRECTIONS,
   PERMISSIONS,
   PROJECT_STATUSES,
   QUEST_STATUSES,
@@ -41,6 +49,14 @@ export type Capability = Permission;
 export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
 export type MemoryType = (typeof MEMORY_TYPES)[number] | `custom:${string}`;
 export type MemoryWorkflow = (typeof MEMORY_WORKFLOWS)[number] | null;
+export type MemoryLayer = (typeof MEMORY_LAYERS)[number];
+export type DataCustody = (typeof DATA_CUSTODIES)[number];
+export type RelationStatus = (typeof RELATION_STATUSES)[number];
+export type MemoryReviewSignalKind = (typeof MEMORY_REVIEW_SIGNAL_KINDS)[number];
+export type MemoryReviewSignalStatus = (typeof MEMORY_REVIEW_SIGNAL_STATUSES)[number];
+export type ConnectionKind = (typeof CONNECTION_KINDS)[number];
+export type AutomationTriggerKind = (typeof AUTOMATION_TRIGGER_KINDS)[number];
+export type FederationDirection = (typeof FEDERATION_DIRECTIONS)[number];
 export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
 export type ActivityType = (typeof ACTIVITY_TYPES)[number] | `custom:${string}`;
 export type CollectiveTemplateKey = (typeof COLLECTIVE_TEMPLATE_KEYS)[number];
@@ -131,8 +147,39 @@ export interface Constitution {
   level3ApprovalQuorum: number;
   dataRetentionDays: number;
   agentDefaults: AgentLimits;
+  /** Always present in schema 0030+; optional only for serialized pre-0030 fixtures. */
+  principles?: string;
+  publicScope?: string;
+  membershipPolicy?: ConstitutionMembershipPolicy;
+  dataPolicy?: ConstitutionDataPolicy;
+  agentPolicy?: ConstitutionAgentPolicy;
+  externalSharingPolicy?: ConstitutionExternalSharingPolicy;
   updatedByIdentityId: string;
   updatedAt: string;
+}
+
+export interface ConstitutionMembershipPolicy {
+  preboardingRequired: boolean;
+  departureMode: "revoke_then_handover";
+}
+
+export interface ConstitutionDataPolicy {
+  defaultVisibility: Visibility;
+  defaultClassification: Classification;
+  personalDataOnDeparture: "retain_by_policy" | "archive" | "delete_after_retention";
+  crossGuildSharing: "explicit_only";
+}
+
+export interface ConstitutionAgentPolicy {
+  level0Automatic: boolean;
+  level1Automatic: boolean;
+  level2HumanApproval: true;
+  level3MultiHumanApproval: true;
+}
+
+export interface ConstitutionExternalSharingPolicy {
+  enabled: boolean;
+  requireHumanApproval: true;
 }
 
 export interface RootOwnershipTransfer {
@@ -251,10 +298,13 @@ export interface MemoryRecord extends ActorSecuredResource {
   status: MemoryStatus;
   workflow: MemoryWorkflow;
   governanceState: KnowledgeState | null;
+  layer: MemoryLayer;
   title: LocalizedText;
   summary: LocalizedText;
   currentVersion: number;
   confidence: number | null;
+  provenance: JsonObject;
+  lastVerifiedAt: string | null;
   sourceIds: readonly string[];
   createdByActorId: string;
   createdAt: string;
@@ -291,10 +341,30 @@ export interface Activity extends ActorSecuredResource {
 }
 
 export interface ActivityDependency {
+  id: string;
   guildId: string;
   activityId: string;
   dependsOnActivityId: string;
   kind: "blocks" | "relates_to" | "follows";
+  status: "active" | "revoked";
+  version: number;
+  createdByActorId: string;
+  updatedByActorId: string;
+  revokedByActorId: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityOutcome {
+  guildId: string;
+  activityId: string;
+  version: number;
+  activityVersion: number;
+  summary: string;
+  evidenceSourceIds: readonly string[];
+  completedByActorId: string;
+  completedAt: string;
 }
 
 export interface CollectiveTemplateLabels {
@@ -572,6 +642,8 @@ export interface AgentProfile {
   instructions: string;
   model: string;
   toolIds: readonly string[];
+  /** Always present in schema 0032+; optional only for pre-0032 fixtures. */
+  skillIds?: readonly string[];
   limits: AgentLimits;
   status: "active" | "stopped";
 }
@@ -589,26 +661,36 @@ export interface AgentRunPlan {
   objective: string;
   expectedOutcome: string;
   steps: readonly string[];
-  connectorId: string;
+  connectorId: string | null;
   questId: string | null;
-  action: {
-    kind: "https_webhook";
-    eventType: string;
-    payload: JsonObject;
-  };
+  action:
+    | { kind: "memory_search"; query: string; locale: AppLocale }
+    | { kind: "activity_draft"; title: string; description: string; activityType: ActivityType }
+    | { kind: "agent_delegate"; targetAgentActorId: string; objective: string }
+    | { kind: "connection_invoke"; capabilityId: string; input: JsonObject }
+    | { kind: "https_webhook"; eventType: string; payload: JsonObject }
+    | { kind: "federation_publish"; federationLinkId: string; grantIds: readonly string[] };
   estimatedUsage: AgentRunUsage;
 }
 
-export interface AgentRunResult {
-  kind: "https_webhook";
-  statusCode: number;
-  deliveredAt: string;
-}
+export type AgentRunResult =
+  | { kind: "memory_search"; memoryIds: readonly string[]; completedAt: string }
+  | { kind: "activity_draft"; activityId: string; completedAt: string }
+  | { kind: "agent_delegate"; childRunId: string; completedAt: string }
+  | {
+      kind: "connection_invoke";
+      capabilityId: string;
+      statusCode: number;
+      output: JsonValue;
+      completedAt: string;
+    }
+  | { kind: "https_webhook"; statusCode: number; deliveredAt: string }
+  | { kind: "federation_publish"; deliveryId: string; completedAt: string };
 
 export interface AgentRun extends SecuredResource {
   agentIdentityId: string;
   requesterIdentityId: string;
-  connectorId: string;
+  connectorId: string | null;
   questId: string | null;
   riskLevel: RiskLevel;
   status: AgentRunStatus;
@@ -657,12 +739,304 @@ export interface AgentApprovalVote {
 
 export interface Connector extends SecuredResource {
   name: string;
-  kind: "https_webhook";
+  kind: ConnectionKind;
   status: ConnectorStatus;
   capabilityPermissions: readonly Permission[];
+  endpointUrl: string | null;
+  secretReference: string | null;
+  description?: string;
+  provider?: string;
+  configuration?: JsonObject;
+  authKind?: "none" | "secret_reference" | "oauth" | "service_binding" | "access_token";
+  writeRiskLevel?: RiskLevel;
+  healthStatus?: "unknown" | "healthy" | "degraded" | "unreachable";
+  lastCheckedAt?: string | null;
+  deploymentManaged: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContextRelation extends ActorSecuredResource {
+  fromType: string;
+  fromId: string;
+  relationType: string;
+  toType: string;
+  toId: string;
+  status: RelationStatus;
+  properties: JsonObject;
+  rationale: string;
+  createdByActorId: string;
+  revokedByActorId: string | null;
+  revokedAt: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface ResourceCustody {
+  guildId: string;
+  resourceType: "memory" | "activity" | "decision" | "conversation" | "file" | "agent_run";
+  resourceId: string;
+  custody: DataCustody;
+  personalOwnerActorId: string | null;
+  sharedByActorId: string | null;
+  sharedAt: string | null;
+  retentionUntil: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryReviewSignal {
+  id: string;
+  guildId: string;
+  memoryId: string;
+  comparedMemoryId: string | null;
+  kind: MemoryReviewSignalKind;
+  status: MemoryReviewSignalStatus;
+  evidence: string;
+  detectedByActorId: string | null;
+  resolvedByActorId: string | null;
+  resolution: string | null;
+  detectedAt: string;
+  resolvedAt: string | null;
+  version: number;
+}
+
+export interface PrivateThread {
+  id: string;
+  guildId: string;
+  spaceId: string | null;
+  createdByActorId: string;
+  subject: string;
+  classification: Classification;
+  status: "open" | "closed";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PrivateThreadParticipant {
+  guildId: string;
+  threadId: string;
+  actorId: string;
+  state: "active" | "left";
+  joinedAt: string;
+  leftAt: string | null;
+}
+
+export interface PrivateMessage {
+  id: string;
+  guildId: string;
+  threadId: string;
+  authorActorId: string;
+  body: string;
+  state: "active" | "redacted";
+  redactedByActorId: string | null;
+  redactedAt: string | null;
+  redactionReason: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface EmergencyPrivateAccessGrant {
+  id: string;
+  guildId: string;
+  threadId: string;
+  grantedToActorId: string;
+  grantedByActorId: string;
+  reason: string;
+  intendedAccess: string;
+  viewedInformation: string;
+  changesMade: string;
+  status: "active" | "closed" | "expired";
+  expiresAt: string;
+  closedAt: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface OnboardingPath {
+  id: string;
+  guildId: string;
+  spaceId: string | null;
+  templateKey: CollectiveTemplateKey | null;
+  applicableRoleIds?: readonly string[];
+  name: string;
+  description: string;
+  status: "active" | "archived";
+  createdByActorId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingRequirement {
+  id: string;
+  guildId: string;
+  pathId: string;
+  kind: "memory" | "activity" | "acknowledgement" | "checklist";
+  resourceId: string | null;
+  title: string;
+  instructions: string;
+  required: boolean;
+  position: number;
+  createdAt: string;
+}
+
+export interface OnboardingAssignment {
+  id: string;
+  guildId: string;
+  actorId: string;
+  pathId: string;
+  managerActorId: string;
+  status: "assigned" | "in_progress" | "ready" | "completed" | "cancelled";
+  dueAt: string | null;
+  completedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HandoverCase {
+  id: string;
+  guildId: string;
+  departingActorId: string;
+  successorActorId: string | null;
+  initiatedByActorId: string;
+  reason: string;
+  status: "open" | "completed" | "cancelled";
+  completedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HandoverItem {
+  id: string;
+  guildId: string;
+  caseId: string;
+  resourceType: "memory" | "activity" | "knowledge" | "file" | "decision" | "connection" | "schedule";
+  resourceId: string;
+  title: string;
+  disposition: "transfer" | "retain" | "archive";
+  status: "pending" | "completed" | "failed";
+  note: string;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface ContributionCorrectionRequest {
+  id: string;
+  guildId: string;
+  subjectActorId: string;
+  requestedByActorId: string;
+  chronicleEventId: string;
+  evidenceSha256: string;
+  reason: string;
+  status: "pending" | "accepted" | "rejected";
+  reviewedByActorId: string | null;
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  version: number;
+  requestChronicleEventId: string;
+  resolutionChronicleEventId: string | null;
+  createdAt: string;
+}
+
+export interface WorkflowDefinition extends ActorSecuredResource {
+  name: string;
+  description: string;
+  status: "draft" | "active" | "paused" | "archived";
+  nodes: readonly JsonObject[];
+  edges: readonly JsonObject[];
+  allowedActionKinds: readonly AgentRunPlan["action"]["kind"][];
+  capabilityPermissions: readonly Permission[];
+  maxConcurrentRuns: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutomationRule {
+  id: string;
+  guildId: string;
+  workflowId: string;
+  agentActorId: string;
+  createdByActorId: string;
+  name: string;
+  triggerKind: AutomationTriggerKind;
+  triggerExpression: string;
+  timezone: string;
+  inputTemplate: JsonObject;
+  status: "active" | "paused" | "archived";
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  consecutiveFailures: number;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FederationLink {
+  id: string;
+  guildId: string;
+  remoteGuildId: string;
+  remoteName: string;
   endpointUrl: string;
   secretReference: string;
+  direction: FederationDirection;
+  status: "pending" | "active" | "revoked";
+  allowedResourceTypes: readonly string[];
+  createdByActorId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FederationGrant {
+  id: string;
+  guildId: string;
+  federationLinkId: string;
+  resourceType: "memory" | "activity" | "decision" | "agent";
+  resourceId: string;
+  permission: "read" | "participate";
+  status: "active" | "revoked";
+  grantedByActorId: string;
+  revokedByActorId: string | null;
+  revokedAt: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface ModelProvider {
+  id: string;
+  guildId: string;
+  name: string;
+  kind: "workers_ai" | "cloudflare_ai_gateway" | "openai_compatible";
+  endpointUrl: string | null;
+  secretReference: string | null;
+  allowedModels: readonly string[];
+  status: "active" | "disabled" | "revoked";
   deploymentManaged: boolean;
+  createdByActorId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ModelRoute {
+  id: string;
+  guildId: string;
+  purpose: "ask" | "plan" | "act" | "embedding" | "review";
+  providerId: string;
+  primaryModel: string;
+  fallbackModel: string | null;
+  maxTokens: number;
+  dailyBudgetMinor: number;
+  cacheEnabled: boolean;
+  status: "active" | "disabled";
+  updatedByActorId: string;
   version: number;
   createdAt: string;
   updatedAt: string;

@@ -1,5 +1,6 @@
 import type {
   ClaimInvitationInput,
+  AskGuildResponse,
   GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
@@ -18,10 +19,22 @@ import type {
   UiDirectory,
   UiDecisionDetail,
   UiActivity,
+  UiActivityDependency,
+  UiActivityOutcome,
   UiKnowledgeDetail,
   UiKnowledgeFile,
   UiInboxNotification,
+  UiIntentProposal,
+  UiContributionProfile,
+  UiContextPage,
+  UiHandover,
+  UiLifecyclePage,
   UiMemory,
+  UiOnboardingPath,
+  UiOperationsPage,
+  UiPrivateMessagePromotion,
+  UiPrivateThread,
+  UiPrivateThreadDetail,
   UiGoal,
   UiProject,
   UiQuest,
@@ -86,6 +99,17 @@ const questConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b02";
 const decisionConversationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b03";
 const directMemoryId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b10";
 const directActivityId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b11";
+const dependentActivityId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b12";
+const activityDependencyId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b16";
+const personalMemoryId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b13";
+const contextRelationId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b14";
+const memoryReviewSignalId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b15";
+const workflowId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b50";
+const automationRuleId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b51";
+const federationLinkId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b52";
+const federationGrantId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b53";
+const modelProviderId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b54";
+const modelRouteId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b55";
 
 async function sha256Text(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
@@ -471,11 +495,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     status: "active",
     workflow: null,
     governanceState: null,
+    layer: "working",
     visibility: "space",
     classification: "internal",
     allowedActorIds: [],
     currentVersion: 1,
     confidence: 0.82,
+    provenance: { source: "fictional-demo" },
+    lastVerifiedAt: null,
     sourceIds: [],
     title: {
       en: "Signals from the fictional coastal habitat study",
@@ -499,12 +526,59 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       archive: mode === "root",
       governed: false,
     },
+  }, {
+    id: personalMemoryId,
+    spaceId: null,
+    ownerActorId: rootId,
+    createdByActorId: rootId,
+    type: "experience",
+    status: "active",
+    workflow: null,
+    governanceState: null,
+    layer: "working",
+    visibility: "private",
+    classification: "confidential",
+    allowedActorIds: [],
+    currentVersion: 1,
+    confidence: null,
+    provenance: { source: "fictional-demo", custody: "personal" },
+    lastVerifiedAt: null,
+    sourceIds: [],
+    title: {
+      en: "Private preparation note",
+      ja: "非公開の準備メモ",
+      "zh-CN": "私人准备笔记",
+    },
+    summary: {
+      en: "A personal note that is excluded from Guild search until its owner shares it.",
+      ja: "所有者が共有するまでGuild検索から除外される個人メモです。",
+      "zh-CN": "在所有者主动共享前，不会进入Guild搜索的个人笔记。",
+    },
+    body: {
+      en: "This fictional note demonstrates the boundary between Personal Data and Guild Memory.",
+      ja: "この架空メモは、個人データとGuild Memoryの境界を示すためのものです。",
+      "zh-CN": "这条虚构笔记用于演示个人数据与Guild Memory之间的边界。",
+    },
+    createdAt: "2026-08-12T03:10:00.000Z",
+    updatedAt: "2026-08-12T03:10:00.000Z",
+    capabilities: {
+      edit: mode === "root",
+      archive: mode === "root",
+      governed: false,
+    },
   }];
   const fileBodies = new Map<string, Blob>();
   const workCapabilities = {
     changeStatus: mode === "root",
     assign: mode === "root",
     addChild: mode === "root",
+    manageDependencies: mode === "root",
+    recordOutcome: mode === "root",
+  };
+  const emptyActivityGraph = {
+    dependencies: [] as readonly UiActivityDependency[],
+    dependents: [] as readonly UiActivityDependency[],
+    outcome: null as UiActivityOutcome | null,
   };
   let goals: UiGoal[] = [{
     id: goalId,
@@ -612,9 +686,10 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     compatibilitySourceType: null,
     createdAt: "2026-08-12T02:50:00.000Z",
     updatedAt: "2026-08-12T03:00:00.000Z",
+    ...emptyActivityGraph,
     capabilities: workCapabilities,
   }, {
-    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b12",
+    id: dependentActivityId,
     parentActivityId: directActivityId,
     spaceId: researchSpaceId,
     ownerActorId: rootId,
@@ -635,8 +710,29 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     compatibilitySourceType: null,
     createdAt: "2026-08-12T03:05:00.000Z",
     updatedAt: "2026-08-12T03:05:00.000Z",
+    ...emptyActivityGraph,
     capabilities: workCapabilities,
   }];
+  let activityDependencies: UiActivityDependency[] = [{
+    id: activityDependencyId,
+    activityId: dependentActivityId,
+    dependsOnActivityId: directActivityId,
+    kind: "blocks",
+    version: 1,
+    createdByActorId: rootId,
+    createdAt: "2026-08-12T03:06:00.000Z",
+    activity: {
+      id: dependentActivityId,
+      title: "Validate the fictional sampling method",
+      status: "planned",
+    },
+    dependsOnActivity: {
+      id: directActivityId,
+      title: "Map evidence gaps in the fictional habitat study",
+      status: "active",
+    },
+  }];
+  const activityOutcomes = new Map<string, UiActivityOutcome>();
   const decisionCapabilities = (status: UiDecisionDetail["decision"]["status"], reviewed = false) => ({
     edit: mode === "root" && status === "draft",
     propose: mode === "root" && status === "draft",
@@ -1037,11 +1133,12 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     subjectId: string,
     boundary: Pick<UiAnnouncement, "spaceId" | "ownerIdentityId" | "visibility" | "classification" | "allowedIdentityIds">,
     details: UiChronicleEvent["details"],
-  ): void {
+  ): string {
     chronicleSequence += 1;
+    const eventId = crypto.randomUUID();
     chronicleEvents = [{
       sequence: String(chronicleSequence),
-      id: crypto.randomUUID(),
+      id: eventId,
       spaceId: boundary.spaceId,
       ownerIdentityId: boundary.ownerIdentityId,
       visibility: boundary.visibility,
@@ -1058,6 +1155,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       occurredAt: now(),
       details,
     }, ...chronicleEvents];
+    return eventId;
   }
 
   function assertCurrentVersion(current: number, expected: number): void {
@@ -1104,11 +1202,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         status: item.state === "archived" ? "archived" : "active",
         workflow: "canonical",
         governanceState: item.state,
+        layer: "canonical",
         visibility: item.visibility,
         classification: item.classification,
         allowedActorIds: item.allowedIdentityIds,
         currentVersion: item.currentVersion,
         confidence: null,
+        provenance: {},
+        lastVerifiedAt: item.updatedAt,
         sourceIds: item.sourceIds,
         title: version.title,
         summary: version.summary,
@@ -1121,7 +1222,13 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
   }
 
   function legacyActivities(): UiActivity[] {
-    const readOnly = { changeStatus: false, assign: false, addChild: false };
+    const readOnly = {
+      changeStatus: false,
+      assign: false,
+      addChild: false,
+      manageDependencies: false,
+      recordOutcome: false,
+    };
     const goalItems: UiActivity[] = goals.map((goal) => ({
       id: goal.id,
       parentActivityId: null,
@@ -1144,6 +1251,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       compatibilitySourceType: "goal",
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
+      ...emptyActivityGraph,
       capabilities: readOnly,
     }));
     const projectItems: UiActivity[] = projects.map((project) => ({
@@ -1168,6 +1276,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       compatibilitySourceType: "project",
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      ...emptyActivityGraph,
       capabilities: readOnly,
     }));
     const questItems: UiActivity[] = quests.map((quest) => ({
@@ -1193,6 +1302,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       compatibilitySourceType: "quest",
       createdAt: quest.createdAt,
       updatedAt: quest.updatedAt,
+      ...emptyActivityGraph,
       capabilities: readOnly,
     }));
     const stepItems: UiActivity[] = steps.flatMap((step) => {
@@ -1222,6 +1332,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         compatibilitySourceType: "step" as const,
         createdAt: step.createdAt,
         updatedAt: step.updatedAt,
+        ...emptyActivityGraph,
         capabilities: readOnly,
       }];
     });
@@ -1230,6 +1341,410 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
 
   function now(): string {
     return new Date().toISOString();
+  }
+
+  const demoGuildBoundary = {
+    spaceId: null,
+    ownerIdentityId: rootId,
+    visibility: "guild" as const,
+    classification: "restricted" as const,
+    allowedIdentityIds: [] as readonly string[],
+  };
+
+  const privateThreadId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b20";
+  let privateThreads: UiPrivateThread[] = [{
+    id: privateThreadId,
+    spaceId: researchSpaceId,
+    createdByActorId: rootId,
+    subject: "Field review coordination",
+    classification: "confidential",
+    status: "open",
+    version: 1,
+    createdAt: "2026-08-12T03:00:00.000Z",
+    updatedAt: "2026-08-12T03:05:00.000Z",
+    participantActorIds: [rootId, successorId],
+    lastMessageAt: "2026-08-12T03:05:00.000Z",
+    lastMessagePreview: "I can review the source notes before the decision meeting.",
+  }];
+  let privateThreadDetails: UiPrivateThreadDetail[] = [{
+    thread: privateThreads[0]!,
+    messages: [{
+      id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b21",
+      threadId: privateThreadId,
+      authorActorId: rootId,
+      body: "Please review the source notes before the decision meeting.",
+      state: "active",
+      redactedByActorId: null,
+      redactedAt: null,
+      redactionReason: null,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+    }, {
+      id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b22",
+      threadId: privateThreadId,
+      authorActorId: successorId,
+      body: "I can review the source notes before the decision meeting.",
+      state: "active",
+      redactedByActorId: null,
+      redactedAt: null,
+      redactionReason: null,
+      version: 1,
+      createdAt: "2026-08-12T03:05:00.000Z",
+    }],
+    emergencyGrant: null,
+    promotions: [],
+    promotionKinds: mode === "root" ? ["memory", "activity", "decision", "handover"] : [],
+  }];
+  const privatePromotionIdempotency = new Map<string, {
+    fingerprint: string;
+    promotion: UiPrivateMessagePromotion;
+  }>();
+  const onboardingPathId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b30";
+  const onboardingAssignmentId = "018f1f3e-7b5a-7d40-8f43-4fe1dc555b31";
+  const onboardingRequirementIds = [
+    "018f1f3e-7b5a-7d40-8f43-4fe1dc555b32",
+    "018f1f3e-7b5a-7d40-8f43-4fe1dc555b33",
+    "018f1f3e-7b5a-7d40-8f43-4fe1dc555b34",
+  ] as const;
+  let onboardingPaths: UiOnboardingPath[] = [{
+    id: onboardingPathId,
+    spaceId: researchSpaceId,
+    templateKey: "research",
+    applicableRoleIds: [memberRoleId],
+    name: "Research collective orientation",
+    description: "Required context before joining active research work.",
+    status: "active",
+    createdByActorId: rootId,
+    version: 1,
+    createdAt: "2026-08-12T01:00:00.000Z",
+    updatedAt: "2026-08-12T01:00:00.000Z",
+    requirements: [{
+      id: onboardingRequirementIds[0],
+      pathId: onboardingPathId,
+      kind: "memory",
+      resourceId: directMemoryId,
+      title: "Read the research purpose and ethics policy",
+      instructions: "Read the shared research context before beginning work.",
+      required: true,
+      position: 0,
+      createdAt: "2026-08-12T01:00:00.000Z",
+    }, {
+      id: onboardingRequirementIds[1],
+      pathId: onboardingPathId,
+      kind: "acknowledgement",
+      resourceId: directMemoryId,
+      title: "Confirm the research operating boundary",
+      instructions: "Confirm that you understand the current purpose, ethics, and review method.",
+      required: true,
+      position: 1,
+      createdAt: "2026-08-12T01:00:00.000Z",
+    }, {
+      id: onboardingRequirementIds[2],
+      pathId: onboardingPathId,
+      kind: "activity",
+      resourceId: directActivityId,
+      title: "Complete the first guided study",
+      instructions: "Use the template-specific study to practice evidence and review.",
+      required: true,
+      position: 2,
+      createdAt: "2026-08-12T01:00:00.000Z",
+    }],
+  }];
+  let onboardingAssignments: UiLifecyclePage["assignments"][number][] = [{
+    id: onboardingAssignmentId,
+    actorId: memberId,
+    pathId: onboardingPathId,
+    managerActorId: rootId,
+    status: "assigned",
+    dueAt: "2026-08-20T09:00:00.000Z",
+    completedAt: null,
+    version: 1,
+    createdAt: "2026-08-12T02:00:00.000Z",
+    updatedAt: "2026-08-12T02:00:00.000Z",
+    actorDisplayName: "Mina Park",
+    pathName: "Research collective orientation",
+    completedRequirementCount: 0,
+    totalRequirementCount: 3,
+  }];
+  const onboardingCompletions = new Map<string, Map<string, {
+    completedAt: string;
+    evidence: string;
+  }>>();
+  let handovers: UiHandover[] = [];
+  let correctionRequest: UiContributionProfile["corrections"][number] | null = null;
+  let governedCorrectionRequests: UiContributionProfile["pendingCorrections"][number][] = [{
+    id: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b40",
+    subjectActorId: agentId,
+    requestedByActorId: agentId,
+    evidenceEventId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555ae1",
+    evidenceSha256: "b".repeat(64),
+    reason: "The event should distinguish the completed source review from the pending synthesis.",
+    status: "pending",
+    reviewedByActorId: null,
+    reviewReason: null,
+    reviewedAt: null,
+    version: 1,
+    requestChronicleEventId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555b41",
+    resolutionChronicleEventId: null,
+    createdAt: "2026-08-12T03:25:00.000Z",
+  }];
+  let contextRelations: UiContextPage["relations"][number][] = [{
+    id: contextRelationId,
+    spaceId: researchSpaceId,
+    ownerActorId: rootId,
+    visibility: "space",
+    classification: "internal",
+    allowedActorIds: [],
+    fromType: "memory",
+    fromId: directMemoryId,
+    relationType: "supports",
+    toType: "decision",
+    toId: decisionId,
+    status: "active",
+    properties: {},
+    rationale: "The working observation is recorded as evidence for the review decision.",
+    createdByActorId: rootId,
+    revokedByActorId: null,
+    revokedAt: null,
+    version: 1,
+    createdAt: "2026-08-12T03:15:00.000Z",
+  }];
+  let reviewSignals: UiContextPage["reviewSignals"][number][] = [{
+    id: memoryReviewSignalId,
+    memoryId: directMemoryId,
+    comparedMemoryId: null,
+    kind: "stale",
+    status: "open",
+    evidence: "The fictional observation has not yet been verified against the current sampling method.",
+    detectedByActorId: agentId,
+    resolvedByActorId: null,
+    resolution: null,
+    detectedAt: "2026-08-12T03:20:00.000Z",
+    resolvedAt: null,
+    version: 1,
+  }];
+  let personalCustody: UiContextPage["personalCustody"][number][] = [{
+    resourceType: "memory",
+    resourceId: personalMemoryId,
+    custody: "personal",
+    personalOwnerActorId: rootId,
+    sharedByActorId: null,
+    sharedAt: null,
+    retentionUntil: null,
+    version: 1,
+    createdAt: "2026-08-12T03:10:00.000Z",
+    updatedAt: "2026-08-12T03:10:00.000Z",
+  }];
+
+  let operations: UiOperationsPage = {
+    connections: [{
+      id: connectorId,
+      spaceId: researchSpaceId,
+      ownerIdentityId: rootId,
+      name: "Fictional research webhook",
+      kind: "https_webhook",
+      status: "active",
+      capabilityPermissions: ["connection.execute"],
+      endpointUrl: "https://example.invalid/guild-webhook",
+      secretConfigured: true,
+      visibility: "space",
+      classification: "restricted",
+      allowedIdentityIds: [],
+      description: "A non-operational example Connection for the public demo.",
+      provider: "Example provider",
+      configuration: { eventFormat: "guild-os-v1" },
+      authKind: "secret_reference",
+      writeRiskLevel: 2,
+      healthStatus: "healthy",
+      lastCheckedAt: "2026-08-12T03:30:00.000Z",
+      deploymentManaged: false,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+      updatedAt: "2026-08-12T03:30:00.000Z",
+    }],
+    workflows: [{
+      id: workflowId,
+      spaceId: researchSpaceId,
+      ownerActorId: rootId,
+      name: "Review new observation",
+      description: "Ask the research Agent to prepare a governed review draft.",
+      status: "active",
+      nodes: [{ id: "input", kind: "input" }, { id: "draft", kind: "activity_draft" }],
+      edges: [{ from: "input", to: "draft" }],
+      allowedActionKinds: ["memory_search", "activity_draft"],
+      capabilityPermissions: ["memory.read", "activity.create"],
+      visibility: "space",
+      classification: "internal",
+      allowedActorIds: [],
+      maxConcurrentRuns: 2,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+      updatedAt: "2026-08-12T03:00:00.000Z",
+    }],
+    automationRules: [{
+      id: automationRuleId,
+      workflowId,
+      agentActorId: agentId,
+      createdByActorId: rootId,
+      name: "Weekday observation review",
+      triggerKind: "schedule",
+      triggerExpression: "0 9 * * 1-5",
+      timezone: "Australia/Sydney",
+      inputTemplate: { source: "fictional-demo" },
+      status: "active",
+      nextRunAt: "2026-08-17T23:00:00.000Z",
+      lastRunAt: null,
+      consecutiveFailures: 0,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+      updatedAt: "2026-08-12T03:00:00.000Z",
+    }],
+    workflowRuns: [],
+    federationLinks: [{
+      id: federationLinkId,
+      remoteGuildId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555c01",
+      remoteName: "Example Field Collective",
+      endpointUrl: "https://example.invalid/federation",
+      secretConfigured: true,
+      direction: "bidirectional",
+      status: "active",
+      allowedResourceTypes: ["memory", "decision"],
+      createdByActorId: rootId,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+      updatedAt: "2026-08-12T03:00:00.000Z",
+    }],
+    federationGrants: [{
+      id: federationGrantId,
+      federationLinkId,
+      resourceType: "memory",
+      resourceId: directMemoryId,
+      permission: "read",
+      status: "active",
+      grantedByActorId: rootId,
+      revokedByActorId: null,
+      revokedAt: null,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+    }],
+    modelProviders: [{
+      id: modelProviderId,
+      name: "Cloudflare Workers AI",
+      kind: "workers_ai",
+      endpointUrl: null,
+      secretConfigured: false,
+      allowedModels: ["@cf/meta/llama-3.1-8b-instruct-fast"],
+      status: "active",
+      deploymentManaged: true,
+      createdByActorId: rootId,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+      updatedAt: "2026-08-12T03:00:00.000Z",
+    }],
+    modelRoutes: [{
+      id: modelRouteId,
+      purpose: "ask",
+      providerId: modelProviderId,
+      primaryModel: "@cf/meta/llama-3.1-8b-instruct-fast",
+      fallbackModel: null,
+      maxTokens: 2048,
+      dailyBudgetMinor: 500,
+      cacheEnabled: true,
+      status: "active",
+      updatedByActorId: rootId,
+      version: 1,
+      createdAt: "2026-08-12T03:00:00.000Z",
+      updatedAt: "2026-08-12T03:00:00.000Z",
+    }],
+    exportInventory: {
+      guild: { id: guildId, name: bootstrap.guildName, purpose: bootstrap.guildPurpose,
+        createdAt: "2026-08-01T00:00:00.000Z" },
+      generatedAt: "2026-08-12T03:30:00.000Z",
+      totalRows: "84",
+      tables: [
+        { tableName: "actors", rowCount: "6" },
+        { tableName: "memories", rowCount: "4" },
+        { tableName: "chronicle_events", rowCount: "21" },
+      ],
+      files: [],
+      schemaMigrations: [{ name: "0033_agent_action_levels_and_models.sql",
+        checksum: "demo-checksum", appliedAt: "2026-08-12T03:00:00.000Z" }],
+    },
+    dataExports: [],
+    retentionRuns: [],
+    dataRetentionDays: bootstrap.constitution.dataRetentionDays,
+    constitutionVersion: bootstrap.constitution.version,
+    agents: [{ id: agentId, displayName: "Research Synthesizer", kind: "agent",
+      membershipState: "active" }],
+    capabilities: {
+      readConnections: true,
+      manageConnections: mode === "root",
+      readAutomation: true,
+      manageAutomation: mode === "root",
+      readFederation: true,
+      manageFederation: mode === "root",
+      readData: mode === "root",
+      manageData: mode === "root",
+      applyRetention: mode === "root",
+    },
+  };
+
+  let intentProposals: UiIntentProposal[] = [];
+
+  function demoAsk(locale: "en" | "ja" | "zh-CN"): AskGuildResponse {
+    const source = knowledge[0]!;
+    const title = source.title[locale] ?? source.title.ja ?? source.title.en ?? "Knowledge";
+    const summary = source.summary[locale] ?? source.summary.ja ?? source.summary.en ?? "";
+    const answer = locale === "ja"
+      ? "調査依頼はResearch Spaceへ記録し、責任者・成果・機密区分・出典を確認してから割り当てます。[M1]"
+      : locale === "zh-CN"
+        ? "将研究请求记录到 Research Space，并在分配前确认负责人、成果、密级和来源。[M1]"
+        : "Record the request in the Research Space, then verify its owner, outcome, classification, and source before assignment. [M1]";
+    return {
+      answer,
+      inferred: true,
+      citations: [{
+        resourceType: "memory",
+        resourceId: source.id,
+        memoryId: source.id,
+        knowledgeId: source.id,
+        governed: true,
+        version: source.canonicalVersion ?? source.currentVersion,
+        title,
+        summary,
+        spaceId: source.spaceId,
+      }],
+    };
+  }
+
+  function replaceIntentProposal(next: UiIntentProposal): UiIntentProposal {
+    intentProposals = [next, ...intentProposals.filter((proposal) => proposal.id !== next.id)];
+    return next;
+  }
+
+  function contextNodes(): UiContextPage["nodes"] {
+    const memoryNodes = directMemories.map((memory) => ({
+      type: "memory",
+      id: memory.id,
+      label: memory.title.en ?? memory.title.ja ?? Object.values(memory.title)[0] ?? "Memory",
+    }));
+    return [
+      ...memoryNodes,
+      ...directActivities.map((activity) => ({ type: "activity", id: activity.id, label: activity.title })),
+      ...knowledge.map((item) => ({
+        type: "knowledge",
+        id: item.id,
+        label: item.title.en ?? item.title.ja ?? Object.values(item.title)[0] ?? "Knowledge",
+      })),
+      ...decisions.map((item) => ({ type: "decision", id: item.decision.id, label: item.decision.title })),
+      ...agentRuns.map((run) => ({
+        type: "agent_run",
+        id: run.id,
+        label: typeof run.plan.objective === "string" ? run.plan.objective : "Agent run",
+      })),
+    ].filter((node) => node.id !== personalMemoryId ||
+      personalCustody.some((custody) => custody.resourceId === node.id &&
+        custody.personalOwnerActorId === bootstrap.accountId));
   }
 
   return {
@@ -1723,6 +2238,1124 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           : profile),
       };
     },
+    async offboardActor(input) {
+      if (input.actorId === bootstrap.rootOwnerIdentityId) {
+        throw new Error("Transfer Root ownership before offboarding the Root Owner.");
+      }
+      const timestamp = now();
+      const handover: UiHandover = {
+        id: crypto.randomUUID(),
+        departingActorId: input.actorId,
+        successorActorId: input.successorActorId,
+        initiatedByActorId: bootstrap.accountId,
+        reason: input.reason,
+        status: "open",
+        completedAt: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        items: [{
+          id: crypto.randomUUID(),
+          caseId: "",
+          resourceType: "activity",
+          resourceId: directActivityId,
+          title: "Review observation protocol",
+          disposition: "transfer",
+          status: "pending",
+          note: "",
+          completedAt: null,
+          createdAt: timestamp,
+        }],
+      };
+      handover.items = handover.items.map((item) => ({ ...item, caseId: handover.id }));
+      handovers = [handover, ...handovers];
+      directory = {
+        ...directory,
+        identities: directory.identities.map((identity) => identity.id === input.actorId ? {
+          ...identity,
+          membershipState: "departed",
+          status: "disabled",
+          departedAt: timestamp,
+        } : identity),
+        agentProfiles: directory.agentProfiles.map((profile) => profile.identityId === input.actorId
+          ? { ...profile, status: "stopped" }
+          : profile),
+      };
+      appendDemoChronicle(
+        "membership.departed",
+        "identity",
+        input.actorId,
+        demoGuildBoundary,
+        { handoverId: handover.id, source: "guild-ui" },
+      );
+      return handover;
+    },
+    async getPrivatePage() {
+      const eligibleActors = directory.identities
+        .filter((identity) => identity.id !== bootstrap.accountId &&
+          identity.status === "active" && identity.membershipState === "active")
+        .map((identity) => ({
+          id: identity.id,
+          displayName: identity.displayName,
+          kind: identity.kind,
+          membershipState: identity.membershipState,
+        }));
+      return {
+        threads: privateThreads.filter((thread) =>
+          thread.participantActorIds.includes(bootstrap.accountId)),
+        eligibleActors,
+        availableSpaces: directory.spaces
+          .filter((space) => space.status === "active")
+          .map(({ id, name }) => ({ id, name })),
+        emergencyCandidates: bootstrap.rootOwner ? privateThreads
+          .filter((thread) => !thread.participantActorIds.includes(bootstrap.accountId))
+          .map((thread) => ({
+            id: thread.id,
+            classification: thread.classification,
+            createdAt: thread.createdAt,
+          })) : [],
+        canCreate: bootstrap.membershipState === "active",
+        canCreateGuildWide: bootstrap.rootOwner,
+        canUseEmergencyAccess: bootstrap.rootOwner,
+      };
+    },
+    async getPrivateThread(threadId) {
+      const detail = privateThreadDetails.find((candidate) => candidate.thread.id === threadId);
+      if (!detail || (!detail.thread.participantActorIds.includes(bootstrap.accountId) &&
+          detail.emergencyGrant?.grantedToActorId !== bootstrap.accountId)) {
+        throw new Error("Private thread was not found or is not visible.");
+      }
+      return detail;
+    },
+    async createPrivateThread(input) {
+      const timestamp = now();
+      const id = crypto.randomUUID();
+      const thread: UiPrivateThread = {
+        id,
+        spaceId: input.spaceId,
+        createdByActorId: bootstrap.accountId,
+        subject: input.subject,
+        classification: input.classification,
+        status: "open",
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        participantActorIds: [bootstrap.accountId, ...input.participantActorIds],
+        lastMessageAt: timestamp,
+        lastMessagePreview: input.body.slice(0, 160),
+      };
+      privateThreads = [thread, ...privateThreads];
+      privateThreadDetails = [{
+        thread,
+        messages: [{
+          id: crypto.randomUUID(),
+          threadId: id,
+          authorActorId: bootstrap.accountId,
+          body: input.body,
+          state: "active",
+          redactedByActorId: null,
+          redactedAt: null,
+          redactionReason: null,
+          version: 1,
+          createdAt: timestamp,
+        }],
+        emergencyGrant: null,
+        promotions: [],
+        promotionKinds: mode === "root" ? ["memory", "activity", "decision", "handover"] : [],
+      }, ...privateThreadDetails];
+      appendDemoChronicle("private_thread.created", "private_thread", id, demoGuildBoundary, {
+        participantCount: thread.participantActorIds.length,
+        plaintextRecorded: false,
+      });
+      return id;
+    },
+    async postPrivateMessage(input) {
+      const detailIndex = privateThreadDetails.findIndex((detail) => detail.thread.id === input.threadId);
+      const detail = privateThreadDetails[detailIndex];
+      if (!detail || !detail.thread.participantActorIds.includes(bootstrap.accountId)) {
+        throw new Error("Only a participant can post a private message.");
+      }
+      const timestamp = now();
+      const message = {
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        authorActorId: bootstrap.accountId,
+        body: input.body,
+        state: "active" as const,
+        redactedByActorId: null,
+        redactedAt: null,
+        redactionReason: null,
+        version: 1,
+        createdAt: timestamp,
+      };
+      const thread = {
+        ...detail.thread,
+        updatedAt: timestamp,
+        lastMessageAt: timestamp,
+        lastMessagePreview: input.body.slice(0, 160),
+        version: detail.thread.version + 1,
+      };
+      privateThreadDetails[detailIndex] = { ...detail, thread, messages: [...detail.messages, message] };
+      privateThreads = privateThreads.map((candidate) => candidate.id === thread.id ? thread : candidate);
+      appendDemoChronicle("private_message.posted", "private_thread", input.threadId, demoGuildBoundary, {
+        messageId: message.id,
+        plaintextRecorded: false,
+      });
+    },
+    async promotePrivateMessage(input) {
+      const detailIndex = privateThreadDetails.findIndex((detail) =>
+        detail.thread.id === input.threadId);
+      const detail = privateThreadDetails[detailIndex];
+      if (!detail || !detail.thread.participantActorIds.includes(bootstrap.accountId)) {
+        throw new Error("Only an active private-thread participant can promote a message.");
+      }
+      if (!detail.promotionKinds.includes(input.destination.kind)) {
+        throw new Error("This Actor cannot create the selected Guild record.");
+      }
+      const source = detail.messages.find((candidate) =>
+        candidate.id === input.sourceMessageId && candidate.state === "active");
+      if (!source || !Number.isSafeInteger(input.selectionStart) || input.selectionStart < 0 ||
+          !Number.isSafeInteger(input.selectionLength) || input.selectionLength < 1 ||
+          input.selectionStart + input.selectionLength > source.body.length) {
+        throw new Error("The private-message selection is unavailable.");
+      }
+      const selectedContent = source.body.slice(
+        input.selectionStart,
+        input.selectionStart + input.selectionLength,
+      );
+      if (!selectedContent.trim()) throw new Error("Select meaningful message content.");
+
+      const idempotencyScope = `${bootstrap.accountId}:${input.idempotencyKey}`;
+      const fingerprint = JSON.stringify(input);
+      const existing = privatePromotionIdempotency.get(idempotencyScope);
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) {
+          throw new Error("The idempotency key is already bound to another promotion.");
+        }
+        return existing.promotion;
+      }
+
+      const destinationDraftId = crypto.randomUUID();
+      const timestamp = now();
+      const sourceSha256 = await sha256Text(selectedContent);
+      if (input.destination.kind === "memory") {
+        const title: UiMemory["title"] = {
+          [input.destination.locale]: input.destination.title,
+        };
+        const summary: UiMemory["summary"] = {
+          [input.destination.locale]: input.destination.summary,
+        };
+        const body: UiMemory["body"] = {
+          [input.destination.locale]: selectedContent,
+        };
+        directMemories = [{
+          id: destinationDraftId,
+          spaceId: input.destination.spaceId,
+          ownerActorId: bootstrap.accountId,
+          createdByActorId: bootstrap.accountId,
+          type: input.destination.memoryType,
+          status: "active",
+          workflow: "canonical",
+          governanceState: "draft",
+          layer: "canonical",
+          visibility: input.destination.visibility,
+          classification: input.destination.classification,
+          allowedActorIds: input.destination.allowedActorIds,
+          currentVersion: 1,
+          confidence: null,
+          provenance: { origin: "private-message-promotion", sourceDigest: sourceSha256 },
+          lastVerifiedAt: null,
+          sourceIds: [source.id],
+          title,
+          summary,
+          body,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          capabilities: { edit: false, archive: false, governed: true },
+        }, ...directMemories];
+      } else if (input.destination.kind === "activity") {
+        directActivities = [{
+          id: destinationDraftId,
+          parentActivityId: null,
+          spaceId: input.destination.spaceId,
+          ownerActorId: bootstrap.accountId,
+          creatorActorId: bootstrap.accountId,
+          assigneeActorId: input.destination.assigneeActorId,
+          type: input.destination.activityType,
+          title: input.destination.title,
+          description: selectedContent,
+          status: "proposed",
+          visibility: input.destination.visibility,
+          classification: input.destination.classification,
+          allowedActorIds: input.destination.allowedActorIds,
+          sourceIds: [source.id],
+          startsAt: null,
+          dueAt: null,
+          position: 0,
+          version: 1,
+          compatibilitySourceType: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          ...emptyActivityGraph,
+          capabilities: workCapabilities,
+        }, ...directActivities];
+      } else if (input.destination.kind === "decision") {
+        decisions = [{
+          decision: {
+            id: destinationDraftId,
+            spaceId: input.destination.spaceId,
+            proposerIdentityId: bootstrap.accountId,
+            ownerIdentityId: bootstrap.accountId,
+            method: input.destination.method,
+            title: input.destination.title,
+            description: selectedContent,
+            rationale: input.destination.rationale,
+            status: "draft",
+            visibility: input.destination.visibility,
+            classification: input.destination.classification,
+            allowedIdentityIds: input.destination.allowedActorIds,
+            sourceIds: [source.id],
+            requiredApprovals: 1,
+            approvalCount: 0,
+            selectedOptionId: null,
+            reviewAt: null,
+            decidedAt: null,
+            supersededByDecisionId: null,
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            capabilities: decisionCapabilities("draft"),
+          },
+          options: [],
+          approvals: [],
+        }, ...decisions];
+      } else {
+        const handover: UiHandover = {
+          id: destinationDraftId,
+          departingActorId: input.destination.departingActorId,
+          successorActorId: input.destination.successorActorId,
+          initiatedByActorId: bootstrap.accountId,
+          reason: selectedContent,
+          status: "open",
+          completedAt: null,
+          version: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          items: [],
+        };
+        handovers = [handover, ...handovers];
+      }
+
+      const promotionId = crypto.randomUUID();
+      const chronicleEventId = appendDemoChronicle(
+        "private_message.promoted",
+        "private_message_promotion",
+        promotionId,
+        {
+          spaceId: detail.thread.spaceId,
+          ownerIdentityId: bootstrap.accountId,
+          visibility: "restricted",
+          classification: detail.thread.classification,
+          allowedIdentityIds: detail.thread.participantActorIds,
+        },
+        {
+          sourceDigest: sourceSha256,
+          destinationKind: input.destination.kind,
+          destinationDraftId,
+          plaintextRecorded: false,
+        },
+      );
+      const promotion: UiPrivateMessagePromotion = {
+        id: promotionId,
+        threadId: input.threadId,
+        sourceMessageId: input.sourceMessageId,
+        promotedByActorId: bootstrap.accountId,
+        selectionStart: input.selectionStart,
+        selectionLength: input.selectionLength,
+        sourceSha256,
+        destinationKind: input.destination.kind,
+        destinationDraftId,
+        chronicleEventId,
+        createdAt: timestamp,
+      };
+      privateThreadDetails[detailIndex] = {
+        ...detail,
+        promotions: [...detail.promotions, promotion],
+      };
+      privatePromotionIdempotency.set(idempotencyScope, { fingerprint, promotion });
+      return promotion;
+    },
+    async beginEmergencyPrivateAccess(input) {
+      if (!bootstrap.rootOwner || input.confirmation !== "BREAK GLASS") {
+        throw new Error("Only the human Root Owner can open emergency private access.");
+      }
+      const detailIndex = privateThreadDetails.findIndex((detail) => detail.thread.id === input.threadId);
+      const detail = privateThreadDetails[detailIndex];
+      if (!detail) throw new Error("Private thread was not found.");
+      const grantId = crypto.randomUUID();
+      privateThreadDetails[detailIndex] = {
+        ...detail,
+        emergencyGrant: {
+          id: grantId,
+          threadId: input.threadId,
+          grantedToActorId: bootstrap.accountId,
+          grantedByActorId: bootstrap.accountId,
+          reason: input.reason,
+          intendedAccess: input.intendedAccess,
+          viewedInformation: "",
+          changesMade: "",
+          status: "active",
+          expiresAt: new Date(Date.now() + input.durationMinutes * 60_000).toISOString(),
+          closedAt: null,
+          version: 1,
+          createdAt: now(),
+        },
+      };
+      appendDemoChronicle("private_access.break_glass.opened", "private_thread", input.threadId, demoGuildBoundary, {
+        grantId,
+        reason: input.reason,
+      });
+      return grantId;
+    },
+    async closeEmergencyPrivateAccess(input) {
+      privateThreadDetails = privateThreadDetails.map((detail) =>
+        detail.emergencyGrant?.id === input.grantId ? {
+          ...detail,
+          emergencyGrant: {
+            ...detail.emergencyGrant,
+            status: "closed",
+            viewedInformation: input.viewedInformation,
+            changesMade: input.changesMade,
+            closedAt: now(),
+            version: detail.emergencyGrant.version + 1,
+          },
+        } : detail);
+      appendDemoChronicle("private_access.break_glass.closed", "emergency_private_access", input.grantId, demoGuildBoundary, {
+        accessAccountedFor: true,
+      });
+    },
+    async getLifecyclePage(): Promise<UiLifecyclePage> {
+      const myAssignments = onboardingAssignments
+        .filter((assignment) => assignment.actorId === bootstrap.accountId &&
+          !["completed", "cancelled"].includes(assignment.status))
+        .flatMap((assignment) => {
+          const path = onboardingPaths.find((candidate) => candidate.id === assignment.pathId);
+          if (!path) return [];
+          const completions = onboardingCompletions.get(assignment.id);
+          return [{
+            assignment: (({
+              actorDisplayName: _actorDisplayName,
+              pathName: _pathName,
+              completedRequirementCount: _completedRequirementCount,
+              totalRequirementCount: _totalRequirementCount,
+              ...stored
+            }) => stored)(assignment),
+            path: (({ requirements: _requirements, ...stored }) => stored)(path),
+            requirements: path.requirements.map((requirement) => ({
+              ...requirement,
+              completedAt: completions?.get(requirement.id)?.completedAt ?? null,
+              evidence: completions?.get(requirement.id)?.evidence ?? "",
+            })),
+          }];
+        });
+      return {
+        paths: bootstrap.rootOwner ? onboardingPaths : [],
+        assignments: bootstrap.rootOwner ? onboardingAssignments : [],
+        myAssignments,
+        handovers,
+        preboardingActors: directory.identities
+          .filter((identity) => identity.membershipState === "preboarding")
+          .map((identity) => ({
+            id: identity.id,
+            displayName: identity.displayName,
+            kind: identity.kind,
+            membershipState: identity.membershipState,
+          })),
+        successorActors: directory.identities
+          .filter((identity) => identity.membershipState === "active" &&
+            identity.id !== bootstrap.accountId)
+          .map((identity) => ({
+            id: identity.id,
+            displayName: identity.displayName,
+            kind: identity.kind,
+            membershipState: identity.membershipState,
+          })),
+        canManage: bootstrap.rootOwner,
+      };
+    },
+    async createOnboardingPath(input) {
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      onboardingPaths = [...onboardingPaths, {
+        id,
+        spaceId: input.spaceId,
+        templateKey: collective.template.key,
+        applicableRoleIds: input.roleIds,
+        name: input.name,
+        description: input.description,
+        status: "active",
+        createdByActorId: bootstrap.accountId,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        requirements: input.requirements.map((requirement, position) => ({
+          id: crypto.randomUUID(),
+          pathId: id,
+          ...requirement,
+          position,
+          createdAt: timestamp,
+        })),
+      }];
+      return id;
+    },
+    async assignOnboarding(input) {
+      if (!bootstrap.rootOwner) throw new Error("This Actor cannot assign onboarding.");
+      const path = onboardingPaths.find((candidate) => candidate.id === input.pathId);
+      const actor = directory.identities.find((candidate) => candidate.id === input.actorId);
+      if (!path || !actor || actor.membershipState !== "preboarding") {
+        throw new Error("Onboarding requires an active path and a preboarding Human.");
+      }
+      if (onboardingAssignments.some((assignment) =>
+        assignment.actorId === input.actorId && assignment.pathId === input.pathId)) {
+        throw new Error("This onboarding path is already assigned to the selected Actor.");
+      }
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      onboardingAssignments = [{
+        id,
+        actorId: input.actorId,
+        pathId: input.pathId,
+        managerActorId: bootstrap.accountId,
+        status: "assigned",
+        dueAt: input.dueAt,
+        completedAt: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        actorDisplayName: actor.displayName,
+        pathName: path.name,
+        completedRequirementCount: 0,
+        totalRequirementCount: path.requirements.length,
+      }, ...onboardingAssignments];
+      return id;
+    },
+    async completeOnboardingRequirement(input) {
+      const assignment = onboardingAssignments.find((candidate) =>
+        candidate.id === input.assignmentId && candidate.actorId === bootstrap.accountId);
+      const path = assignment && onboardingPaths.find((candidate) =>
+        candidate.id === assignment.pathId);
+      const requirement = path?.requirements.find((candidate) =>
+        candidate.id === input.requirementId);
+      const completions = onboardingCompletions.get(input.assignmentId) ?? new Map();
+      if (!assignment || !path || !requirement || completions.has(input.requirementId)) {
+        throw new Error("Onboarding requirement was not found.");
+      }
+      const completedAt = now();
+      completions.set(input.requirementId, { completedAt, evidence: input.evidence });
+      onboardingCompletions.set(input.assignmentId, completions);
+      const allRequiredComplete = path.requirements
+        .filter((candidate) => candidate.required)
+        .every((candidate) => completions.has(candidate.id));
+      onboardingAssignments = onboardingAssignments.map((candidate) =>
+        candidate.id === input.assignmentId ? {
+          ...candidate,
+          status: allRequiredComplete ? "completed" : "in_progress",
+          completedAt: allRequiredComplete ? completedAt : null,
+          completedRequirementCount: completions.size,
+          version: candidate.version + 1,
+          updatedAt: completedAt,
+        } : candidate);
+    },
+    async completeHandoverItem(input) {
+      handovers = handovers.map((handover) => handover.id === input.caseId ? {
+        ...handover,
+        status: handover.items.every((item) => item.id === input.itemId || item.status === "completed")
+          ? "completed" : handover.status,
+        completedAt: handover.items.every((item) => item.id === input.itemId || item.status === "completed")
+          ? now() : handover.completedAt,
+        items: handover.items.map((item) => item.id === input.itemId ? {
+          ...item,
+          status: "completed",
+          disposition: input.disposition,
+          note: input.note,
+          completedAt: now(),
+        } : item),
+      } : handover);
+    },
+    async getContributionProfile(actorId = null): Promise<UiContributionProfile> {
+      const subjectId = actorId ?? bootstrap.accountId;
+      const actor = directory.identities.find((identity) => identity.id === subjectId);
+      if (!actor) throw new Error("Actor was not found.");
+      const evidence = chronicleEvents
+        .filter((event) => event.actorIdentityId === subjectId)
+        .slice(0, 50)
+        .map((event) => ({
+          eventId: event.id,
+          sequence: String(event.sequence),
+          action: event.action,
+          subjectType: event.subjectType,
+          subjectId: event.subjectId,
+          occurredAt: event.occurredAt,
+          facet: event.subjectType === "knowledge" || event.subjectType === "memory"
+            ? "knowledge" as const
+            : event.subjectType === "decision"
+              ? "decision" as const
+              : event.subjectType === "agent_run"
+                ? "agent_supervision" as const
+                : event.subjectType === "activity" || event.subjectType === "quest"
+                  ? "activity" as const
+                  : "governance" as const,
+        }));
+      const facetNames = ["knowledge", "activity", "decision", "support", "agent_supervision", "governance"] as const;
+      return {
+        actorId: subjectId,
+        actorDisplayName: actor.displayName,
+        facets: facetNames.map((facet) => ({
+          facet,
+          count: evidence.filter((item) => item.facet === facet).length,
+        })),
+        evidence,
+        corrections: correctionRequest && subjectId === bootstrap.accountId
+          ? [correctionRequest]
+          : [],
+        pendingCorrections: mode === "root"
+          ? governedCorrectionRequests.filter((request) =>
+            request.status === "pending" && request.requestedByActorId !== bootstrap.accountId)
+          : [],
+        canRequestCorrection: subjectId === bootstrap.accountId,
+      };
+    },
+    async requestContributionCorrection(input) {
+      const evidenceEvent = chronicleEvents.find((event) => event.id === input.chronicleEventId);
+      if (!evidenceEvent) throw new Error("Chronicle evidence event was not found.");
+      const id = crypto.randomUUID();
+      const createdAt = now();
+      const evidenceSha256 = await sha256Text(JSON.stringify(evidenceEvent));
+      const requestChronicleEventId = appendDemoChronicle(
+        "contribution.correction.requested",
+        "contribution_correction_request",
+        id,
+        evidenceEvent,
+        { evidenceEventId: evidenceEvent.id, evidenceSha256, source: "guild-ui" },
+      );
+      correctionRequest = {
+        id,
+        subjectActorId: bootstrap.accountId,
+        requestedByActorId: bootstrap.accountId,
+        chronicleEventId: evidenceEvent.id,
+        evidenceSha256,
+        reason: input.reason,
+        status: "pending",
+        reviewedByActorId: null,
+        reviewReason: null,
+        reviewedAt: null,
+        version: 1,
+        requestChronicleEventId,
+        resolutionChronicleEventId: null,
+        createdAt,
+      };
+      const { chronicleEventId, ...governedCorrection } = correctionRequest;
+      governedCorrectionRequests = [{
+        ...governedCorrection,
+        evidenceEventId: chronicleEventId,
+      }, ...governedCorrectionRequests];
+      return id;
+    },
+    async reviewContributionCorrection(input) {
+      if (mode !== "root") {
+        throw new Error("Only an authorized Human manager can review Contribution corrections.");
+      }
+      const current = governedCorrectionRequests.find((request) => request.id === input.requestId);
+      if (!current || current.status !== "pending") {
+        throw new Error("Contribution correction was not found or was already reviewed.");
+      }
+      if (current.requestedByActorId === bootstrap.accountId) {
+        throw new Error("A requester cannot review their own Contribution correction.");
+      }
+      if (current.version !== input.expectedVersion || !input.reason.trim()) {
+        throw new Error("Contribution correction changed before the review was saved.");
+      }
+      const timestamp = now();
+      const evidenceEvent = chronicleEvents.find((event) =>
+        event.id === current.evidenceEventId) ?? demoGuildBoundary;
+      const resolutionChronicleEventId = appendDemoChronicle(
+        `contribution.correction.${input.outcome}`,
+        "contribution_correction",
+        current.id,
+        evidenceEvent,
+        {
+          evidenceEventId: current.evidenceEventId,
+          evidenceDigest: current.evidenceSha256,
+          outcome: input.outcome,
+          originalEventPreserved: true,
+        },
+      );
+      const reviewed: UiContributionProfile["pendingCorrections"][number] = {
+        ...current,
+        status: input.outcome,
+        reviewedByActorId: bootstrap.accountId,
+        reviewReason: input.reason.trim(),
+        reviewedAt: timestamp,
+        version: current.version + 1,
+        resolutionChronicleEventId,
+      };
+      governedCorrectionRequests = governedCorrectionRequests.map((request) =>
+        request.id === reviewed.id ? reviewed : request);
+      return reviewed;
+    },
+    async getContextPage(): Promise<UiContextPage> {
+      const nodes = contextNodes();
+      const visibleKeys = new Set(nodes.map((node) => `${node.type}:${node.id}`));
+      const visibleRelations = contextRelations.filter((relation) =>
+        visibleKeys.has(`${relation.fromType}:${relation.fromId}`) &&
+        visibleKeys.has(`${relation.toType}:${relation.toId}`));
+      const visiblePersonalCustody = personalCustody.filter((custody) =>
+        custody.personalOwnerActorId === bootstrap.accountId);
+      return {
+        relations: visibleRelations,
+        nodes,
+        reviewSignals: bootstrap.rootOwner ? reviewSignals : [],
+        personalCustody: visiblePersonalCustody,
+        custodyCounts: bootstrap.rootOwner ? {
+          guild: directMemories.length - personalCustody.length,
+          personal: personalCustody.filter((item) => item.custody === "personal").length,
+          shared: personalCustody.filter((item) => item.custody === "shared").length,
+        } : null,
+        canManageRelations: bootstrap.rootOwner,
+        canReviewMemory: bootstrap.rootOwner,
+      };
+    },
+    async createContextRelation(input) {
+      if (!bootstrap.rootOwner) throw new Error("This Actor cannot manage Context Graph relations.");
+      const visibleKeys = new Set(contextNodes().map((node) => `${node.type}:${node.id}`));
+      if (!visibleKeys.has(`${input.fromType}:${input.fromId}`) ||
+          !visibleKeys.has(`${input.toType}:${input.toId}`)) {
+        throw new Error("Both Context Graph endpoints must exist and be visible.");
+      }
+      const id = crypto.randomUUID();
+      contextRelations = [{
+        id,
+        spaceId: researchSpaceId,
+        ownerActorId: bootstrap.accountId,
+        visibility: "space",
+        classification: "internal",
+        allowedActorIds: [],
+        fromType: input.fromType,
+        fromId: input.fromId,
+        relationType: input.relationType,
+        toType: input.toType,
+        toId: input.toId,
+        status: "active",
+        properties: {},
+        rationale: input.rationale,
+        createdByActorId: bootstrap.accountId,
+        revokedByActorId: null,
+        revokedAt: null,
+        version: 1,
+        createdAt: now(),
+      }, ...contextRelations];
+      appendDemoChronicle("context_relation.created", "relation", id, demoGuildBoundary, {
+        relationType: input.relationType,
+        source: "guild-ui",
+      });
+      return id;
+    },
+    async revokeContextRelation(input) {
+      if (!bootstrap.rootOwner) throw new Error("This Actor cannot manage Context Graph relations.");
+      const relation = contextRelations.find((candidate) => candidate.id === input.relationId);
+      if (!relation || relation.version !== input.expectedVersion || relation.status !== "active") {
+        throw new Error("Context Graph relation changed before it could be revoked.");
+      }
+      const revokedAt = now();
+      const nextVersion = relation.version + 1;
+      contextRelations = contextRelations.map((candidate) => candidate.id === input.relationId ? {
+        ...candidate,
+        status: "revoked",
+        revokedByActorId: bootstrap.accountId,
+        revokedAt,
+        version: nextVersion,
+      } : candidate);
+      appendDemoChronicle("context_relation.revoked", "relation", input.relationId, demoGuildBoundary, {
+        source: "guild-ui",
+      });
+      return nextVersion;
+    },
+    async resolveMemoryReviewSignal(input) {
+      if (!bootstrap.rootOwner) throw new Error("This Actor cannot govern Memory review signals.");
+      const signal = reviewSignals.find((candidate) => candidate.id === input.signalId);
+      if (!signal || signal.version !== input.expectedVersion || signal.status !== "open") {
+        throw new Error("Memory review signal changed before it could be resolved.");
+      }
+      const nextVersion = signal.version + 1;
+      reviewSignals = reviewSignals.map((candidate) => candidate.id === input.signalId ? {
+        ...candidate,
+        status: input.status,
+        resolution: input.resolution,
+        resolvedByActorId: bootstrap.accountId,
+        resolvedAt: now(),
+        version: nextVersion,
+      } : candidate);
+      appendDemoChronicle(`memory_review.${input.status}`, "memory_review_signal", input.signalId,
+        demoGuildBoundary, { source: "guild-ui" });
+      return nextVersion;
+    },
+    async sharePersonalData(input) {
+      const custody = personalCustody.find((candidate) =>
+        candidate.resourceType === input.resourceType && candidate.resourceId === input.resourceId);
+      if (!custody || custody.personalOwnerActorId !== bootstrap.accountId ||
+          custody.custody !== "personal" || custody.version !== input.expectedVersion) {
+        throw new Error("Only the Personal Data owner can share its current version.");
+      }
+      const sharedAt = now();
+      personalCustody = personalCustody.map((candidate) => candidate === custody ? {
+        ...candidate,
+        custody: "shared",
+        sharedByActorId: bootstrap.accountId,
+        sharedAt,
+        version: candidate.version + 1,
+        updatedAt: sharedAt,
+      } : candidate);
+      appendDemoChronicle("data.personal.shared", input.resourceType, input.resourceId,
+        demoGuildBoundary, { source: "guild-ui" });
+    },
+    async getOperationsPage() {
+      return operations;
+    },
+    async createConnection(input) {
+      if (!operations.capabilities.manageConnections) throw new Error("This Actor cannot manage Connections.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = {
+        ...operations,
+        connections: [{
+          id,
+          spaceId: input.spaceId,
+          ownerIdentityId: bootstrap.accountId,
+          name: input.name,
+          kind: input.kind,
+          status: "active",
+          capabilityPermissions: input.capabilityPermissions,
+          endpointUrl: input.endpointUrl,
+          secretConfigured: Boolean(input.secretReference),
+          visibility: input.visibility,
+          classification: input.classification,
+          allowedIdentityIds: [],
+          description: input.description,
+          provider: input.provider,
+          configuration: input.configuration,
+          authKind: input.authKind,
+          writeRiskLevel: input.writeRiskLevel,
+          healthStatus: "unknown",
+          lastCheckedAt: null,
+          deploymentManaged: false,
+          version: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }, ...operations.connections],
+      };
+      appendDemoChronicle("connection.created", "connector", id, demoGuildBoundary,
+        { kind: input.kind, source: "guild-ui" });
+      return id;
+    },
+    async checkConnectionHealth(connectionId) {
+      const item = operations.connections.find((candidate) => candidate.id === connectionId);
+      if (!item || item.status !== "active") throw new Error("Connection is not active.");
+      const checkedAt = now();
+      operations = {
+        ...operations,
+        connections: operations.connections.map((candidate) => candidate.id === connectionId
+          ? { ...candidate, healthStatus: "healthy", lastCheckedAt: checkedAt,
+            version: candidate.version + 1, updatedAt: checkedAt }
+          : candidate),
+      };
+      return {
+        status: "healthy",
+        code: "ok",
+        message: "Connection is healthy.",
+        checkedAt,
+      };
+    },
+    async discoverConnection(connectionId) {
+      const item = operations.connections.find((candidate) => candidate.id === connectionId);
+      if (!item || item.status !== "active") throw new Error("Connection is not active.");
+      const configured = item.configuration?.allowedCapabilities;
+      const ids = Array.isArray(configured)
+        ? configured.flatMap((value) => typeof value === "string"
+          ? [value]
+          : value && typeof value === "object" && "id" in value && typeof value.id === "string"
+            ? [value.id]
+            : [])
+        : ["webhook.send"];
+      return {
+        capabilities: ids.map((id) => ({
+          id,
+          title: id,
+          description: "Allowlisted fictional demo capability.",
+          inputSchema: null,
+          source: item.kind === "mcp" ? "mcp_tool" as const
+            : item.kind === "https_webhook" || item.kind === "webhook"
+              ? "webhook" as const
+              : item.kind === "cloudflare_service"
+                ? "service_action" as const
+                : "gatekeeper_action" as const,
+        })),
+        oauth: null,
+      };
+    },
+    async revokeConnection(input) {
+      if (!operations.capabilities.manageConnections) throw new Error("This Actor cannot manage Connections.");
+      const item = operations.connections.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion || item.status === "revoked") {
+        throw new Error("Connection changed before it could be revoked.");
+      }
+      operations = { ...operations, connections: operations.connections.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: "revoked", version: candidate.version + 1,
+          updatedAt: now() } : candidate) };
+    },
+    async createWorkflow(input) {
+      if (!operations.capabilities.manageAutomation) throw new Error("This Actor cannot manage Automation.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = { ...operations, workflows: [{
+        id, spaceId: input.spaceId, ownerActorId: bootstrap.accountId, name: input.name,
+        description: input.description, status: "active", nodes: input.nodes, edges: input.edges,
+        allowedActionKinds: input.allowedActionKinds,
+        capabilityPermissions: input.capabilityPermissions,
+        visibility: input.visibility, classification: input.classification, allowedActorIds: [],
+        maxConcurrentRuns: input.maxConcurrentRuns, version: 1, createdAt: timestamp, updatedAt: timestamp,
+      }, ...operations.workflows] };
+      return id;
+    },
+    async setWorkflowStatus(input) {
+      if (!operations.capabilities.manageAutomation) throw new Error("This Actor cannot manage Automation.");
+      const item = operations.workflows.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion) throw new Error("Workflow changed before it could be saved.");
+      operations = { ...operations, workflows: operations.workflows.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: input.status,
+          version: candidate.version + 1, updatedAt: now() } : candidate) };
+    },
+    async createAutomationRule(input) {
+      if (!operations.capabilities.manageAutomation) throw new Error("This Actor cannot manage Automation.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = { ...operations, automationRules: [{
+        id, workflowId: input.workflowId, agentActorId: input.agentActorId,
+        createdByActorId: bootstrap.accountId, name: input.name, triggerKind: input.triggerKind,
+        triggerExpression: input.triggerExpression, timezone: input.timezone,
+        inputTemplate: input.inputTemplate, status: "active", nextRunAt: input.nextRunAt,
+        lastRunAt: null, consecutiveFailures: 0, version: 1,
+        createdAt: timestamp, updatedAt: timestamp,
+      }, ...operations.automationRules] };
+      return id;
+    },
+    async setAutomationRuleStatus(input) {
+      if (!operations.capabilities.manageAutomation) throw new Error("This Actor cannot manage Automation.");
+      const item = operations.automationRules.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion) throw new Error("Automation changed before it could be saved.");
+      operations = { ...operations, automationRules: operations.automationRules.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: input.status,
+          version: candidate.version + 1, updatedAt: now() } : candidate) };
+    },
+    async runWorkflow(input) {
+      if (!operations.capabilities.manageAutomation) throw new Error("This Actor cannot run Automation.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = { ...operations, workflowRuns: [{
+        id, workflowId: input.workflowId, automationRuleId: null,
+        requestedByActorId: bootstrap.accountId, agentActorId: input.agentActorId,
+        triggerKind: "manual", triggerEventId: null, input: input.input, status: "queued",
+        output: null, errorMessage: null, startedAt: null, finishedAt: null,
+        createdAt: timestamp, updatedAt: timestamp,
+      }, ...operations.workflowRuns] };
+      return id;
+    },
+    async createFederationLink(input) {
+      if (!operations.capabilities.manageFederation) throw new Error("This Actor cannot manage Federation.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = { ...operations, federationLinks: [{
+        id, remoteGuildId: input.remoteGuildId, remoteName: input.remoteName,
+        endpointUrl: input.endpointUrl, secretConfigured: true, direction: input.direction,
+        status: "pending", allowedResourceTypes: input.allowedResourceTypes,
+        createdByActorId: bootstrap.accountId, version: 1, createdAt: timestamp, updatedAt: timestamp,
+      }, ...operations.federationLinks] };
+      return id;
+    },
+    async activateFederationLink(input) {
+      if (!operations.capabilities.manageFederation) throw new Error("This Actor cannot manage Federation.");
+      const item = operations.federationLinks.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion || item.status !== "pending") {
+        throw new Error("Federation link changed before it could be activated.");
+      }
+      operations = { ...operations, federationLinks: operations.federationLinks.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: "active", version: candidate.version + 1,
+          updatedAt: now() } : candidate) };
+    },
+    async revokeFederationLink(input) {
+      if (!operations.capabilities.manageFederation) throw new Error("This Actor cannot manage Federation.");
+      const item = operations.federationLinks.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion || item.status === "revoked") {
+        throw new Error("Federation link changed before it could be revoked.");
+      }
+      operations = { ...operations, federationLinks: operations.federationLinks.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: "revoked", version: candidate.version + 1,
+          updatedAt: now() } : candidate) };
+    },
+    async createFederationGrant(input) {
+      if (!operations.capabilities.manageFederation) throw new Error("This Actor cannot manage Federation.");
+      const id = crypto.randomUUID();
+      operations = { ...operations, federationGrants: [{
+        id, federationLinkId: input.federationLinkId, resourceType: input.resourceType,
+        resourceId: input.resourceId, permission: input.permission, status: "active",
+        grantedByActorId: bootstrap.accountId, revokedByActorId: null, revokedAt: null,
+        version: 1, createdAt: now(),
+      }, ...operations.federationGrants] };
+      return id;
+    },
+    async revokeFederationGrant(input) {
+      if (!operations.capabilities.manageFederation) throw new Error("This Actor cannot manage Federation.");
+      const item = operations.federationGrants.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion || item.status === "revoked") {
+        throw new Error("Federation grant changed before it could be revoked.");
+      }
+      operations = { ...operations, federationGrants: operations.federationGrants.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: "revoked",
+          revokedByActorId: bootstrap.accountId, revokedAt: now(), version: candidate.version + 1 } : candidate) };
+    },
+    async createModelProvider(input) {
+      if (!operations.capabilities.manageData) throw new Error("This Actor cannot manage Models.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = { ...operations, modelProviders: [{
+        id, name: input.name, kind: input.kind, endpointUrl: input.endpointUrl,
+        secretConfigured: Boolean(input.secretReference), allowedModels: input.allowedModels,
+        status: "active", deploymentManaged: false, createdByActorId: bootstrap.accountId,
+        version: 1, createdAt: timestamp, updatedAt: timestamp,
+      }, ...operations.modelProviders] };
+      return id;
+    },
+    async revokeModelProvider(input) {
+      if (!operations.capabilities.manageData) throw new Error("This Actor cannot manage Models.");
+      const item = operations.modelProviders.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion || item.status === "revoked") {
+        throw new Error("Model provider changed before it could be revoked.");
+      }
+      operations = { ...operations, modelProviders: operations.modelProviders.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: "revoked", version: candidate.version + 1,
+          updatedAt: now() } : candidate) };
+    },
+    async setModelRoute(input) {
+      if (!operations.capabilities.manageData) throw new Error("This Actor cannot manage Models.");
+      const existing = operations.modelRoutes.find((candidate) => candidate.purpose === input.purpose);
+      if (existing && input.expectedVersion !== existing.version) {
+        throw new Error("Model route changed before it could be saved.");
+      }
+      const id = existing?.id ?? crypto.randomUUID();
+      const timestamp = now();
+      const route = {
+        id, purpose: input.purpose, providerId: input.providerId,
+        primaryModel: input.primaryModel, fallbackModel: input.fallbackModel,
+        maxTokens: input.maxTokens, dailyBudgetMinor: input.dailyBudgetMinor,
+        cacheEnabled: input.cacheEnabled, status: input.status,
+        updatedByActorId: bootstrap.accountId, version: (existing?.version ?? 0) + 1,
+        createdAt: existing?.createdAt ?? timestamp, updatedAt: timestamp,
+      };
+      operations = { ...operations, modelRoutes: [route,
+        ...operations.modelRoutes.filter((candidate) => candidate.purpose !== input.purpose)] };
+      return id;
+    },
+    async requestDataExport(input) {
+      if (!operations.capabilities.manageData) throw new Error("This Actor cannot export Guild data.");
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = { ...operations, dataExports: [{
+        id,
+        requestedCategories: ["guild", "actors", "spaces", "roles", "memories", "activities",
+          "decisions", "conversations", "files", "agent_runs", "chronicle", "operations"],
+        includeRequesterPersonal: input.includeRequesterPersonal,
+        status: "completed" as const,
+        attemptCount: 1,
+        maxAttempts: 3,
+        retryable: false,
+        sha256: "d".repeat(64),
+        byteCount: 312,
+        rowCount: 84,
+        fileCount: 0,
+        completedAt: timestamp,
+        expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+        errorSummary: null,
+        version: 2,
+        createdAt: timestamp,
+      }, ...operations.dataExports] };
+      appendDemoChronicle("data_export.completed", "data_export_job", id, demoGuildBoundary,
+        { source: "demo-background-worker" });
+      return id;
+    },
+    async retryDataExport(input) {
+      const item = operations.dataExports.find((candidate) => candidate.id === input.id);
+      if (!item || item.version !== input.expectedVersion || !item.retryable) {
+        throw new Error("This export cannot be retried.");
+      }
+      operations = { ...operations, dataExports: operations.dataExports.map((candidate) =>
+        candidate.id === input.id ? { ...candidate, status: "completed" as const,
+          retryable: false, sha256: "d".repeat(64), completedAt: now(),
+          version: candidate.version + 1 } : candidate) };
+    },
+    async downloadDataExport(id) {
+      const item = operations.dataExports.find((candidate) => candidate.id === id);
+      if (!item || item.status !== "completed") throw new Error("This export is not ready.");
+      return new Blob([`${JSON.stringify({
+        recordType: "guild_export_manifest",
+        formatVersion: 1,
+        guildId,
+        exportJobId: id,
+        demo: true,
+      })}\n`], { type: "application/x-ndjson" });
+    },
+    async planRetention(input) {
+      if (!operations.capabilities.manageData) {
+        throw new Error("This Actor cannot manage retention.");
+      }
+      const cutoffAt = new Date(input.cutoffAt).toISOString();
+      const preview = input.previewRunId
+        ? operations.retentionRuns.find((run) => run.id === input.previewRunId)
+        : null;
+      if (!input.dryRun && (!operations.capabilities.applyRetention ||
+          !preview || !preview.dryRun || preview.status !== "completed")) {
+        throw new Error("A completed matching preview is required.");
+      }
+      const expectsPurge = input.actions.some((action) => action.action === "purge");
+      if (!input.dryRun && input.confirmation !== (expectsPurge ? "PURGE" : "APPLY")) {
+        throw new Error("Retention confirmation did not match the operation.");
+      }
+      const id = crypto.randomUUID();
+      const timestamp = now();
+      operations = {
+        ...operations,
+        retentionRuns: [{
+          id,
+          dryRun: input.dryRun,
+          policyVersion: operations.constitutionVersion,
+          cutoffAt,
+          status: "completed",
+          irreversibleAuthorizationRecorded: !input.dryRun && expectsPurge,
+          resultSummary: { demo: true },
+          errorSummary: null,
+          completedAt: timestamp,
+          createdAt: timestamp,
+          actions: input.actions.map((action, index) => ({
+            ...action,
+            status: "completed" as const,
+            candidateCount: index + 1,
+            affectedCount: input.dryRun || action.action === "retain" ? 0 : index + 1,
+            errorSummary: null,
+          })),
+        }, ...operations.retentionRuns],
+      };
+      appendDemoChronicle("retention.completed", "retention_run", id, demoGuildBoundary,
+        { dryRun: input.dryRun, source: "fictional-demo" });
+      return id;
+    },
     async getMemoryPage(request = {}) {
       const search = request.search?.trim().toLocaleLowerCase() ?? "";
       const items = [...directMemories, ...governedMemories()].filter((memory) => {
@@ -1760,11 +3393,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         status: "active",
         workflow: null,
         governanceState: null,
+        layer: input.layer,
         visibility: input.visibility,
         classification: input.classification,
         allowedActorIds: input.allowedActorIds,
         currentVersion: 1,
         confidence: input.confidence,
+        provenance: input.provenance,
+        lastVerifiedAt: input.lastVerifiedAt,
         sourceIds: input.sourceIds,
         title: input.title,
         summary: input.summary,
@@ -1845,7 +3481,34 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       const requestedTypes = request.types ? new Set(request.types) : null;
       const requestedStatuses = request.statuses ? new Set(request.statuses) : null;
       const search = request.search?.trim().toLocaleLowerCase() ?? "";
-      const items = [...directActivities, ...legacyActivities()].filter((activity) => {
+      const available = [...directActivities, ...legacyActivities()];
+      const activityById = new Map(available.map((activity) => [activity.id, activity]));
+      const visibleDependencies = activityDependencies.flatMap((dependency) => {
+        const activity = activityById.get(dependency.activityId);
+        const predecessor = activityById.get(dependency.dependsOnActivityId);
+        if (!activity || !predecessor) return [];
+        return [{
+          ...dependency,
+          activity: { id: activity.id, title: activity.title, status: activity.status },
+          dependsOnActivity: {
+            id: predecessor.id,
+            title: predecessor.title,
+            status: predecessor.status,
+          },
+        }];
+      });
+      const items = available.map((activity) => ({
+        ...activity,
+        dependencies: visibleDependencies.filter((edge) => edge.activityId === activity.id),
+        dependents: visibleDependencies.filter(
+          (edge) => edge.dependsOnActivityId === activity.id,
+        ),
+        outcome: activityOutcomes.get(activity.id) ?? activity.outcome,
+        capabilities: {
+          ...activity.capabilities,
+          recordOutcome: activity.capabilities.recordOutcome && activity.status === "active",
+        },
+      })).filter((activity) => {
         if (request.parentActivityId !== undefined &&
             activity.parentActivityId !== request.parentActivityId) return false;
         if (request.assigneeActorId && activity.assigneeActorId !== request.assigneeActorId) return false;
@@ -1889,6 +3552,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         compatibilitySourceType: null,
         createdAt: timestamp,
         updatedAt: timestamp,
+        ...emptyActivityGraph,
         capabilities: workCapabilities,
       };
       directActivities = [activity, ...directActivities];
@@ -1913,7 +3577,16 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         throw new Error("Structured legacy Work must be changed through its original workflow.");
       }
       assertCurrentVersion(activity.version, input.expectedVersion);
+      if (input.status === "completed") {
+        throw new Error("Complete an Activity with an outcome.");
+      }
       assertActivityTransition(activity.status, input.status);
+      if (["ready", "active"].includes(input.status) && activityDependencies.some((dependency) =>
+        dependency.activityId === activity.id && dependency.kind === "blocks" &&
+        directActivities.find((candidate) => candidate.id === dependency.dependsOnActivityId)
+          ?.status !== "completed")) {
+        throw new Error("Activity has an incomplete blocking predecessor.");
+      }
       const nextVersion = activity.version + 1;
       directActivities = directActivities.map((candidate) => candidate.id === input.activityId ? {
         ...candidate,
@@ -1921,6 +3594,160 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         version: nextVersion,
         updatedAt: now(),
       } : candidate);
+      return nextVersion;
+    },
+    async addActivityDependency(input) {
+      if (mode !== "root") throw new Error("This Actor cannot change Activity dependencies.");
+      const activity = directActivities.find((candidate) => candidate.id === input.activityId);
+      const predecessor = [...directActivities, ...legacyActivities()].find(
+        (candidate) => candidate.id === input.dependsOnActivityId,
+      );
+      if (!activity || !predecessor) throw new Error("Activity was not found.");
+      assertCurrentVersion(activity.version, input.expectedVersion);
+      if (activity.id === predecessor.id) throw new Error("An Activity cannot depend on itself.");
+      if (activityDependencies.some((dependency) =>
+        dependency.activityId === activity.id &&
+        dependency.dependsOnActivityId === predecessor.id &&
+        dependency.kind === input.kind)) {
+        throw new Error("This Activity dependency is already active.");
+      }
+      if (input.kind === "blocks" && ["ready", "active", "completed"].includes(activity.status) &&
+          predecessor.status !== "completed") {
+        throw new Error("An incomplete predecessor cannot block an Activity already in progress.");
+      }
+      if (input.kind !== "relates_to") {
+        const pending = [predecessor.id];
+        const visited = new Set<string>();
+        while (pending.length) {
+          const current = pending.pop();
+          if (!current || visited.has(current)) continue;
+          if (current === activity.id) throw new Error("Activity dependencies cannot contain a cycle.");
+          visited.add(current);
+          pending.push(...activityDependencies.filter((dependency) =>
+            dependency.activityId === current && dependency.kind !== "relates_to")
+            .map((dependency) => dependency.dependsOnActivityId));
+        }
+      }
+      const timestamp = now();
+      activityDependencies = [...activityDependencies, {
+        id: crypto.randomUUID(),
+        activityId: activity.id,
+        dependsOnActivityId: predecessor.id,
+        kind: input.kind,
+        version: 1,
+        createdByActorId: bootstrap.accountId,
+        createdAt: timestamp,
+        activity: { id: activity.id, title: activity.title, status: activity.status },
+        dependsOnActivity: {
+          id: predecessor.id,
+          title: predecessor.title,
+          status: predecessor.status,
+        },
+      }];
+      const nextVersion = activity.version + 1;
+      directActivities = directActivities.map((candidate) => candidate.id === activity.id ? {
+        ...candidate,
+        version: nextVersion,
+        updatedAt: timestamp,
+      } : candidate);
+      appendDemoChronicle(
+        "activity.dependency.added",
+        "activity",
+        activity.id,
+        {
+          spaceId: activity.spaceId,
+          ownerIdentityId: activity.ownerActorId,
+          visibility: activity.visibility,
+          classification: activity.classification,
+          allowedIdentityIds: activity.allowedActorIds,
+        },
+        { dependsOnActivityId: predecessor.id, kind: input.kind, source: "guild-ui" },
+      );
+      return nextVersion;
+    },
+    async removeActivityDependency(input) {
+      if (mode !== "root") throw new Error("This Actor cannot change Activity dependencies.");
+      const activity = directActivities.find((candidate) => candidate.id === input.activityId);
+      const dependency = activityDependencies.find((candidate) => candidate.id === input.dependencyId);
+      if (!activity || !dependency || dependency.activityId !== activity.id) {
+        throw new Error("Activity dependency was not found.");
+      }
+      assertCurrentVersion(activity.version, input.expectedVersion);
+      if (dependency.version !== input.expectedDependencyVersion) {
+        throw new Error("Activity dependency changed since it was loaded.");
+      }
+      activityDependencies = activityDependencies.filter((candidate) => candidate.id !== dependency.id);
+      const timestamp = now();
+      const nextVersion = activity.version + 1;
+      directActivities = directActivities.map((candidate) => candidate.id === activity.id ? {
+        ...candidate,
+        version: nextVersion,
+        updatedAt: timestamp,
+      } : candidate);
+      appendDemoChronicle(
+        "activity.dependency.removed",
+        "activity",
+        activity.id,
+        {
+          spaceId: activity.spaceId,
+          ownerIdentityId: activity.ownerActorId,
+          visibility: activity.visibility,
+          classification: activity.classification,
+          allowedIdentityIds: activity.allowedActorIds,
+        },
+        { dependencyId: dependency.id, kind: dependency.kind, source: "guild-ui" },
+      );
+      return nextVersion;
+    },
+    async completeActivity(input) {
+      if (mode !== "root") throw new Error("This Actor cannot complete Activity.");
+      const activity = directActivities.find((candidate) => candidate.id === input.activityId);
+      if (!activity) throw new Error("Activity was not found.");
+      assertCurrentVersion(activity.version, input.expectedVersion);
+      assertActivityTransition(activity.status, "completed");
+      if (!input.summary.trim()) throw new Error("Activity outcome summary is required.");
+      if (input.evidenceSourceIds.length > 100 ||
+          new Set(input.evidenceSourceIds).size !== input.evidenceSourceIds.length) {
+        throw new Error("Activity outcome evidence must contain unique source IDs.");
+      }
+      if (activityDependencies.some((dependency) =>
+        dependency.activityId === activity.id && dependency.kind === "blocks" &&
+        [...directActivities, ...legacyActivities()].find(
+          (candidate) => candidate.id === dependency.dependsOnActivityId,
+        )?.status !== "completed")) {
+        throw new Error("Activity has an incomplete blocking predecessor.");
+      }
+      const timestamp = now();
+      const nextVersion = activity.version + 1;
+      const previousOutcome = activityOutcomes.get(activity.id);
+      activityOutcomes.set(activity.id, {
+        activityId: activity.id,
+        version: (previousOutcome?.version ?? 0) + 1,
+        activityVersion: nextVersion,
+        summary: input.summary.trim(),
+        evidenceSourceIds: input.evidenceSourceIds,
+        completedByActorId: bootstrap.accountId,
+        completedAt: timestamp,
+      });
+      directActivities = directActivities.map((candidate) => candidate.id === activity.id ? {
+        ...candidate,
+        status: "completed",
+        version: nextVersion,
+        updatedAt: timestamp,
+      } : candidate);
+      appendDemoChronicle(
+        "activity.completed",
+        "activity",
+        activity.id,
+        {
+          spaceId: activity.spaceId,
+          ownerIdentityId: activity.ownerActorId,
+          visibility: activity.visibility,
+          classification: activity.classification,
+          allowedIdentityIds: activity.allowedActorIds,
+        },
+        { outcomeVersion: (previousOutcome?.version ?? 0) + 1, source: "guild-ui" },
+      );
       return nextVersion;
     },
     async assignActivity(input) {
@@ -2146,23 +3973,220 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         : candidate);
     },
     async askGuild(input) {
-      const source = knowledge[0]!;
-      const title = source.title[input.locale] ?? source.title.ja ?? source.title.en ?? "Knowledge";
-      const summary = source.summary[input.locale] ?? source.summary.ja ?? source.summary.en ?? "";
-      return {
-        answer: input.locale === "ja"
-          ? `調査依頼はResearch Spaceへ記録し、責任者・成果・機密区分・出典を確認してから割り当てます。[M1]`
-          : `Record the request in the Research Space, then verify its owner, outcome, classification, and source before assignment. [M1]`,
-        inferred: true,
-        citations: [{
-          memoryId: source.id,
-          knowledgeId: source.id,
-          governed: true,
-          version: source.canonicalVersion ?? source.currentVersion,
-          title,
-          summary,
-          spaceId: source.spaceId,
+      return demoAsk(input.locale);
+    },
+    async createIntentPlan(input) {
+      const existing = intentProposals.find((proposal) => proposal.id === input.requestId);
+      if (existing) return { created: false, source: "existing", proposal: existing };
+      if (restrictedBootstrap !== null) throw new Error("An active Guild membership is required.");
+      const timestamp = now();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
+      const memoryResourceId = crypto.randomUUID();
+      const activityResourceId = crypto.randomUUID();
+      const runResourceId = crypto.randomUUID();
+      const ask = demoAsk(input.locale);
+      const proposal: UiIntentProposal = {
+        id: input.requestId,
+        objective: input.objective.trim(),
+        locale: input.locale,
+        spaceId: input.spaceId,
+        status: "ready",
+        maximumRiskLevel: 2,
+        evidence: ask.citations.map((citation) => ({
+          sourceType: citation.resourceType,
+          sourceId: citation.memoryId ?? citation.resourceId,
+          label: citation.title,
+          metadata: {
+            resourceId: citation.resourceId,
+            governed: citation.governed,
+            version: citation.version,
+            spaceId: citation.spaceId,
+          },
+        })),
+        actions: [{
+          position: 0,
+          kind: "memory.propose",
+          riskLevel: 1,
+          status: "pending",
+          attemptCount: 0,
+          requiredPermission: "memory.create",
+          explicitConfirmationRequired: true,
+          durableHumanApprovals: 0,
+          reauthenticationRequired: false,
+          resourceType: "memory",
+          resourceId: memoryResourceId,
+          resourceLabel: input.objective.trim(),
+          agentActorId: null,
+          agentName: null,
+          result: null,
+          errorSummary: null,
+          startedAt: null,
+          finishedAt: null,
+        }, {
+          position: 1,
+          kind: "activity.create",
+          riskLevel: 1,
+          status: "pending",
+          attemptCount: 0,
+          requiredPermission: "activity.create",
+          explicitConfirmationRequired: true,
+          durableHumanApprovals: 0,
+          reauthenticationRequired: false,
+          resourceType: "activity",
+          resourceId: activityResourceId,
+          resourceLabel: input.locale === "ja" ? "根拠を確認する" :
+            input.locale === "zh-CN" ? "核实依据" : "Verify the evidence",
+          agentActorId: null,
+          agentName: null,
+          result: null,
+          errorSummary: null,
+          startedAt: null,
+          finishedAt: null,
+        }, {
+          position: 2,
+          kind: "agent.run",
+          riskLevel: 2,
+          status: "pending",
+          attemptCount: 0,
+          requiredPermission: "agent.run",
+          explicitConfirmationRequired: true,
+          durableHumanApprovals: 1,
+          reauthenticationRequired: false,
+          resourceType: "agent_run",
+          resourceId: runResourceId,
+          resourceLabel: input.locale === "ja" ? "検証結果を外部連携へ送る" :
+            input.locale === "zh-CN" ? "将验证结果发送到外部集成" :
+              "Send the verified result to the external integration",
+          agentActorId: agentId,
+          agentName: "Research Synthesizer",
+          result: null,
+          errorSummary: null,
+          startedAt: null,
+          finishedAt: null,
         }],
+        nextActionPosition: 0,
+        canAct: true,
+        expiresAt,
+        completedAt: null,
+        errorSummary: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      replaceIntentProposal(proposal);
+      return { created: true, source: "model", proposal };
+    },
+    async listIntentProposals() {
+      return intentProposals;
+    },
+    async getIntentProposal(proposalId) {
+      const proposal = intentProposals.find((candidate) => candidate.id === proposalId);
+      if (!proposal) throw new Error("Plan proposal was not found for the current Actor.");
+      return proposal;
+    },
+    async actIntent(input) {
+      if (input.confirmation !== true) throw new Error("Explicit Act confirmation is required.");
+      const current = intentProposals.find((proposal) => proposal.id === input.proposalId);
+      if (!current) throw new Error("Plan proposal was not found for the current Actor.");
+      if (Date.parse(current.expiresAt) <= Date.now() && current.canAct) {
+        const expired = replaceIntentProposal({
+          ...current,
+          status: "expired",
+          canAct: false,
+          completedAt: now(),
+          actions: current.actions.map((action) => ["pending", "processing", "staged"].includes(action.status)
+            ? { ...action, status: "cancelled" as const, finishedAt: now() }
+            : action),
+          version: current.version + 1,
+          updatedAt: now(),
+        });
+        return { outcome: "expired", position: null, errorCode: null, proposal: expired };
+      }
+      if (!current.canAct) {
+        return {
+          outcome: current.status === "completed" ? "completed" :
+            current.status === "expired" ? "expired" : "failed",
+          position: null,
+          errorCode: current.errorSummary,
+          proposal: current,
+        };
+      }
+      const staged = current.actions.find((action) => action.status === "staged");
+      if (staged) {
+        if (staged.result === null) {
+          const waiting = replaceIntentProposal({
+            ...current,
+            actions: current.actions.map((action) => action.position === staged.position
+              ? { ...action, result: { approvalStatus: "approved" } }
+              : action),
+            version: current.version + 1,
+            updatedAt: now(),
+          });
+          return {
+            outcome: "agent_waiting",
+            position: staged.position,
+            errorCode: null,
+            proposal: waiting,
+          };
+        }
+        const finishedAt = now();
+        const actions = current.actions.map((action) => action.position === staged.position
+          ? {
+              ...action,
+              status: "succeeded" as const,
+              result: { agentRunId: action.resourceId, runStatus: "succeeded" },
+              finishedAt,
+            }
+          : action);
+        const completed = actions.every((action) => action.status === "succeeded");
+        const reconciled = replaceIntentProposal({
+          ...current,
+          actions,
+          status: completed ? "completed" : "executing",
+          nextActionPosition: actions.find((action) => action.status === "pending")?.position ?? null,
+          canAct: !completed,
+          completedAt: completed ? finishedAt : null,
+          version: current.version + 1,
+          updatedAt: finishedAt,
+        });
+        return {
+          outcome: completed ? "completed" : "action_succeeded",
+          position: staged.position,
+          errorCode: null,
+          proposal: reconciled,
+        };
+      }
+      const next = current.actions.find((action) => action.status === "pending");
+      if (!next) return { outcome: "busy", position: null, errorCode: null, proposal: current };
+      const timestamp = now();
+      const agentAction = next.kind === "agent.run";
+      const actions = current.actions.map((action) => action.position === next.position
+        ? {
+            ...action,
+            status: agentAction ? "staged" as const : "succeeded" as const,
+            attemptCount: action.attemptCount + 1,
+            startedAt: timestamp,
+            finishedAt: agentAction ? null : timestamp,
+            result: agentAction ? null : { created: true },
+          }
+        : action);
+      const completed = actions.every((action) => action.status === "succeeded");
+      const updated = replaceIntentProposal({
+        ...current,
+        actions,
+        status: completed ? "completed" : "executing",
+        nextActionPosition: actions.find((action) =>
+          ["pending", "staged"].includes(action.status))?.position ?? null,
+        canAct: !completed,
+        completedAt: completed ? timestamp : null,
+        version: current.version + 1,
+        updatedAt: timestamp,
+      });
+      return {
+        outcome: agentAction ? "agent_staged" : completed ? "completed" : "action_succeeded",
+        position: next.position,
+        errorCode: null,
+        proposal: updated,
       };
     },
     async getWorkPage(request = {}) {
@@ -3061,7 +5085,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           approverIdentityId: bootstrap.accountId,
           verdict: input.verdict,
           reason: input.reason,
-          reauthenticatedAt: input.reauthenticatedAt,
+          reauthenticatedAt: candidate.riskLevel === 3 ? timestamp : null,
           createdAt: timestamp,
         }],
         capabilities: agentCapabilities(approved ? "succeeded" : "failed"),

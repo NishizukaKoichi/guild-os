@@ -28,6 +28,7 @@ import {
   GuildGovernanceRepository,
   GuildPostgresRepository,
   GuildRecoveryRepository,
+  listAuthorizedSpaces,
   loadActorAuthorizationSnapshot,
   type BreakGlassStatus,
   type GuildTransactionConnection,
@@ -43,16 +44,32 @@ import { GuildConversationService } from "./conversation-service.js";
 import { GuildCommunicationService } from "./communication-service.js";
 import { GuildAgentService } from "./agent-service.js";
 import { GuildCollectiveService } from "./collective-service.js";
+import { GuildFabricService } from "./fabric-service.js";
+import { GuildFabricGovernanceService } from "./fabric-governance-service.js";
+import { GuildContextService } from "./context-service.js";
+import { GuildOperationsService } from "./operations-service.js";
+import { GuildPortabilityService } from "./portability-service.js";
+import { GuildRetentionService } from "./retention-service.js";
+import { synchronizeLifecycleOnboardingInTransaction } from "./lifecycle-service.js";
+import { GuildIntentAdapter } from "./intent-adapter.js";
 import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
 import type {
+  ActIntentRequest,
+  ActIntentResponse,
   AnnouncementTransitionRequest,
+  AddActivityDependencyRequest,
   ArchiveMemoryRequest,
+  AssignOnboardingRequest,
   AskGuildRequest,
   AskGuildResponse,
   AssignActivityRequest,
   AssignRoleRequest,
   ClaimInvitationInput,
+  CloseEmergencyPrivateAccessRequest,
+  CompleteHandoverItemRequest,
+  CompleteOnboardingRequirementRequest,
   ChangeActivityStatusRequest,
+  CompleteActivityRequest,
   ConfigureCollectiveRequest,
   CreateActivityRequest,
   CreateAgentRequest,
@@ -60,14 +77,26 @@ import type {
   CreateAnnouncementRequest,
   CreateDecisionRequest,
   CreateGoalRequest,
+  CreateIntentPlanRequest,
+  CreateIntentPlanResponse,
   CreateKnowledgeRequest,
   CreateMemoryRequest,
+  CreateOnboardingPathRequest,
+  CreatePrivateThreadRequest,
+  CreateContextRelationRequest,
+  CreateConnectionRequest,
+  CreateAutomationRuleRequest,
+  CreateFederationGrantRequest,
+  CreateFederationLinkRequest,
+  CreateModelProviderRequest,
+  CreateWorkflowRequest,
   CreateProjectRequest,
   CreateQuestRequest,
   CreateRoleRequest,
   CreateServiceRequest,
   CreateSpaceRequest,
   CreateStepRequest,
+  BeginEmergencyPrivateAccessRequest,
   DecisionTransitionRequest,
   GuildUiApi,
   InitializeGuildRequest,
@@ -78,16 +107,24 @@ import type {
   ModerateConversationRequest,
   PostConversationMessageRequest,
   PostConversationMessageResponse,
+  PostPrivateMessageRequest,
+  PromotePrivateMessageRequest,
+  PlanRetentionRequest,
   PublishAnnouncementResponse,
   ProposeRootOwnershipTransferRequest,
   RecoverRootOwnershipRequest,
   RedactConversationMessageRequest,
   RevokeBreakGlassCodesRequest,
+  RequestContributionCorrectionInput,
   ReviewKnowledgeRequest,
   ReviewAgentRunRequest,
   ReviewDecisionRequest,
+  ReviewContributionCorrectionRequest,
   ReviewDecisionResponse,
   ResolveRootOwnershipTransferRequest,
+  ResolveMemoryReviewSignalRequest,
+  RemoveActivityDependencyRequest,
+  RevokeContextRelationRequest,
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
   SaveKnowledgeDraftRequest,
@@ -95,12 +132,18 @@ import type {
   SearchConversationMentionsRequest,
   SaveAnnouncementDraftRequest,
   SaveDecisionDraftRequest,
+  SetModelRouteRequest,
+  RequestDataExportRequest,
+  RetryDataExportRequest,
   SetSpaceVocabularyRequest,
+  SetVersionedStatusRequest,
   SupersedeDecisionRequest,
   UiBootstrapState,
   UiMemberBootstrapState,
   UiBreakGlassStatus,
   UiConstitution,
+  UiContributionProfile,
+  UiContextPage,
   UiConversation,
   UiConversationMentionCandidate,
   UiConversationThread,
@@ -124,9 +167,17 @@ import type {
   UiMemoryPageRequest,
   UiInboxPage,
   UiInboxPageRequest,
+  UiIntentProposal,
   UiDecisionDetail,
   UiDecisionPage,
   UiDecisionPageRequest,
+  UiHandover,
+  UiGovernedContributionCorrection,
+  UiLifecyclePage,
+  UiOperationsPage,
+  UiPrivatePage,
+  UiPrivateMessagePromotion,
+  UiPrivateThreadDetail,
   UiQuestDetail,
   UiRootOwnershipCandidate,
   UiRootOwnershipTransfer,
@@ -139,6 +190,11 @@ import type {
   UploadKnowledgeFileRequest,
   WorkAssignmentRequest,
   WorkStatusRequest,
+  RunWorkflowRequest,
+  UiAutomationRule,
+  UiWorkflowDefinition,
+  OffboardActorRequest,
+  SharePersonalDataRequest,
 } from "./management-types.js";
 
 const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -291,12 +347,19 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   readonly #env: GuildEnv;
   readonly #accountId: string;
   readonly #isWorkshopAdmin: boolean;
+  readonly #verifiedAuthenticatedAt: string | null;
 
-  constructor(env: GuildEnv, accountId: string, isWorkshopAdmin = false) {
+  constructor(
+    env: GuildEnv,
+    accountId: string,
+    isWorkshopAdmin = false,
+    verifiedAuthenticatedAt: string | null = null,
+  ) {
     super();
     this.#env = env;
     this.#accountId = accountId;
     this.#isWorkshopAdmin = isWorkshopAdmin;
+    this.#verifiedAuthenticatedAt = verifiedAuthenticatedAt;
   }
 
   async getBootstrap(): Promise<UiBootstrapState> {
@@ -366,6 +429,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           level3_approval_quorum: number;
           data_retention_days: number;
           agent_defaults: UiMemberBootstrapState["agentDefaults"];
+          principles: string;
+          public_scope: string;
+          membership_policy: NonNullable<UiConstitution["membershipPolicy"]>;
+          data_policy: NonNullable<UiConstitution["dataPolicy"]>;
+          agent_policy: NonNullable<UiConstitution["agentPolicy"]>;
+          external_sharing_policy: NonNullable<UiConstitution["externalSharingPolicy"]>;
           updated_by_identity_id: string;
           constitution_updated_at: string;
         }>(
@@ -378,6 +447,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
                   c.level3_approval_quorum,
                   c.data_retention_days,
                   c.agent_defaults,
+                  c.principles,
+                  c.public_scope,
+                  c.membership_policy,
+                  c.data_policy,
+                  c.agent_policy,
+                  c.external_sharing_policy,
                   c.updated_by_identity_id::text,
                   c.updated_at::text AS constitution_updated_at
              FROM guilds g
@@ -467,6 +542,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
             level3ApprovalQuorum: row.level3_approval_quorum,
             dataRetentionDays: row.data_retention_days,
             agentDefaults: row.agent_defaults,
+            principles: row.principles,
+            publicScope: row.public_scope,
+            membershipPolicy: row.membership_policy,
+            dataPolicy: row.data_policy,
+            agentPolicy: row.agent_policy,
+            externalSharingPolicy: row.external_sharing_policy,
             updatedByIdentityId: row.updated_by_identity_id,
             updatedAt: row.constitution_updated_at,
           },
@@ -529,7 +610,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
       this.#env.GUILD_ID,
       async (connection) => {
         const directory = new GuildDirectoryRepository(connection, this.#env.GUILD_ID);
-        await directory.claimInvitation({
+        const invitation = await directory.claimInvitation({
           tokenHash,
           identityId: this.#accountId,
           displayName: input.displayName,
@@ -542,6 +623,13 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
             this.#accountId,
             { source: "guild-ui" },
           ),
+        });
+        await synchronizeLifecycleOnboardingInTransaction({
+          env: this.#env,
+          connection,
+          requesterActorId: invitation.createdByIdentityId,
+          targetActorId: this.#accountId,
+          reason: "Synchronize onboarding after invitation acceptance.",
         });
       },
     );
@@ -710,6 +798,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
       level3ApprovalQuorum: input.level3ApprovalQuorum,
       dataRetentionDays: input.dataRetentionDays,
       agentDefaults: input.agentDefaults,
+      principles: input.principles,
+      publicScope: input.publicScope,
+      membershipPolicy: input.membershipPolicy,
+      dataPolicy: input.dataPolicy,
+      agentPolicy: input.agentPolicy,
+      externalSharingPolicy: input.externalSharingPolicy,
       updatedByIdentityId: this.#accountId,
       updatedAt: new Date().toISOString(),
     });
@@ -728,6 +822,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           level3ApprovalQuorum: input.level3ApprovalQuorum,
           dataRetentionDays: input.dataRetentionDays,
           agentDefaults: input.agentDefaults,
+          principles: input.principles,
+          publicScope: input.publicScope,
+          membershipPolicy: input.membershipPolicy,
+          dataPolicy: input.dataPolicy,
+          agentPolicy: input.agentPolicy,
+          externalSharingPolicy: input.externalSharingPolicy,
           reason: input.reason,
           actorIdentityId: this.#accountId,
           chronicleEvent: makeChronicleEvent(
@@ -917,13 +1017,36 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           this.#env.GUILD_ID,
           this.#accountId,
         );
-        for (const permission of [
+        const requiredReadPermissions = [
           "identity.read",
           "membership.read",
           "role.read",
           "space.read",
-        ] as const) {
-          authorize(snapshot, { actorIdentityId: this.#accountId, permission });
+        ] as const;
+        const scopedPermissionSpaces = await Promise.all(requiredReadPermissions.map(
+          async (permission) => this.#can(snapshot, permission)
+            ? null
+            : (await listAuthorizedSpaces(
+              connection,
+              this.#env.GUILD_ID,
+              this.#accountId,
+              permission,
+            )).map((space) => space.id),
+        ));
+        const scopedSpaceSets = scopedPermissionSpaces.filter(
+          (spaceIds): spaceIds is string[] => spaceIds !== null,
+        ).map((spaceIds) => new Set(spaceIds));
+        const visibleSpaceIds = scopedSpaceSets.length === 0
+          ? null
+          : [...scopedSpaceSets[0]!].filter((spaceId) =>
+            scopedSpaceSets.every((spaceIds) => spaceIds.has(spaceId)));
+        if (visibleSpaceIds !== null && visibleSpaceIds.length === 0) {
+          const missingGlobalPermission = requiredReadPermissions.find((permission) =>
+            !this.#can(snapshot, permission));
+          authorize(snapshot, {
+            actorIdentityId: this.#accountId,
+            permission: missingGlobalPermission ?? "identity.read",
+          });
         }
         const capabilities = {
           manageMemberships: this.#can(snapshot, "membership.manage"),
@@ -951,6 +1074,8 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
           invitationCursor,
           includeIdentities: request.includeIdentities !== false,
           includeInvitations: capabilities.manageMemberships && request.includeInvitations !== false,
+          visibleSpaceIds,
+          viewerIdentityId: visibleSpaceIds === null ? null : this.#accountId,
         });
         return {
           ...directory,
@@ -976,7 +1101,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     const token = generateInvitationToken();
     const tokenHash = await hashInvitationToken(token);
     const invitation = await this.#authorizedWrite(
-      "membership.manage",
+      ["membership.manage", "lifecycle.manage"],
       async (connection, snapshot) => {
         await this.#assertCanGrantRole(connection, snapshot, input.roleId);
         return new GuildDirectoryRepository(connection, this.#env.GUILD_ID).createInvitation({
@@ -1032,23 +1157,38 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     if (!["preboarding", "active", "suspended", "departed"].includes(nextState)) {
       throw new Error("Membership state is invalid.");
     }
-    await this.#authorizedWrite("membership.manage", async (connection) => {
-      const kind = await this.#loadIdentityKind(connection, identityId);
-      if (kind !== "human") throw new Error("Use the Agent or Service lifecycle operation.");
-      await new GuildDirectoryRepository(connection, this.#env.GUILD_ID).changeMembership({
-        actorIdentityId: this.#accountId,
-        identityId,
-        nextState,
-        chronicleEvent: makeChronicleEvent(
-          this.#env.GUILD_ID,
-          this.#accountId,
-          `membership.${nextState}`,
-          "identity",
+    if (nextState === "departed") {
+      throw new Error("Use governed offboarding so access revocation and handover remain atomic.");
+    }
+    await this.#authorizedWrite(
+      ["membership.manage", "lifecycle.manage"],
+      async (connection) => {
+        const kind = await this.#loadIdentityKind(connection, identityId);
+        if (kind !== "human") throw new Error("Use the Agent or Service lifecycle operation.");
+        await new GuildDirectoryRepository(connection, this.#env.GUILD_ID).changeMembership({
+          actorIdentityId: this.#accountId,
           identityId,
-          { source: "guild-ui" },
-        ),
-      });
-    });
+          nextState,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            `membership.${nextState}`,
+            "identity",
+            identityId,
+            { source: "guild-ui" },
+          ),
+        });
+        if (["preboarding", "active"].includes(nextState)) {
+          await synchronizeLifecycleOnboardingInTransaction({
+            env: this.#env,
+            connection,
+            requesterActorId: this.#accountId,
+            targetActorId: identityId,
+            reason: `Synchronize onboarding after membership changed to ${nextState}.`,
+          });
+        }
+      },
+    );
     if (["suspended", "departed"].includes(nextState)) {
       await drainAgentWorkflowOutbox(this.#env);
     }
@@ -1185,29 +1325,42 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     assertUuid(input.roleId, "Role ID");
     if (input.spaceId !== null) assertUuid(input.spaceId, "Space ID");
     const bindingId = crypto.randomUUID();
-    await this.#authorizedWrite("role.manage", async (connection, snapshot) => {
-      await this.#assertCanGrantRole(connection, snapshot, input.roleId);
-      await new GuildAdministrationRepository(connection, this.#env.GUILD_ID).assignRole({
-        bindingId,
-        identityId: input.identityId,
-        roleId: input.roleId,
-        spaceId: input.spaceId,
-        actorIdentityId: this.#accountId,
-        chronicleEvent: makeChronicleEvent(
-          this.#env.GUILD_ID,
-          this.#accountId,
-          "role.assigned",
-          "role_binding",
+    await this.#authorizedWrite(
+      ["role.manage", "lifecycle.manage"],
+      async (connection, snapshot) => {
+        await this.#assertCanGrantRole(connection, snapshot, input.roleId);
+        const identityKind = await this.#loadIdentityKind(connection, input.identityId);
+        await new GuildAdministrationRepository(connection, this.#env.GUILD_ID).assignRole({
           bindingId,
-          {
-            identityId: input.identityId,
-            roleId: input.roleId,
-            spaceId: input.spaceId,
-            source: "guild-ui",
-          },
-        ),
-      });
-    });
+          identityId: input.identityId,
+          roleId: input.roleId,
+          spaceId: input.spaceId,
+          actorIdentityId: this.#accountId,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            "role.assigned",
+            "role_binding",
+            bindingId,
+            {
+              identityId: input.identityId,
+              roleId: input.roleId,
+              spaceId: input.spaceId,
+              source: "guild-ui",
+            },
+          ),
+        });
+        if (identityKind === "human") {
+          await synchronizeLifecycleOnboardingInTransaction({
+            env: this.#env,
+            connection,
+            requesterActorId: this.#accountId,
+            targetActorId: input.identityId,
+            reason: "Synchronize onboarding after Human Role assignment.",
+          });
+        }
+      },
+    );
   }
 
   async removeRoleBinding(bindingId: string): Promise<void> {
@@ -1288,6 +1441,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     if (!["active", "suspended", "departed"].includes(nextState)) {
       throw new Error("Machine membership state is invalid.");
     }
+    if (nextState === "departed") {
+      throw new Error("Use governed offboarding so access revocation and handover remain atomic.");
+    }
     await withGuildTransaction(
       this.#env.HYPERDRIVE.connectionString,
       this.#env.GUILD_ID,
@@ -1323,6 +1479,217 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     }
   }
 
+  offboardActor(input: OffboardActorRequest): Promise<UiHandover> {
+    return new GuildFabricService(this.#env, this.#accountId).offboardActor(input);
+  }
+
+  getPrivatePage(): Promise<UiPrivatePage> {
+    return new GuildFabricService(this.#env, this.#accountId).getPrivatePage();
+  }
+
+  getPrivateThread(threadId: string): Promise<UiPrivateThreadDetail> {
+    return new GuildFabricService(this.#env, this.#accountId).getPrivateThread(threadId);
+  }
+
+  createPrivateThread(input: CreatePrivateThreadRequest): Promise<string> {
+    return new GuildFabricService(this.#env, this.#accountId).createPrivateThread(input);
+  }
+
+  postPrivateMessage(input: PostPrivateMessageRequest): Promise<void> {
+    return new GuildFabricService(this.#env, this.#accountId).postPrivateMessage(input);
+  }
+
+  async promotePrivateMessage(
+    input: PromotePrivateMessageRequest,
+  ): Promise<UiPrivateMessagePromotion> {
+    const promotion = await new GuildFabricGovernanceService(
+      this.#env,
+      this.#accountId,
+    ).promotePrivateMessageSelection(input);
+    const {
+      guildId: _guildId,
+      idempotencyKey: _idempotencyKey,
+      idempotentReplay: _idempotentReplay,
+      ...result
+    } = promotion;
+    return result;
+  }
+
+  beginEmergencyPrivateAccess(input: BeginEmergencyPrivateAccessRequest): Promise<string> {
+    return new GuildFabricService(
+      this.#env,
+      this.#accountId,
+      this.#verifiedAuthenticatedAt,
+    ).beginEmergencyPrivateAccess(input);
+  }
+
+  closeEmergencyPrivateAccess(input: CloseEmergencyPrivateAccessRequest): Promise<void> {
+    return new GuildFabricService(this.#env, this.#accountId).closeEmergencyPrivateAccess(input);
+  }
+
+  getLifecyclePage(): Promise<UiLifecyclePage> {
+    return new GuildFabricService(this.#env, this.#accountId).getLifecyclePage();
+  }
+
+  createOnboardingPath(input: CreateOnboardingPathRequest): Promise<string> {
+    return new GuildFabricService(this.#env, this.#accountId).createOnboardingPath(input);
+  }
+
+  assignOnboarding(input: AssignOnboardingRequest): Promise<string> {
+    return new GuildFabricService(this.#env, this.#accountId).assignOnboarding(input);
+  }
+
+  completeOnboardingRequirement(input: CompleteOnboardingRequirementRequest): Promise<void> {
+    return new GuildFabricService(this.#env, this.#accountId).completeOnboardingRequirement(input);
+  }
+
+  completeHandoverItem(input: CompleteHandoverItemRequest): Promise<void> {
+    return new GuildFabricService(this.#env, this.#accountId).completeHandoverItem(input);
+  }
+
+  getContributionProfile(actorId: string | null = null): Promise<UiContributionProfile> {
+    return new GuildFabricService(this.#env, this.#accountId).getContributionProfile(actorId);
+  }
+
+  requestContributionCorrection(input: RequestContributionCorrectionInput): Promise<string> {
+    return new GuildFabricGovernanceService(
+      this.#env,
+      this.#accountId,
+    ).requestContributionCorrection({
+      evidenceEventId: input.chronicleEventId,
+      reason: input.reason,
+    }).then((request) => request.id);
+  }
+
+  async reviewContributionCorrection(
+    input: ReviewContributionCorrectionRequest,
+  ): Promise<UiGovernedContributionCorrection> {
+    const result = await new GuildFabricGovernanceService(
+      this.#env,
+      this.#accountId,
+    ).reviewContributionCorrection(input);
+    const { guildId: _guildId, ...correction } = result;
+    return correction;
+  }
+
+  getContextPage(): Promise<UiContextPage> {
+    return new GuildContextService(this.#env, this.#accountId).getPage();
+  }
+
+  createContextRelation(input: CreateContextRelationRequest): Promise<string> {
+    return new GuildContextService(this.#env, this.#accountId).createRelation(input);
+  }
+
+  revokeContextRelation(input: RevokeContextRelationRequest): Promise<number> {
+    return new GuildContextService(this.#env, this.#accountId).revokeRelation(input);
+  }
+
+  resolveMemoryReviewSignal(input: ResolveMemoryReviewSignalRequest): Promise<number> {
+    return new GuildContextService(this.#env, this.#accountId).resolveReviewSignal(input);
+  }
+
+  sharePersonalData(input: SharePersonalDataRequest): Promise<void> {
+    return new GuildContextService(this.#env, this.#accountId).sharePersonalData(input);
+  }
+
+  getOperationsPage(): Promise<UiOperationsPage> {
+    return new GuildOperationsService(this.#env, this.#accountId).getPage();
+  }
+
+  createConnection(input: CreateConnectionRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).createConnection(input);
+  }
+
+  checkConnectionHealth(connectionId: string) {
+    return new GuildOperationsService(this.#env, this.#accountId)
+      .checkConnectionHealth(connectionId);
+  }
+
+  discoverConnection(connectionId: string) {
+    return new GuildOperationsService(this.#env, this.#accountId)
+      .discoverConnection(connectionId);
+  }
+
+  revokeConnection(input: SetVersionedStatusRequest<"revoked">): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).revokeConnection(input);
+  }
+
+  createWorkflow(input: CreateWorkflowRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).createWorkflow(input);
+  }
+
+  setWorkflowStatus(
+    input: SetVersionedStatusRequest<UiWorkflowDefinition["status"]>,
+  ): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).setWorkflowStatus(input);
+  }
+
+  createAutomationRule(input: CreateAutomationRuleRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).createAutomationRule(input);
+  }
+
+  setAutomationRuleStatus(
+    input: SetVersionedStatusRequest<UiAutomationRule["status"]>,
+  ): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).setAutomationRuleStatus(input);
+  }
+
+  runWorkflow(input: RunWorkflowRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).runWorkflow(input);
+  }
+
+  createFederationLink(input: CreateFederationLinkRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).createFederationLink(input);
+  }
+
+  activateFederationLink(input: SetVersionedStatusRequest<"active">): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).activateFederationLink(input);
+  }
+
+  revokeFederationLink(input: SetVersionedStatusRequest<"revoked">): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).revokeFederationLink(input);
+  }
+
+  createFederationGrant(input: CreateFederationGrantRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).createFederationGrant(input);
+  }
+
+  revokeFederationGrant(input: SetVersionedStatusRequest<"revoked">): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).revokeFederationGrant(input);
+  }
+
+  createModelProvider(input: CreateModelProviderRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).createModelProvider(input);
+  }
+
+  revokeModelProvider(input: SetVersionedStatusRequest<"revoked">): Promise<void> {
+    return new GuildOperationsService(this.#env, this.#accountId).revokeModelProvider(input);
+  }
+
+  setModelRoute(input: SetModelRouteRequest): Promise<string> {
+    return new GuildOperationsService(this.#env, this.#accountId).setModelRoute(input);
+  }
+
+  requestDataExport(input: RequestDataExportRequest): Promise<string> {
+    return new GuildPortabilityService(this.#env, this.#accountId).requestExport(input);
+  }
+
+  retryDataExport(input: RetryDataExportRequest): Promise<void> {
+    return new GuildPortabilityService(this.#env, this.#accountId).retryExport(input);
+  }
+
+  downloadDataExport(id: string): Promise<Blob> {
+    return new GuildPortabilityService(this.#env, this.#accountId).downloadExport(id);
+  }
+
+  planRetention(input: PlanRetentionRequest): Promise<string> {
+    return new GuildRetentionService(
+      this.#env,
+      this.#accountId,
+      this.#verifiedAuthenticatedAt,
+    ).plan(input);
+  }
+
   getMemoryPage(request: UiMemoryPageRequest = {}): Promise<UiMemoryPage> {
     return new GuildCollectiveService(this.#env, this.#accountId).getMemoryPage(request);
   }
@@ -1353,6 +1720,18 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   assignActivity(input: AssignActivityRequest): Promise<number> {
     return new GuildCollectiveService(this.#env, this.#accountId).assignActivity(input);
+  }
+
+  addActivityDependency(input: AddActivityDependencyRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).addActivityDependency(input);
+  }
+
+  removeActivityDependency(input: RemoveActivityDependencyRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).removeActivityDependency(input);
+  }
+
+  completeActivity(input: CompleteActivityRequest): Promise<number> {
+    return new GuildCollectiveService(this.#env, this.#accountId).completeActivity(input);
   }
 
   getKnowledgePage(request: UiKnowledgePageRequest = {}): Promise<UiKnowledgePage> {
@@ -1411,6 +1790,26 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
 
   askGuild(input: AskGuildRequest): Promise<AskGuildResponse> {
     return new GuildKnowledgeService(this.#env, this.#accountId).ask(input);
+  }
+
+  async createIntentPlan(input: CreateIntentPlanRequest): Promise<CreateIntentPlanResponse> {
+    const ask = await new GuildKnowledgeService(this.#env, this.#accountId).ask({
+      question: input.question,
+      locale: input.locale,
+    });
+    return new GuildIntentAdapter(this.#env, this.#accountId).plan(input, ask);
+  }
+
+  listIntentProposals(): Promise<readonly UiIntentProposal[]> {
+    return new GuildIntentAdapter(this.#env, this.#accountId).list();
+  }
+
+  getIntentProposal(proposalId: string): Promise<UiIntentProposal> {
+    return new GuildIntentAdapter(this.#env, this.#accountId).get(proposalId);
+  }
+
+  actIntent(input: ActIntentRequest): Promise<ActIntentResponse> {
+    return new GuildIntentAdapter(this.#env, this.#accountId).act(input);
   }
 
   getWorkPage(request: UiWorkPageRequest = {}): Promise<UiWorkPage> {
@@ -1554,7 +1953,11 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   }
 
   async reviewAgentRun(input: ReviewAgentRunRequest): Promise<void> {
-    await new GuildAgentService(this.#env, this.#accountId).review(input);
+    await new GuildAgentService(
+      this.#env,
+      this.#accountId,
+      this.#verifiedAuthenticatedAt,
+    ).review(input);
     await drainAgentWorkflowOutbox(this.#env);
   }
 

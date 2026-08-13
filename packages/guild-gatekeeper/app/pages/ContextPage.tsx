@@ -64,6 +64,7 @@ const RELATION_TYPES = [
   "informed_by",
   "references",
   "resulted_in",
+  "supports",
   "supersedes",
 ] as const;
 
@@ -89,8 +90,21 @@ function nodeKey(type: string, id: string): string {
   return `${type}:${id}`;
 }
 
+function identifierLabel(value: string): string {
+  const words = value.replace(/[._:-]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : value;
+}
+
 function nodeTypeLabel(type: string, t: ContextTranslator): string {
-  return t(`context.node.type.${type}`);
+  const key = `context.node.type.${type}` as ContextTranslationKey;
+  const translated = t(`context.node.type.${type}`);
+  return translated === key ? identifierLabel(type) : translated;
+}
+
+function relationTypeLabel(type: string, t: ContextTranslator): string {
+  const key = `context.relation.type.${type}` as ContextTranslationKey;
+  const translated = t(`context.relation.type.${type}`);
+  return translated === key ? identifierLabel(type) : translated;
 }
 
 function nodeLabel(
@@ -226,7 +240,7 @@ function RelationDialog({
           <label>
             <span>{t("context.relation.type")}</span>
             <select value={relationType} onChange={(event) => setRelationType(event.target.value)}>
-              {RELATION_TYPES.map((type) => <option key={type} value={type}>{t(`context.relation.type.${type}`)}</option>)}
+              {RELATION_TYPES.map((type) => <option key={type} value={type}>{relationTypeLabel(type, t)}</option>)}
             </select>
           </label>
           <label>
@@ -469,7 +483,7 @@ export function ContextPage({ api }: { api: GuildUiApi }) {
             <button className="icon-button" type="button" title={t("context.action.refresh")} aria-label={t("context.action.refresh")} disabled={loading || refreshing} onClick={() => void load(false)}>
               <RefreshCw className={refreshing ? "spin" : undefined} size={18} />
             </button>
-            {page?.canManageRelations ? <button className="primary-button" type="button" onClick={() => setRelationDialogOpen(true)}><Plus size={17} />{t("context.relation.create")}</button> : null}
+            {page?.canManageRelations ? <button className="primary-button" type="button" onClick={() => setRelationDialogOpen(true)}><Plus size={17} /><span>{t("context.relation.create")}</span></button> : null}
           </div>
         )}
       />
@@ -521,7 +535,7 @@ export function ContextPage({ api }: { api: GuildUiApi }) {
                   <article className="context-relation-row" key={relation.id}>
                     <div className="context-relation-path">
                       <div className="context-node-chip"><small>{nodeTypeLabel(relation.fromType, t)}</small><strong>{fromLabel}</strong></div>
-                      <div className="context-relation-kind"><Link2 size={16} aria-hidden="true" /><span>{t(`context.relation.type.${relation.relationType}`)}</span></div>
+                      <div className="context-relation-kind"><Link2 size={16} aria-hidden="true" /><span>{relationTypeLabel(relation.relationType, t)}</span></div>
                       <div className="context-node-chip"><small>{nodeTypeLabel(relation.toType, t)}</small><strong>{toLabel}</strong></div>
                     </div>
                     <div className="context-relation-copy">

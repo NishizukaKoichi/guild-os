@@ -20,6 +20,7 @@ import type {
   GuildUiApi,
   IssueInvitationInput,
   IssuedInvitation,
+  OffboardActorRequest,
   UiMemberBootstrapState,
   UiDirectory,
   UiDirectoryIdentity,
@@ -30,6 +31,7 @@ import { AgentRunsPanel } from "../components/AgentRunsPanel";
 import { IdentityRoleDialog } from "../components/IdentityRoleDialog";
 import { InviteDialog } from "../components/InviteDialog";
 import { Notice } from "../components/Notice";
+import { OffboardingDialog } from "../components/OffboardingDialog";
 import { PageHeader } from "../components/PageHeader";
 import { ServiceDialog } from "../components/ServiceDialog";
 import { actorKindLabel, membershipStateLabel } from "../collective-language";
@@ -51,8 +53,9 @@ interface PeoplePageProps {
   ): Promise<void>;
   onMachineMembershipChange(
     identityId: string,
-    nextState: "active" | "suspended" | "departed",
+    nextState: "active" | "suspended",
   ): Promise<void>;
+  onOffboard(input: OffboardActorRequest): Promise<void>;
   onAssignRole(input: AssignRoleRequest): Promise<void>;
   onRemoveRole(bindingId: string): Promise<void>;
   onCreateService(input: CreateServiceRequest): Promise<void>;
@@ -70,6 +73,7 @@ export function PeoplePage({
   onRevoke,
   onMembershipChange,
   onMachineMembershipChange,
+  onOffboard,
   onAssignRole,
   onRemoveRole,
   onCreateService,
@@ -83,6 +87,7 @@ export function PeoplePage({
   const [agentOpen, setAgentOpen] = useState(false);
   const [kindFilter, setKindFilter] = useState<"all" | UiDirectoryIdentity["kind"]>("all");
   const [roleIdentity, setRoleIdentity] = useState<UiDirectoryIdentity | null>(null);
+  const [offboardIdentity, setOffboardIdentity] = useState<UiDirectoryIdentity | null>(null);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -129,13 +134,9 @@ export function PeoplePage({
 
   async function change(
     identity: UiDirectoryIdentity,
-    nextState: "active" | "suspended" | "departed",
+    nextState: "active" | "suspended",
   ) {
     if (nextState === "suspended" && !window.confirm(t("people.confirmSuspend"))) return;
-    if (identity.kind === "human" && nextState === "departed" &&
-        !window.confirm(t("people.confirmDepart"))) return;
-    if (identity.kind !== "human" && nextState === "departed" &&
-        !window.confirm(t("people.confirmServiceDepart"))) return;
     setBusy(identity.id);
     setError(null);
     try {
@@ -254,7 +255,7 @@ export function PeoplePage({
                         <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "active")}><RotateCcw size={16} />{t("people.restore")}</button>
                       ) : null}
                       {identity.membershipState !== "departed" ? (
-                        <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => void change(identity, "departed")}><LogOut size={17} /></button>
+                        <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => setOffboardIdentity(identity)}><LogOut size={17} /></button>
                       ) : null}
                     </>
                   ) : null}
@@ -267,7 +268,7 @@ export function PeoplePage({
                       {identity.membershipState === "suspended" ? (
                         <>
                           <button className="text-button" type="button" disabled={isBusy} onClick={() => void change(identity, "active")}><RotateCcw size={16} />{t("people.restore")}</button>
-                          <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => void change(identity, "departed")}><LogOut size={17} /></button>
+                          <button className="icon-button danger-button" type="button" disabled={isBusy} title={t("people.depart")} aria-label={t("people.depart")} onClick={() => setOffboardIdentity(identity)}><LogOut size={17} /></button>
                         </>
                       ) : null}
                     </>
@@ -324,6 +325,14 @@ export function PeoplePage({
           onAssign={onAssignRole}
           onRemove={onRemoveRole}
           onClose={() => setRoleIdentity(null)}
+        />
+      ) : null}
+      {offboardIdentity ? (
+        <OffboardingDialog
+          identity={offboardIdentity}
+          directory={directory}
+          onClose={() => setOffboardIdentity(null)}
+          onOffboard={onOffboard}
         />
       ) : null}
       {issued ? (

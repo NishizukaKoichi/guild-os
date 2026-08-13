@@ -111,6 +111,14 @@ export function assertAgentIdentity(identity: Identity, profile: AgentProfile): 
     );
   }
   for (const toolId of profile.toolIds) assertNonBlank(toolId, "Agent tool ID");
+  const skillIds = profile.skillIds ?? [];
+  if (skillIds.length > 100 || new Set(skillIds).size !== skillIds.length) {
+    throw new GuildDomainError(
+      "INVALID_INPUT",
+      "Agent skills must contain at most 100 unique IDs.",
+    );
+  }
+  for (const skillId of skillIds) assertNonBlank(skillId, "Agent skill ID", 200);
   assertAgentLimits(profile.limits);
 }
 
@@ -170,6 +178,25 @@ export function validateConstitution(constitution: Constitution): void {
     throw new GuildDomainError("INVALID_INPUT", "Data retention cannot exceed 36,500 days.");
   }
   assertAgentLimits(constitution.agentDefaults);
+  if ((constitution.principles?.length ?? 0) > 20_000 ||
+      (constitution.publicScope?.length ?? 0) > 10_000) {
+    throw new GuildDomainError("INVALID_INPUT", "Constitution text exceeds its safe limit.");
+  }
+  if (constitution.membershipPolicy &&
+      constitution.membershipPolicy.departureMode !== "revoke_then_handover") {
+    throw new GuildDomainError("INVALID_INPUT", "Constitution departure policy is invalid.");
+  }
+  if (constitution.dataPolicy && constitution.dataPolicy.crossGuildSharing !== "explicit_only") {
+    throw new GuildDomainError("INVALID_INPUT", "Cross-Guild sharing must remain explicit.");
+  }
+  if (constitution.agentPolicy &&
+      (!constitution.agentPolicy.level2HumanApproval ||
+       !constitution.agentPolicy.level3MultiHumanApproval)) {
+    throw new GuildDomainError(
+      "INVALID_INPUT",
+      "Level 2 and Level 3 Agent actions must retain Human approval.",
+    );
+  }
 }
 
 export function approvalRequirement(
@@ -178,9 +205,17 @@ export function approvalRequirement(
 ): ApprovalRequirement {
   switch (riskLevel) {
     case 0:
-      return { approvals: 0, reauthenticationRequired: false, reason: "Read-only operation" };
+      return {
+        approvals: constitution.agentPolicy?.level0Automatic === false ? 1 : 0,
+        reauthenticationRequired: false,
+        reason: "Read-only operation",
+      };
     case 1:
-      return { approvals: 0, reauthenticationRequired: false, reason: "Reversible internal draft" };
+      return {
+        approvals: constitution.agentPolicy?.level1Automatic === true ? 0 : 1,
+        reauthenticationRequired: false,
+        reason: "Reversible internal draft",
+      };
     case 2:
       return {
         approvals: constitution.level2ApprovalQuorum,

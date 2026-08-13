@@ -32,7 +32,6 @@ export function AgentRunReviewDialog({
         approvalRequestId: run.approval.id,
         verdict,
         reason,
-        reauthenticatedAt: null,
       });
       await onReviewed();
       onClose();

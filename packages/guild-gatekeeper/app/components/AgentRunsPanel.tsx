@@ -21,6 +21,7 @@ import type {
   UiAgentRunPage,
   UiDirectory,
 } from "../../src/management-types";
+import type { AgentRunPlan, AgentRunResult } from "@guild-os/domain";
 import { AgentRunDialog } from "./AgentRunDialog";
 import { AgentRunReviewDialog } from "./AgentRunReviewDialog";
 import { Notice } from "./Notice";
@@ -35,6 +36,27 @@ const ACTIVE_STATUSES = new Set(["planning", "awaiting_approval", "running"]);
 
 function messageFrom(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
+}
+
+function actionDetails(action: AgentRunPlan["action"]): unknown {
+  switch (action.kind) {
+    case "memory_search":
+      return { query: action.query, locale: action.locale };
+    case "activity_draft":
+      return { title: action.title, description: action.description, activityType: action.activityType };
+    case "agent_delegate":
+      return { targetAgentActorId: action.targetAgentActorId, objective: action.objective };
+    case "connection_invoke":
+      return { capabilityId: action.capabilityId, input: action.input };
+    case "https_webhook":
+      return { eventType: action.eventType, payload: action.payload };
+    case "federation_publish":
+      return { federationLinkId: action.federationLinkId, grantIds: action.grantIds };
+  }
+}
+
+function resultTimestamp(result: AgentRunResult): string {
+  return result.kind === "https_webhook" ? result.deliveredAt : result.completedAt;
 }
 
 export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory: UiDirectory }) {
@@ -222,7 +244,14 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
                 </dl>
 
                 {detail.errorMessage ? <Notice kind="error" title={t("agentRun.failure")}>{detail.errorMessage}</Notice> : null}
-                {detail.result ? <Notice kind="success" title={t("agentRun.delivered")}>{t("agentRun.httpStatus")} {detail.result.statusCode} · {dateFormatter.format(new Date(detail.result.deliveredAt))}</Notice> : null}
+                {detail.result ? (
+                  <Notice kind="success" title={t("agentRun.completed")}>
+                    {detail.result.kind === "https_webhook" || detail.result.kind === "connection_invoke"
+                      ? `${t("agentRun.httpStatus")} ${detail.result.statusCode} · `
+                      : `${t("agentRun.result")} ${detail.result.kind} · `}
+                    {dateFormatter.format(new Date(resultTimestamp(detail.result)))}
+                  </Notice>
+                ) : null}
 
                 <section className="agent-run-section">
                   <h3><Workflow size={16} />{t("agentRun.plan")}</h3>
@@ -232,10 +261,10 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
                 <section className="agent-run-section">
                   <h3><Code2 size={16} />{t("agentRun.action")}</h3>
                   <dl className="agent-run-action-meta">
-                    <div><dt>{t("agentRun.eventType")}</dt><dd><code>{detail.plan.action.eventType}</code></dd></div>
+                    <div><dt>{t("agentRun.actionKind")}</dt><dd><code>{detail.plan.action.kind}</code></dd></div>
                     <div><dt>{t("agentRun.idempotency")}</dt><dd><code>{detail.idempotencyKey}</code></dd></div>
                   </dl>
-                  <pre className="agent-run-payload"><code>{JSON.stringify(detail.plan.action.payload, null, 2)}</code></pre>
+                  <pre className="agent-run-payload"><code>{JSON.stringify(actionDetails(detail.plan.action), null, 2)}</code></pre>
                 </section>
 
                 <section className="agent-run-section">

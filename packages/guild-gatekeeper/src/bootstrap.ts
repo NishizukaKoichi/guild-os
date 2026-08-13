@@ -9,6 +9,7 @@ import {
   GuildAgentRunRepository,
   GuildCollectiveRepository,
   GuildPostgresRepository,
+  GuildOperationsRepository,
   withGuildTransaction,
   type GuildSetupState,
   type GuildTransactionConnection,
@@ -16,6 +17,10 @@ import {
 import APP_HTML from "./generated/app.txt";
 import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
+import {
+  buildTemplateProvisioningPlan,
+  provisionTemplateDefaults,
+} from "./template-provisioning.js";
 
 function integerSetting(value: string, name: string): number {
   const parsed = Number(value);
@@ -50,6 +55,28 @@ function defaultConstitution(env: GuildEnv, rootIdentityId: string): Constitutio
       maxRetries: 2,
       maxDelegationDepth: 1,
     },
+    principles: "",
+    publicScope: "",
+    membershipPolicy: {
+      preboardingRequired: true,
+      departureMode: "revoke_then_handover",
+    },
+    dataPolicy: {
+      defaultVisibility: "guild",
+      defaultClassification: "internal",
+      personalDataOnDeparture: "retain_by_policy",
+      crossGuildSharing: "explicit_only",
+    },
+    agentPolicy: {
+      level0Automatic: true,
+      level1Automatic: false,
+      level2HumanApproval: true,
+      level3MultiHumanApproval: true,
+    },
+    externalSharingPolicy: {
+      enabled: false,
+      requireHumanApproval: true,
+    },
     updatedByIdentityId: rootIdentityId,
     updatedAt: new Date().toISOString(),
   };
@@ -80,6 +107,64 @@ async function ensureDeploymentWebhook(
   });
 }
 
+async function ensureDefaultModelRoutes(
+  env: GuildEnv,
+  connection: GuildTransactionConnection,
+  rootActorId: string,
+): Promise<void> {
+  const repository = new GuildOperationsRepository(connection, env.GUILD_ID);
+  const askModel = env.GUILD_ASK_MODEL?.trim() || "@cf/meta/llama-3.1-8b-instruct-fast";
+  let provider = (await repository.listModelProviders()).find((candidate) =>
+    candidate.kind === "workers_ai" && candidate.deploymentManaged);
+  if (!provider) {
+    const providerId = crypto.randomUUID();
+    provider = await repository.createModelProvider({
+      id: providerId,
+      name: "Cloudflare Workers AI",
+      kind: "workers_ai",
+      endpointUrl: null,
+      secretReference: null,
+      allowedModels: [...new Set([askModel, "@cf/baai/bge-m3"])],
+      deploymentManaged: true,
+      createdByActorId: rootActorId,
+      actorId: rootActorId,
+      chronicleEvent: makeChronicleEvent(
+        env.GUILD_ID, rootActorId, "model.provider_provisioned", "model_provider", providerId,
+        { source: "deployment-config" },
+      ),
+    });
+  }
+  const routes = await repository.listModelRoutes();
+  const defaults = [
+    { purpose: "ask" as const, model: askModel, maxTokens: 2_048, cache: false },
+    { purpose: "plan" as const, model: askModel, maxTokens: 4_096, cache: false },
+    { purpose: "act" as const, model: askModel, maxTokens: 2_048, cache: false },
+    { purpose: "review" as const, model: askModel, maxTokens: 2_048, cache: false },
+    { purpose: "embedding" as const, model: "@cf/baai/bge-m3", maxTokens: 512, cache: true },
+  ];
+  for (const item of defaults) {
+    if (routes.some((route) => route.purpose === item.purpose)) continue;
+    const routeId = crypto.randomUUID();
+    await repository.createModelRoute({
+      id: routeId,
+      purpose: item.purpose,
+      providerId: provider.id,
+      primaryModel: item.model,
+      fallbackModel: null,
+      maxTokens: item.maxTokens,
+      dailyBudgetMinor: 0,
+      cacheEnabled: item.cache,
+      status: "active",
+      updatedByActorId: rootActorId,
+      actorId: rootActorId,
+      chronicleEvent: makeChronicleEvent(
+        env.GUILD_ID, rootActorId, "model.route_provisioned", "model_route", routeId,
+        { purpose: item.purpose, source: "deployment-config" },
+      ),
+    });
+  }
+}
+
 export async function prepareGuildAccount(
   env: GuildEnv,
   accountId: string,
@@ -106,21 +191,20 @@ export async function initializeGuildAccount(
     let state = await repository.getSetupState(accountId);
     if (!state.initialized) {
       const template = collectiveTemplate(templateKey);
-      await repository.bootstrapGuild({
+      const rootSpaceId = crypto.randomUUID();
+      const constitution = defaultConstitution(env, accountId);
+      const provisioning = buildTemplateProvisioningPlan(template, onboardingAnswers);
+      const created = await repository.bootstrapGuild({
         guildId: env.GUILD_ID,
         name: env.GUILD_NAME,
         purpose: env.GUILD_PURPOSE,
         rootIdentityId: accountId,
         rootDisplayName: displayName,
         rootPreferredLocale: preferredLocale,
-        rootSpaceId: crypto.randomUUID(),
+        rootSpaceId,
         rootSpaceName: env.GUILD_ROOT_SPACE_NAME,
-        constitution: defaultConstitution(env, accountId),
-        roles: template.roles.map((role) => ({
-          id: crypto.randomUUID(),
-          name: role.name,
-          permissions: role.capabilities,
-        })),
+        constitution,
+        roles: provisioning.bootstrapRoles,
         chronicleEvent: makeChronicleEvent(
           env.GUILD_ID,
           accountId,
@@ -130,25 +214,37 @@ export async function initializeGuildAccount(
           { source: "cloudflare-os-admin" },
         ),
       });
-      await new GuildCollectiveRepository(connection, env.GUILD_ID).configure({
-        templateKey,
-        vocabularyOverrides: {},
-        onboardingAnswers,
-        actorId: accountId,
-        chronicleEvent: makeChronicleEvent(
-          env.GUILD_ID,
-          accountId,
-          "collective.configured",
-          "collective",
-          env.GUILD_ID,
-          { templateKey, source: "initialization" },
-        ),
-      });
+      if (created) {
+        await new GuildCollectiveRepository(connection, env.GUILD_ID).configure({
+          templateKey,
+          vocabularyOverrides: {},
+          onboardingAnswers,
+          actorId: accountId,
+          chronicleEvent: makeChronicleEvent(
+            env.GUILD_ID,
+            accountId,
+            "collective.configured",
+            "collective",
+            env.GUILD_ID,
+            { templateKey, source: "initialization" },
+          ),
+        });
+        await provisionTemplateDefaults(connection, {
+          guildId: env.GUILD_ID,
+          rootActorId: accountId,
+          rootSpaceId,
+          locale: preferredLocale,
+          model: env.GUILD_ASK_MODEL,
+          agentLimits: constitution.agentDefaults,
+          plan: provisioning,
+        });
+      }
       state = await repository.getSetupState(accountId);
     }
     if (!state.identityExists || state.membershipState !== "active") {
       throw new Error("This Guild was already initialized by another administrator.");
     }
+    await ensureDefaultModelRoutes(env, connection, accountId);
     await ensureDeploymentWebhook(env, connection);
     return state;
   });

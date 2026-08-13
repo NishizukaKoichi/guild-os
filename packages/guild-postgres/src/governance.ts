@@ -16,6 +16,12 @@ export interface UpdateConstitutionInput {
   level3ApprovalQuorum: number;
   dataRetentionDays: number;
   agentDefaults: AgentLimits;
+  principles?: string;
+  publicScope?: string;
+  membershipPolicy?: NonNullable<Constitution["membershipPolicy"]>;
+  dataPolicy?: NonNullable<Constitution["dataPolicy"]>;
+  agentPolicy?: NonNullable<Constitution["agentPolicy"]>;
+  externalSharingPolicy?: NonNullable<Constitution["externalSharingPolicy"]>;
   reason: string;
   actorIdentityId: string;
   chronicleEvent: ChronicleEvent;
@@ -45,6 +51,12 @@ type ConstitutionRow = QueryResultRow & {
   level3_approval_quorum: number;
   data_retention_days: number;
   agent_defaults: AgentLimits;
+  principles: string;
+  public_scope: string;
+  membership_policy: NonNullable<Constitution["membershipPolicy"]>;
+  data_policy: NonNullable<Constitution["dataPolicy"]>;
+  agent_policy: NonNullable<Constitution["agentPolicy"]>;
+  external_sharing_policy: NonNullable<Constitution["externalSharingPolicy"]>;
   updated_by_identity_id: string;
   updated_at: string;
 };
@@ -99,6 +111,12 @@ function mapConstitution(guildId: string, row: ConstitutionRow): Constitution {
     level3ApprovalQuorum: row.level3_approval_quorum,
     dataRetentionDays: row.data_retention_days,
     agentDefaults: row.agent_defaults,
+    principles: row.principles,
+    publicScope: row.public_scope,
+    membershipPolicy: row.membership_policy,
+    dataPolicy: row.data_policy,
+    agentPolicy: row.agent_policy,
+    externalSharingPolicy: row.external_sharing_policy,
     updatedByIdentityId: row.updated_by_identity_id,
     updatedAt: row.updated_at,
   };
@@ -132,7 +150,8 @@ export class GuildGovernanceRepository {
       root_membership_state: string;
     }>(
       `SELECT c.version, c.level2_approval_quorum, c.level3_approval_quorum,
-              c.data_retention_days, c.agent_defaults,
+              c.data_retention_days, c.agent_defaults, c.principles, c.public_scope,
+              c.membership_policy, c.data_policy, c.agent_policy, c.external_sharing_policy,
               c.updated_by_identity_id::text, c.updated_at::text,
               g.root_owner_identity_id::text, i.kind AS root_kind,
               i.status AS root_status, m.state AS root_membership_state
@@ -161,6 +180,12 @@ export class GuildGovernanceRepository {
       level3ApprovalQuorum: input.level3ApprovalQuorum,
       dataRetentionDays: input.dataRetentionDays,
       agentDefaults: input.agentDefaults,
+      principles: input.principles ?? current.principles,
+      publicScope: input.publicScope ?? current.public_scope,
+      membershipPolicy: input.membershipPolicy ?? current.membership_policy,
+      dataPolicy: input.dataPolicy ?? current.data_policy,
+      agentPolicy: input.agentPolicy ?? current.agent_policy,
+      externalSharingPolicy: input.externalSharingPolicy ?? current.external_sharing_policy,
       updatedByIdentityId: input.actorIdentityId,
       updatedAt: new Date().toISOString(),
     };
@@ -175,10 +200,17 @@ export class GuildGovernanceRepository {
               level3_approval_quorum = $5,
               data_retention_days = $6,
               agent_defaults = $7::jsonb,
+              principles = $8,
+              public_scope = $9,
+              membership_policy = $10::jsonb,
+              data_policy = $11::jsonb,
+              agent_policy = $12::jsonb,
+              external_sharing_policy = $13::jsonb,
               updated_by_identity_id = $2
-        WHERE guild_id = $1 AND version = $8
+        WHERE guild_id = $1 AND version = $14
       RETURNING version, level2_approval_quorum, level3_approval_quorum,
-                data_retention_days, agent_defaults,
+                data_retention_days, agent_defaults, principles, public_scope,
+                membership_policy, data_policy, agent_policy, external_sharing_policy,
                 updated_by_identity_id::text, updated_at::text`,
       [
         this.#guildId,
@@ -188,6 +220,12 @@ export class GuildGovernanceRepository {
         candidate.level3ApprovalQuorum,
         candidate.dataRetentionDays,
         JSON.stringify(candidate.agentDefaults),
+        candidate.principles,
+        candidate.publicScope,
+        JSON.stringify(candidate.membershipPolicy),
+        JSON.stringify(candidate.dataPolicy),
+        JSON.stringify(candidate.agentPolicy),
+        JSON.stringify(candidate.externalSharingPolicy),
         input.expectedVersion,
       ],
     );

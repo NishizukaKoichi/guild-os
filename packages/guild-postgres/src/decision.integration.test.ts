@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { ChronicleEvent, Constitution } from "@guild-os/domain";
+import type { ChronicleEvent, Constitution, DecisionMethod } from "@guild-os/domain";
 import { GuildDecisionRepository, type DecisionOptionWrite } from "./decision.js";
 import { GuildPostgresRepository } from "./repository.js";
 import { withGuildTransaction } from "./transaction.js";
@@ -158,6 +158,87 @@ function options(): [DecisionOptionWrite, DecisionOptionWrite] {
     { id: randomUUID(), label: "Adopt", description: "Adopt the proposal.", position: 0 },
     { id: randomUUID(), label: "Keep current", description: "Keep the current policy.", position: 1 },
   ];
+}
+
+type FixtureIds = Awaited<ReturnType<typeof fixture>>;
+
+async function createMethodDraft(
+  ids: FixtureIds,
+  method: DecisionMethod,
+  input: {
+    ownerIdentityId?: string;
+    rationale?: string;
+    sourceIds?: readonly string[];
+  } = {},
+): Promise<{ id: string; options: [DecisionOptionWrite, DecisionOptionWrite] }> {
+  if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+  const id = randomUUID();
+  const decisionOptions = options();
+  await withGuildTransaction(connectionString, ids.guild, async (connection) => {
+    await new GuildDecisionRepository(connection, ids.guild).createDecision({
+      id,
+      actorIdentityId: ids.root,
+      ownerIdentityId: input.ownerIdentityId ?? ids.root,
+      spaceId: ids.teamSpace,
+      method,
+      title: `${method} method decision ${id}`,
+      description: `Exercise the deterministic ${method} resolution contract.`,
+      rationale: input.rationale ?? `The ${method} method needs an auditable reason.`,
+      visibility: "space",
+      classification: "internal",
+      allowedIdentityIds: [],
+      sourceIds: input.sourceIds ?? [],
+      reviewAt: null,
+      options: decisionOptions,
+      chronicleEvent: event(ids.guild, ids.root, "decision.created", id),
+    });
+  });
+  return { id, options: decisionOptions };
+}
+
+async function proposeMethod(
+  ids: FixtureIds,
+  id: string,
+  requiredApprovals: number,
+): Promise<number> {
+  if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+  return withGuildTransaction(connectionString, ids.guild, async (connection) =>
+    new GuildDecisionRepository(connection, ids.guild).propose({
+      id,
+      expectedVersion: 1,
+      actorIdentityId: ids.root,
+      requiredApprovals,
+      chronicleEvent: event(ids.guild, ids.root, "decision.proposed", id),
+    }));
+}
+
+async function participate(
+  ids: FixtureIds,
+  input: {
+    id: string;
+    version: number;
+    actorIdentityId: string;
+    verdict: "approve" | "reject";
+    selectedOptionId: string | null;
+    reason?: string;
+  },
+) {
+  if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+  return withGuildTransaction(connectionString, ids.guild, async (connection) =>
+    new GuildDecisionRepository(connection, ids.guild).review({
+      id: input.id,
+      expectedVersion: input.version,
+      actorIdentityId: input.actorIdentityId,
+      verdict: input.verdict,
+      selectedOptionId: input.selectedOptionId,
+      reason: input.reason ?? `Recorded ${input.verdict} evidence for the method evaluation.`,
+      chronicleEvent: event(
+        ids.guild,
+        input.actorIdentityId,
+        "decision.reviewed",
+        input.id,
+      ),
+    }));
 }
 
 integration("Guild Decision repository", () => {
@@ -517,6 +598,7 @@ integration("Guild Decision repository", () => {
         actorIdentityId: ids.root,
         ownerIdentityId: ids.root,
         spaceId: ids.teamSpace,
+        method: "vote",
         title: "Approve the large-Guild operating model",
         description: "Verify that Decision governance scales beyond a twenty-person approver group.",
         rationale: "Approval group size must follow Guild policy rather than a demo-era limit.",
@@ -548,5 +630,273 @@ integration("Guild Decision repository", () => {
     });
     expect(evidence.decision.requiredApprovals).toBe(21);
     expect(evidence.notificationCount).toBe(25);
+  });
+
+  it("resolves custodian, consent, vote, and review by distinct rules", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const ids = await fixture();
+
+    const custodian = await createMethodDraft(ids, "custodian");
+    expect(await proposeMethod(ids, custodian.id, 9)).toBe(2);
+    await expect(participate(ids, {
+      id: custodian.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: custodian.options[0].id,
+    })).rejects.toThrow("authorized active Human");
+    expect(await participate(ids, {
+      id: custodian.id,
+      version: 2,
+      actorIdentityId: ids.root,
+      verdict: "approve",
+      selectedOptionId: custodian.options[0].id,
+    })).toEqual({ version: 3, status: "approved", approvalCount: 1 });
+
+    const consent = await createMethodDraft(ids, "consent");
+    await proposeMethod(ids, consent.id, 2);
+    expect(await participate(ids, {
+      id: consent.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "reject",
+      selectedOptionId: null,
+      reason: "The operational objection remains unresolved.",
+    })).toEqual({ version: 3, status: "proposed", approvalCount: 0 });
+    expect(await participate(ids, {
+      id: consent.id,
+      version: 3,
+      actorIdentityId: ids.manager2,
+      verdict: "approve",
+      selectedOptionId: consent.options[0].id,
+    })).toEqual({ version: 4, status: "rejected", approvalCount: 1 });
+
+    const consentReached = await createMethodDraft(ids, "consent");
+    await proposeMethod(ids, consentReached.id, 2);
+    expect((await participate(ids, {
+      id: consentReached.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: consentReached.options[0].id,
+    })).status).toBe("proposed");
+    expect((await participate(ids, {
+      id: consentReached.id,
+      version: 3,
+      actorIdentityId: ids.manager2,
+      verdict: "approve",
+      selectedOptionId: consentReached.options[0].id,
+    })).status).toBe("approved");
+
+    const vote = await createMethodDraft(ids, "vote");
+    await proposeMethod(ids, vote.id, 2);
+    expect((await participate(ids, {
+      id: vote.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: vote.options[0].id,
+    })).status).toBe("proposed");
+    expect((await participate(ids, {
+      id: vote.id,
+      version: 3,
+      actorIdentityId: ids.manager2,
+      verdict: "approve",
+      selectedOptionId: vote.options[1].id,
+    })).status).toBe("proposed");
+    const voteResult = await participate(ids, {
+      id: vote.id,
+      version: 4,
+      actorIdentityId: ids.root,
+      verdict: "approve",
+      selectedOptionId: vote.options[0].id,
+    });
+    expect(voteResult).toEqual({ version: 5, status: "approved", approvalCount: 3 });
+
+    const review = await createMethodDraft(ids, "review");
+    await proposeMethod(ids, review.id, 2);
+    expect((await participate(ids, {
+      id: review.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: review.options[0].id,
+    })).status).toBe("proposed");
+    expect(await participate(ids, {
+      id: review.id,
+      version: 3,
+      actorIdentityId: ids.manager2,
+      verdict: "reject",
+      selectedOptionId: null,
+      reason: "The reviewer found a blocking defect.",
+    })).toEqual({ version: 4, status: "rejected", approvalCount: 1 });
+
+    const outcomes = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query<{
+        subject_id: string;
+        method: string;
+        status: string;
+      }>(
+        `SELECT subject_id::text,
+                details ->> 'decisionMethod' AS method,
+                details ->> 'resolutionStatus' AS status
+           FROM chronicle_events
+          WHERE guild_id = $1
+            AND subject_id = ANY($2::uuid[])
+            AND details ? 'resolutionStatus'
+          ORDER BY sequence`,
+        [ids.guild, [custodian.id, consent.id, consentReached.id, vote.id, review.id]],
+      ));
+    const terminalEvents = outcomes.rows.filter((row) => row.status !== "proposed");
+    expect(terminalEvents.map((row) => [row.method, row.status])).toEqual(expect.arrayContaining([
+      ["custodian", "approved"],
+      ["consent", "rejected"],
+      ["consent", "approved"],
+      ["vote", "approved"],
+      ["review", "rejected"],
+    ]));
+  });
+
+  it("enforces evidence policy for editorial, policy, and hybrid Decisions", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const ids = await fixture();
+
+    const missingEvidence = await createMethodDraft(ids, "policy", { sourceIds: [] });
+    await expect(proposeMethod(ids, missingEvidence.id, 1)).rejects.toThrow(
+      "require a rationale and at least one evidence source",
+    );
+
+    const editorial = await createMethodDraft(ids, "editorial", {
+      sourceIds: [randomUUID()],
+    });
+    await proposeMethod(ids, editorial.id, 7);
+    const editorialDetail = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      new GuildDecisionRepository(connection, ids.guild).getDecision(editorial.id));
+    expect(editorialDetail.requiredApprovals).toBe(1);
+    await expect(participate(ids, {
+      id: editorial.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: editorial.options[0].id,
+    })).rejects.toThrow("authorized active Human");
+    expect((await participate(ids, {
+      id: editorial.id,
+      version: 2,
+      actorIdentityId: ids.root,
+      verdict: "approve",
+      selectedOptionId: editorial.options[0].id,
+      reason: "The editor verified the cited evidence and finalized the text.",
+    })).status).toBe("approved");
+
+    const policy = await createMethodDraft(ids, "policy", { sourceIds: [randomUUID()] });
+    await proposeMethod(ids, policy.id, 5);
+    expect(await participate(ids, {
+      id: policy.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: policy.options[0].id,
+      reason: "The Human attests that the policy inputs and evidence are accurate.",
+    })).toEqual({ version: 3, status: "approved", approvalCount: 1 });
+
+    const hybrid = await createMethodDraft(ids, "hybrid", { sourceIds: [randomUUID()] });
+    await proposeMethod(ids, hybrid.id, 1);
+    const hybridDetail = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      new GuildDecisionRepository(connection, ids.guild).getDecision(hybrid.id));
+    expect(hybridDetail.requiredApprovals).toBe(2);
+    expect((await participate(ids, {
+      id: hybrid.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: hybrid.options[0].id,
+    })).status).toBe("proposed");
+    expect((await participate(ids, {
+      id: hybrid.id,
+      version: 3,
+      actorIdentityId: ids.root,
+      verdict: "approve",
+      selectedOptionId: hybrid.options[0].id,
+    })).status).toBe("approved");
+
+    const snapshots = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query<{
+        method: string;
+        constitution_version: number;
+        policy_gate_passed: boolean;
+        required_participation: number;
+      }>(
+        `SELECT method, constitution_version, policy_gate_passed, required_participation
+           FROM decision_method_snapshots
+          WHERE guild_id = $1 AND decision_id = ANY($2::uuid[])
+          ORDER BY method`,
+        [ids.guild, [editorial.id, policy.id, hybrid.id]],
+      ));
+    expect(snapshots.rows).toEqual([
+      { method: "editorial", constitution_version: 1, policy_gate_passed: true, required_participation: 1 },
+      { method: "hybrid", constitution_version: 1, policy_gate_passed: true, required_participation: 2 },
+      { method: "policy", constitution_version: 1, policy_gate_passed: true, required_participation: 1 },
+    ]);
+  });
+
+  it("freezes participation, rejects duplicates and stale versions, and keeps snapshots append-only", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const ids = await fixture();
+    const vote = await createMethodDraft(ids, "vote");
+    await proposeMethod(ids, vote.id, 2);
+
+    await withGuildTransaction(connectionString, ids.guild, async (connection) => {
+      await connection.query(
+        `INSERT INTO role_bindings (id, guild_id, identity_id, role_id, space_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [randomUUID(), ids.guild, ids.reader, ids.managerRole, ids.teamSpace],
+      );
+    });
+    await expect(participate(ids, {
+      id: vote.id,
+      version: 2,
+      actorIdentityId: ids.reader,
+      verdict: "approve",
+      selectedOptionId: vote.options[0].id,
+    })).rejects.toThrow("captured at proposal");
+
+    expect((await participate(ids, {
+      id: vote.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: vote.options[0].id,
+    })).status).toBe("proposed");
+    await expect(participate(ids, {
+      id: vote.id,
+      version: 3,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: vote.options[0].id,
+    })).rejects.toThrow();
+    await expect(participate(ids, {
+      id: vote.id,
+      version: 2,
+      actorIdentityId: ids.manager2,
+      verdict: "approve",
+      selectedOptionId: vote.options[0].id,
+    })).rejects.toThrow("changed since it was loaded");
+
+    await expect(withGuildTransaction(connectionString, ids.guild, async (connection) => {
+      await connection.query(
+        `UPDATE decision_method_snapshots
+            SET required_participation = required_participation + 1
+          WHERE guild_id = $1 AND decision_id = $2`,
+        [ids.guild, vote.id],
+      );
+    })).rejects.toThrow("append-only");
+    await expect(withGuildTransaction(connectionString, ids.guild, async (connection) => {
+      await connection.query(
+        `DELETE FROM decision_participant_snapshots
+          WHERE guild_id = $1 AND decision_id = $2`,
+        [ids.guild, vote.id],
+      );
+    })).rejects.toThrow("append-only");
   });
 });

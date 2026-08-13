@@ -51,6 +51,7 @@ function constitution(guildId: string, rootId: string): Constitution {
 function decisionInput(spaceId: string, title: string) {
   return {
     spaceId,
+    method: "consent" as const,
     title,
     description: `Choose the governed outcome for ${title}.`,
     rationale: "The Guild needs a durable decision with explicit evidence and approval.",

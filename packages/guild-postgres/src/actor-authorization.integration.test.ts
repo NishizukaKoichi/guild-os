@@ -371,6 +371,117 @@ integration("bounded PostgreSQL authorization", () => {
     ]);
   });
 
+  it("limits a Space-scoped directory to identities, bindings, Spaces, and invitations in scope", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+
+    const guildId = randomUUID();
+    const rootId = randomUUID();
+    const viewerId = randomUUID();
+    const researchMemberId = randomUUID();
+    const financeMemberId = randomUUID();
+    const rootSpaceId = randomUUID();
+    const researchSpaceId = randomUUID();
+    const financeSpaceId = randomUUID();
+    const roleId = randomUUID();
+    const researchInvitationId = randomUUID();
+    const financeInvitationId = randomUUID();
+
+    await withGuildTransaction(connectionString, guildId, async (connection) => {
+      await new GuildPostgresRepository(connection, guildId).bootstrapGuild({
+        guildId,
+        name: "Scoped Directory Guild",
+        purpose: "Verify Space-scoped People visibility",
+        rootIdentityId: rootId,
+        rootDisplayName: "Root",
+        rootSpaceId,
+        rootSpaceName: "Guild",
+        constitution: constitution(guildId, rootId),
+        roles: [{
+          id: roleId,
+          name: "Member",
+          permissions: ["guild.read", "identity.read", "membership.read", "role.read", "space.read"],
+        }],
+        chronicleEvent: event(guildId, rootId, "guild.initialized", "guild", guildId),
+      });
+      await connection.query(
+        `INSERT INTO spaces (id, guild_id, parent_space_id, name, status)
+         VALUES ($1, $3, $4, 'Research', 'active'),
+                ($2, $3, $4, 'Finance', 'active')`,
+        [researchSpaceId, financeSpaceId, guildId, rootSpaceId],
+      );
+      await connection.query(
+        `INSERT INTO identities (id, guild_id, kind, display_name, status) VALUES
+           ($1, $4, 'human', 'Research viewer', 'active'),
+           ($2, $4, 'human', 'Research peer', 'active'),
+           ($3, $4, 'human', 'Finance peer', 'active')`,
+        [viewerId, researchMemberId, financeMemberId, guildId],
+      );
+      await connection.query(
+        `INSERT INTO memberships (guild_id, identity_id, state, clearance, joined_at)
+         SELECT $1, actor_id, 'active', 'internal', now()
+           FROM unnest($2::uuid[]) AS actor(actor_id)`,
+        [guildId, [viewerId, researchMemberId, financeMemberId]],
+      );
+      await connection.query(
+        `INSERT INTO role_bindings (id, guild_id, identity_id, role_id, space_id) VALUES
+           (gen_random_uuid(), $1, $2, $5, $6),
+           (gen_random_uuid(), $1, $3, $5, $6),
+           (gen_random_uuid(), $1, $4, $5, $7)`,
+        [guildId, viewerId, researchMemberId, financeMemberId, roleId,
+          researchSpaceId, financeSpaceId],
+      );
+      const directory = new GuildDirectoryRepository(connection, guildId);
+      await directory.createInvitation({
+        id: researchInvitationId,
+        tokenHash: "b".repeat(64),
+        inviteeLabel: "Research invitee",
+        roleId,
+        spaceId: researchSpaceId,
+        initialMembershipState: "active",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        createdByIdentityId: rootId,
+        chronicleEvent: event(
+          guildId, rootId, "membership.invitation.created", "invitation", researchInvitationId,
+        ),
+      });
+      await directory.createInvitation({
+        id: financeInvitationId,
+        tokenHash: "c".repeat(64),
+        inviteeLabel: "Finance invitee",
+        roleId,
+        spaceId: financeSpaceId,
+        initialMembershipState: "active",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        createdByIdentityId: rootId,
+        chronicleEvent: event(
+          guildId, rootId, "membership.invitation.created", "invitation", financeInvitationId,
+        ),
+      });
+    });
+
+    const scoped = await withGuildTransaction(connectionString, guildId, (connection) =>
+      new GuildDirectoryRepository(connection, guildId).listDirectory({
+        visibleSpaceIds: [researchSpaceId],
+        viewerIdentityId: viewerId,
+        includeInvitations: true,
+      }));
+    expect(scoped.identities.map((identity) => identity.id)).toEqual(expect.arrayContaining([
+      rootId,
+      viewerId,
+      researchMemberId,
+    ]));
+    expect(scoped.identities.map((identity) => identity.id)).not.toContain(financeMemberId);
+    expect(scoped.roleBindings.every((binding) =>
+      binding.spaceId === null || binding.spaceId === researchSpaceId)).toBe(true);
+    expect(scoped.spaces.map((space) => space.id)).toEqual([researchSpaceId]);
+    expect(scoped.invitations.map((invitation) => invitation.id)).toEqual([researchInvitationId]);
+
+    await expect(withGuildTransaction(connectionString, guildId, (connection) =>
+      new GuildDirectoryRepository(connection, guildId).listDirectory({
+        visibleSpaceIds: [researchSpaceId],
+      }))).rejects.toThrow("requires the viewer Identity");
+  });
+
   it("paginates large directories and loads bindings only for the visible identity page", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
 

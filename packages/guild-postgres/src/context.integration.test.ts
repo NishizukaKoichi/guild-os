@@ -224,6 +224,7 @@ integration("Guild Context repository", () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
     const ids = await fixture();
     const personalMemoryId = randomUUID();
+    const privateGuildMemoryId = randomUUID();
     const guildMemoryOneId = randomUUID();
     const guildMemoryTwoId = randomUUID();
 
@@ -239,9 +240,24 @@ integration("Guild Context repository", () => {
         classification: "confidential",
         allowedActorIds: [],
         confidence: 0.7,
+        custody: "personal",
         changeNote: "Private working note.",
         ...memoryContent("Lighthouse private notebook", "v1"),
         chronicleEvent: event(ids.guild, ids.root, "memory.created", "memory", personalMemoryId),
+      });
+      await repository.createMemory({
+        id: privateGuildMemoryId,
+        actorId: ids.root,
+        ownerActorId: ids.root,
+        spaceId: ids.teamSpace,
+        type: "research",
+        visibility: "private",
+        classification: "confidential",
+        allowedActorIds: [],
+        confidence: 0.8,
+        changeNote: "Official confidential Guild record.",
+        ...memoryContent("Lighthouse official restricted record", "guild-private"),
+        chronicleEvent: event(ids.guild, ids.root, "memory.created", "memory", privateGuildMemoryId),
       });
       await repository.saveMemory({
         memoryId: personalMemoryId,
@@ -300,6 +316,7 @@ integration("Guild Context repository", () => {
       );
       return {
         custody: await context.getCustody("memory", personalMemoryId),
+        privateGuildCustody: await context.getCustody("memory", privateGuildMemoryId),
         search,
         candidates,
         jobs: jobs.rows,
@@ -308,6 +325,11 @@ integration("Guild Context repository", () => {
     expect(beforeShare.custody).toMatchObject({
       custody: "personal",
       personalOwnerActorId: ids.root,
+      version: 1,
+    });
+    expect(beforeShare.privateGuildCustody).toMatchObject({
+      custody: "guild",
+      personalOwnerActorId: null,
       version: 1,
     });
     expect(beforeShare.jobs).toEqual([]);

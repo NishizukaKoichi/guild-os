@@ -26,6 +26,28 @@ export const KNOWLEDGE_STATES = [
 ] as const;
 export const MEMORY_STATUSES = ["active", "archived"] as const;
 export const MEMORY_WORKFLOWS = ["canonical"] as const;
+export const MEMORY_LAYERS = ["canonical", "working", "external"] as const;
+export const DATA_CUSTODIES = ["guild", "personal", "shared"] as const;
+export const RELATION_STATUSES = ["active", "revoked"] as const;
+export const MEMORY_REVIEW_SIGNAL_KINDS = [
+  "stale",
+  "possible_contradiction",
+  "missing_source",
+  "low_confidence",
+] as const;
+export const MEMORY_REVIEW_SIGNAL_STATUSES = ["open", "resolved", "dismissed"] as const;
+export const CONNECTION_KINDS = [
+  "https_webhook",
+  "mcp",
+  "oauth",
+  "webhook",
+  "api",
+  "cloudflare_service",
+  "database",
+  "storage",
+] as const;
+export const AUTOMATION_TRIGGER_KINDS = ["schedule", "event", "manual"] as const;
+export const FEDERATION_DIRECTIONS = ["inbound", "outbound", "bidirectional"] as const;
 export const MEMORY_TYPES = [
   "fact",
   "document",
@@ -137,6 +159,20 @@ export const PERMISSIONS = [
   "template.manage",
   "stewardship.manage",
   "stewardship.recover",
+  "relation.read",
+  "relation.manage",
+  "lifecycle.read",
+  "lifecycle.manage",
+  "message.read",
+  "message.create",
+  "contribution.read",
+  "contribution.correct",
+  "automation.read",
+  "automation.manage",
+  "federation.read",
+  "federation.manage",
+  "data.read",
+  "data.manage",
   "guild.read",
   "guild.manage",
   "constitution.read",
@@ -188,6 +224,14 @@ export const PREBOARDING_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "run.read",
   "event.read",
   "template.read",
+  "relation.read",
+  "lifecycle.read",
+  "message.read",
+  "message.create",
+  "contribution.read",
+  "automation.read",
+  "federation.read",
+  "data.read",
   "guild.read",
   "constitution.read",
   "space.read",
@@ -207,6 +251,11 @@ export const HUMAN_ONLY_PERMISSIONS = new Set<(typeof PERMISSIONS)[number]>([
   "run.approve",
   "run.stop",
   "template.manage",
+  "lifecycle.manage",
+  "contribution.correct",
+  "automation.manage",
+  "federation.manage",
+  "data.manage",
   "stewardship.manage",
   "stewardship.recover",
   "guild.manage",

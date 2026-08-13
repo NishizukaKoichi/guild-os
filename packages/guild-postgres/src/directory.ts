@@ -100,6 +100,9 @@ export interface DirectoryListOptions {
   invitationCursor?: DirectoryInvitationCursor | null;
   includeIdentities?: boolean;
   includeInvitations?: boolean;
+  /** Null means Guild-wide authority; an array limits identities and bindings to these Spaces. */
+  visibleSpaceIds?: readonly string[] | null;
+  viewerIdentityId?: string | null;
 }
 
 export interface CreateInvitationInput {
@@ -244,6 +247,11 @@ export class GuildDirectoryRepository {
   }
 
   async listDirectory(options: DirectoryListOptions = {}): Promise<GuildDirectory> {
+    const visibleSpaceIds = options.visibleSpaceIds ?? null;
+    const viewerIdentityId = options.viewerIdentityId ?? null;
+    if (visibleSpaceIds !== null && viewerIdentityId === null) {
+      throw new Error("A Space-scoped directory requires the viewer Identity.");
+    }
     let identityRows: IdentityRow[] = [];
     let nextIdentityCursor: DirectoryIdentityCursor | null = null;
     if (options.includeIdentities !== false) {
@@ -254,6 +262,15 @@ export class GuildDirectoryRepository {
            JOIN memberships m ON m.guild_id = i.guild_id AND m.identity_id = i.id
           WHERE i.guild_id = $1
             AND ($2::text IS NULL OR (i.display_name, i.id) > ($2::text, $3::uuid))
+            AND ($5::uuid[] IS NULL OR i.id = $6::uuid
+              OR i.id = (SELECT root_owner_identity_id FROM guilds WHERE id = $1)
+              OR EXISTS (
+              SELECT 1 FROM role_bindings visible_binding
+               WHERE visible_binding.guild_id = i.guild_id
+                 AND visible_binding.identity_id = i.id
+                 AND (visible_binding.space_id IS NULL
+                      OR visible_binding.space_id = ANY($5::uuid[]))
+            ))
           ORDER BY i.display_name, i.id
           LIMIT $4`,
         [
@@ -261,6 +278,8 @@ export class GuildDirectoryRepository {
           options.identityCursor?.displayName ?? null,
           options.identityCursor?.id ?? null,
           IDENTITY_PAGE_SIZE + 1,
+          visibleSpaceIds,
+          viewerIdentityId,
         ],
       );
       const hasMoreIdentities = identityResult.rows.length > IDENTITY_PAGE_SIZE;
@@ -287,8 +306,9 @@ export class GuildDirectoryRepository {
       `SELECT id::text, identity_id::text, role_id::text, space_id::text
          FROM role_bindings
         WHERE guild_id = $1 AND identity_id = ANY($2::uuid[])
+          AND ($3::uuid[] IS NULL OR space_id IS NULL OR space_id = ANY($3::uuid[]))
         ORDER BY created_at, id`,
-      [this.#guildId, identityIds],
+      [this.#guildId, identityIds, visibleSpaceIds],
     )).rows;
     const agentProfileRows = identityIds.length === 0
       ? []
@@ -301,8 +321,10 @@ export class GuildDirectoryRepository {
       )).rows;
     const spaceResult = await this.#connection.query<SpaceRow>(
       `SELECT id::text, parent_space_id::text, name, status
-         FROM spaces WHERE guild_id = $1 ORDER BY name, id`,
-      [this.#guildId],
+         FROM spaces
+        WHERE guild_id = $1 AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))
+        ORDER BY name, id`,
+      [this.#guildId, visibleSpaceIds],
     );
 
     let invitationRows: InvitationRow[] = [];
@@ -314,9 +336,10 @@ export class GuildDirectoryRepository {
                 CASE WHEN state = 'pending' AND expires_at <= now() THEN 'expired' ELSE state END AS state,
                 expires_at::text, created_by_identity_id::text, accepted_by_identity_id::text,
                 accepted_at::text, created_at::text
-           FROM guild_invitations
+          FROM guild_invitations
           WHERE guild_id = $1
             AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::uuid))
+            AND ($5::uuid[] IS NULL OR space_id = ANY($5::uuid[]))
           ORDER BY created_at DESC, id DESC
           LIMIT $4`,
         [
@@ -324,6 +347,7 @@ export class GuildDirectoryRepository {
           options.invitationCursor?.createdAt ?? null,
           options.invitationCursor?.id ?? null,
           INVITATION_PAGE_SIZE + 1,
+          visibleSpaceIds,
         ],
       );
       const hasMoreInvitations = invitationResult.rows.length > INVITATION_PAGE_SIZE;

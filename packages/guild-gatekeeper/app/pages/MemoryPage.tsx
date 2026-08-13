@@ -12,9 +12,11 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   CLASSIFICATIONS,
+  MEMORY_LAYERS,
   VISIBILITIES,
   type Classification,
   type LocalizedText,
+  type MemoryLayer,
   type MemoryType,
   type Visibility,
 } from "@guild-os/domain";
@@ -79,6 +81,13 @@ function MemoryEditor({
   const [classification, setClassification] = useState<Classification>(memory?.classification ?? "internal");
   const [allowedActorIds, setAllowedActorIds] = useState<readonly string[]>(memory?.allowedActorIds ?? []);
   const [confidence, setConfidence] = useState(memory?.confidence === null || memory?.confidence === undefined ? "" : String(memory.confidence));
+  const [custody, setCustody] = useState<"guild" | "personal">("guild");
+  const [layer, setLayer] = useState<Exclude<MemoryLayer, "canonical">>(
+    memory?.layer === "external" ? "external" : "working",
+  );
+  const [lastVerifiedAt, setLastVerifiedAt] = useState(
+    memory?.lastVerifiedAt?.slice(0, 10) ?? "",
+  );
   const [changeNote, setChangeNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +135,10 @@ function MemoryEditor({
           allowedActorIds,
           sourceIds: [],
           confidence: confidence === "" ? null : Number(confidence),
+          custody,
+          layer,
+          provenance: {},
+          lastVerifiedAt: lastVerifiedAt ? new Date(`${lastVerifiedAt}T00:00:00.000Z`).toISOString() : null,
           changeNote,
         });
       }
@@ -155,6 +168,29 @@ function MemoryEditor({
           {!memory ? (
             <>
               <div className="form-grid">
+                <label>
+                  <span>{t("memory.custody")}</span>
+                  <select value={custody} onChange={(event) => {
+                    const next = event.target.value as "guild" | "personal";
+                    setCustody(next);
+                    if (next === "personal") {
+                      setVisibility("private");
+                      setAllowedActorIds([]);
+                    }
+                  }}>
+                    <option value="guild">{t("memory.custody.guild")}</option>
+                    <option value="personal">{t("memory.custody.personal")}</option>
+                  </select>
+                  <small>{t(`memory.custody.${custody}.hint`)}</small>
+                </label>
+                <label>
+                  <span>{t("memory.layer")}</span>
+                  <select value={layer} onChange={(event) => setLayer(event.target.value as Exclude<MemoryLayer, "canonical">)}>
+                    {MEMORY_LAYERS.filter((value) => value !== "canonical").map((value) => (
+                      <option key={value} value={value}>{t(`memory.layer.${value}`)}</option>
+                    ))}
+                  </select>
+                </label>
                 <label>
                   <span>{t("memory.space")}</span>
                   <select aria-label={t("memory.space")} value={spaceId} onChange={(event) => chooseSpace(event.target.value)}>
@@ -197,7 +233,7 @@ function MemoryEditor({
               <div className="form-grid">
                 <label>
                   <span>{t("memory.visibility")}</span>
-                  <select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}>
+                  <select value={visibility} disabled={custody === "personal"} onChange={(event) => setVisibility(event.target.value as Visibility)}>
                     {VISIBILITIES.filter((value) => value !== "space" || spaceId !== "").map((value) => <option key={value} value={value}>{t(visibilityTranslationKey(value))}</option>)}
                   </select>
                 </label>
@@ -208,7 +244,7 @@ function MemoryEditor({
                   </select>
                 </label>
               </div>
-              {visibility === "restricted" || visibility === "private" ? (
+              {custody === "guild" && (visibility === "restricted" || visibility === "private") ? (
                 <fieldset className="actor-share-list">
                   <legend>{t("people.members")}</legend>
                   {directory?.identities.filter((identity) => identity.membershipState !== "departed").map((identity) => (
@@ -222,6 +258,10 @@ function MemoryEditor({
               <label>
                 <span>{t("memory.confidence")}</span>
                 <input type="number" min="0" max="1" step="0.05" value={confidence} onChange={(event) => setConfidence(event.target.value)} />
+              </label>
+              <label>
+                <span>{t("memory.lastVerifiedAt")}</span>
+                <input type="date" value={lastVerifiedAt} onChange={(event) => setLastVerifiedAt(event.target.value)} />
               </label>
             </>
           ) : null}

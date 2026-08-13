@@ -2,6 +2,7 @@ import {
   ArrowRight,
   Bell,
   BookOpen,
+  BookOpenCheck,
   Bot,
   Check,
   CheckCircle2,
@@ -10,10 +11,11 @@ import {
   KeyRound,
   ListTodo,
   MessageCircleQuestion,
+  ShieldAlert,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { GuildUiApi, UiCollectiveContext, UiDirectory, UiMemberBootstrapState } from "../../src/management-types";
+import type { GuildUiApi, UiAgentRun, UiCollectiveContext, UiDirectory, UiMemberBootstrapState } from "../../src/management-types";
 import type { AppPage } from "../components/AppShell";
 import { useI18n } from "../i18n";
 
@@ -22,6 +24,25 @@ interface HomeOverview {
   openActivityCount: number | null;
   unreadCount: number | null;
   pendingApprovalCount: number | null;
+  activeAgentRunCount: number | null;
+  memoryReviewCount: number | null;
+  highRiskRunCount: number | null;
+}
+
+function runNeedsAttention(run: UiAgentRun): boolean {
+  if (run.status === "failed") return true;
+  if (["planning", "awaiting_approval", "running"].includes(run.status) && run.riskLevel >= 2) {
+    return true;
+  }
+  const ratios = [
+    [run.usage.budgetMinor, run.limits.maxBudgetMinor],
+    [run.usage.tokens, run.limits.maxTokens],
+    [run.usage.durationSeconds, run.limits.maxDurationSeconds],
+    [run.usage.steps, run.limits.maxSteps],
+    [run.usage.retries, run.limits.maxRetries],
+    [run.usage.delegationDepth, run.limits.maxDelegationDepth],
+  ] as const;
+  return ratios.some(([usage, limit]) => limit > 0 && usage / limit >= 0.8);
 }
 
 const EMPTY_OVERVIEW: HomeOverview = {
@@ -29,6 +50,9 @@ const EMPTY_OVERVIEW: HomeOverview = {
   openActivityCount: null,
   unreadCount: null,
   pendingApprovalCount: null,
+  activeAgentRunCount: null,
+  memoryReviewCount: null,
+  highRiskRunCount: null,
 };
 
 export function HomePage({ api, bootstrap, collective, directory, onNavigate }: {
@@ -49,14 +73,25 @@ export function HomePage({ api, bootstrap, collective, directory, onNavigate }: 
       api.getActivityPage({ assigneeActorId: bootstrap.accountId, statuses: ["proposed", "planned", "ready", "active", "paused", "blocked"] }),
       api.getInboxPage({ unreadOnly: true }),
       api.getAgentRunPage(),
-    ]).then(([knowledge, work, inbox, runs]) => {
+      api.getContextPage(),
+    ]).then(([knowledge, work, inbox, runs, context]) => {
       if (!current) return;
+      const activeRuns = runs.status === "fulfilled"
+        ? runs.value.items.filter((run) => ["planning", "awaiting_approval", "running"].includes(run.status))
+        : null;
       setOverview({
         memoryCount: knowledge.status === "fulfilled" ? knowledge.value.items.length : null,
         openActivityCount: work.status === "fulfilled" ? work.value.items.length : null,
         unreadCount: inbox.status === "fulfilled" ? inbox.value.unreadCount : null,
         pendingApprovalCount: runs.status === "fulfilled"
           ? runs.value.items.filter((run) => run.status === "awaiting_approval" && run.capabilities.review).length
+          : null,
+        activeAgentRunCount: activeRuns?.length ?? null,
+        memoryReviewCount: context.status === "fulfilled"
+          ? context.value.reviewSignals.filter((signal) => signal.status === "open").length
+          : null,
+        highRiskRunCount: runs.status === "fulfilled"
+          ? runs.value.items.filter(runNeedsAttention).length
           : null,
       });
       setOverviewLoading(false);
@@ -166,6 +201,27 @@ export function HomePage({ api, bootstrap, collective, directory, onNavigate }: 
       value: overview.openActivityCount,
       icon: ListTodo,
       page: "activity" as const,
+    } : null,
+    overview.activeAgentRunCount !== null && overview.activeAgentRunCount > 0 ? {
+      id: "agent-progress",
+      label: t("home.agentProgress"),
+      value: overview.activeAgentRunCount,
+      icon: Bot,
+      page: "members" as const,
+    } : null,
+    overview.memoryReviewCount !== null && overview.memoryReviewCount > 0 ? {
+      id: "memory-review",
+      label: t("home.memoryReviews"),
+      value: overview.memoryReviewCount,
+      icon: BookOpenCheck,
+      page: "context" as const,
+    } : null,
+    overview.highRiskRunCount !== null && overview.highRiskRunCount > 0 ? {
+      id: "current-risks",
+      label: t("home.currentRisks"),
+      value: overview.highRiskRunCount,
+      icon: ShieldAlert,
+      page: "members" as const,
     } : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null);
 

@@ -54,7 +54,7 @@ test("creates, proposes, and records a Human Decision approval", async ({ page }
   await page.getByLabel("Language").selectOption("ja");
   await expect(page.getByRole("heading", { name: "意思決定", exact: true })).toBeVisible();
   await page.getByLabel("言語").selectOption("zh-CN");
-  await expect(page.getByRole("heading", { name: "意思決定", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "决策", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

@@ -28,6 +28,29 @@ function ConstitutionDialog({
     constitution.dataRetentionDays,
   );
   const [agentDefaults, setAgentDefaults] = useState<AgentLimits>(constitution.agentDefaults);
+  const [principles, setPrinciples] = useState(constitution.principles ?? "");
+  const [publicScope, setPublicScope] = useState(constitution.publicScope ?? "");
+  const [preboardingRequired, setPreboardingRequired] = useState(
+    constitution.membershipPolicy?.preboardingRequired ?? true,
+  );
+  const [defaultVisibility, setDefaultVisibility] = useState(
+    constitution.dataPolicy?.defaultVisibility ?? "guild",
+  );
+  const [defaultClassification, setDefaultClassification] = useState(
+    constitution.dataPolicy?.defaultClassification ?? "internal",
+  );
+  const [personalDataOnDeparture, setPersonalDataOnDeparture] = useState(
+    constitution.dataPolicy?.personalDataOnDeparture ?? "retain_by_policy",
+  );
+  const [level0Automatic, setLevel0Automatic] = useState(
+    constitution.agentPolicy?.level0Automatic ?? true,
+  );
+  const [level1Automatic, setLevel1Automatic] = useState(
+    constitution.agentPolicy?.level1Automatic ?? false,
+  );
+  const [externalSharingEnabled, setExternalSharingEnabled] = useState(
+    constitution.externalSharingPolicy?.enabled ?? false,
+  );
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +70,28 @@ function ConstitutionDialog({
         level3ApprovalQuorum,
         dataRetentionDays,
         agentDefaults,
+        principles: principles.trim(),
+        publicScope: publicScope.trim(),
+        membershipPolicy: {
+          preboardingRequired,
+          departureMode: "revoke_then_handover",
+        },
+        dataPolicy: {
+          defaultVisibility,
+          defaultClassification,
+          personalDataOnDeparture,
+          crossGuildSharing: "explicit_only",
+        },
+        agentPolicy: {
+          level0Automatic,
+          level1Automatic,
+          level2HumanApproval: true,
+          level3MultiHumanApproval: true,
+        },
+        externalSharingPolicy: {
+          enabled: externalSharingEnabled,
+          requireHumanApproval: true,
+        },
         reason: reason.trim(),
       });
       onClose();
@@ -83,6 +128,17 @@ function ConstitutionDialog({
         <form className="stack-form" onSubmit={(event) => void submit(event)}>
           {error ? <Notice kind="error">{error}</Notice> : null}
           <fieldset>
+            <legend>{t("settings.constitutionIdentity")}</legend>
+            <label>
+              <span>{t("settings.principles")}</span>
+              <textarea maxLength={20_000} rows={4} value={principles} onChange={(event) => setPrinciples(event.target.value)} />
+            </label>
+            <label>
+              <span>{t("settings.publicScope")}</span>
+              <textarea maxLength={10_000} rows={3} value={publicScope} onChange={(event) => setPublicScope(event.target.value)} />
+            </label>
+          </fieldset>
+          <fieldset>
             <legend>{t("settings.approvalPolicy")}</legend>
             <div className="form-grid">
               <label>
@@ -110,6 +166,60 @@ function ConstitutionDialog({
                 />
               </label>
             </div>
+          </fieldset>
+          <fieldset>
+            <legend>{t("settings.membershipPolicy")}</legend>
+            <label className="toggle-row">
+              <input type="checkbox" checked={preboardingRequired} onChange={(event) => setPreboardingRequired(event.target.checked)} />
+              <span>{t("settings.preboardingRequired")}</span>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>{t("settings.dataPolicy")}</legend>
+            <div className="form-grid">
+              <label>
+                <span>{t("settings.defaultVisibility")}</span>
+                <select value={defaultVisibility} onChange={(event) => setDefaultVisibility(event.target.value as typeof defaultVisibility)}>
+                  <option value="guild">{t("visibility.guild")}</option>
+                  <option value="space">{t("visibility.space")}</option>
+                  <option value="restricted">{t("visibility.restricted")}</option>
+                  <option value="private">{t("visibility.private")}</option>
+                </select>
+              </label>
+              <label>
+                <span>{t("settings.defaultClassification")}</span>
+                <select value={defaultClassification} onChange={(event) => setDefaultClassification(event.target.value as typeof defaultClassification)}>
+                  <option value="public">{t("classification.public")}</option>
+                  <option value="internal">{t("classification.internal")}</option>
+                  <option value="confidential">{t("classification.confidential")}</option>
+                  <option value="restricted">{t("classification.restricted")}</option>
+                </select>
+              </label>
+              <label>
+                <span>{t("settings.personalDeparture")}</span>
+                <select value={personalDataOnDeparture} onChange={(event) => setPersonalDataOnDeparture(event.target.value as typeof personalDataOnDeparture)}>
+                  <option value="retain_by_policy">{t("settings.personalDepartureRetain")}</option>
+                  <option value="archive">{t("settings.personalDepartureArchive")}</option>
+                  <option value="delete_after_retention">{t("settings.personalDepartureDelete")}</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>{t("settings.agentPolicy")}</legend>
+            <label className="toggle-row">
+              <input type="checkbox" checked={level0Automatic} onChange={(event) => setLevel0Automatic(event.target.checked)} />
+              <span>{t("settings.level0Automatic")}</span>
+            </label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={level1Automatic} onChange={(event) => setLevel1Automatic(event.target.checked)} />
+              <span>{t("settings.level1Automatic")}</span>
+            </label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={externalSharingEnabled} onChange={(event) => setExternalSharingEnabled(event.target.checked)} />
+              <span>{t("settings.externalSharingEnabled")}</span>
+            </label>
+            <Notice>{t("settings.highRiskHumanApproval")}</Notice>
           </fieldset>
           <label>
             <span>{t("settings.retentionDays")}</span>
@@ -224,6 +334,8 @@ export function ConstitutionManager({
         <div><dt>{t("settings.agentBudget")}</dt><dd>{constitution.agentDefaults.maxBudgetMinor} {constitution.agentDefaults.currency}</dd></div>
         <div><dt>{t("settings.agentTokens")}</dt><dd>{constitution.agentDefaults.maxTokens}</dd></div>
         <div><dt>{t("settings.constitutionUpdated")}</dt><dd>{updatedLabel}</dd></div>
+        <div><dt>{t("settings.preboardingRequired")}</dt><dd>{(constitution.membershipPolicy?.preboardingRequired ?? true) ? t("common.enabled") : t("common.disabled")}</dd></div>
+        <div><dt>{t("settings.externalSharingEnabled")}</dt><dd>{(constitution.externalSharingPolicy?.enabled ?? false) ? t("common.enabled") : t("common.disabled")}</dd></div>
       </dl>
       <Notice>{t(rootOwner ? "settings.constitutionRootOnly" : "settings.constitutionReadOnly")}</Notice>
       {dialogOpen ? (

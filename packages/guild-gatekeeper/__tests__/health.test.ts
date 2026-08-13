@@ -6,6 +6,7 @@ import {
 import type { GuildEnv } from "../src/config.js";
 import {
   handleHealthRequest,
+  handleGatekeeperRequest,
   runGuildMaintenance,
 } from "../src/index.js";
 
@@ -75,6 +76,30 @@ describe("Guild Gatekeeper operations", () => {
     error.mockRestore();
   });
 
+  it("routes only signed Federation endpoints to the Federation runtime", async () => {
+    const federation = vi.fn(async () => new Response("federation", { status: 202 }));
+    const readiness = vi.fn(async () => ({
+      name: CURRENT_GUILD_SCHEMA_MIGRATION,
+      checksum: CURRENT_GUILD_SCHEMA_CHECKSUM,
+    }));
+    const response = await handleGatekeeperRequest(
+      new Request("https://gatekeeper.example/api/federation/v1/deliveries", { method: "POST" }),
+      env,
+      { readinessProbe: readiness, handleFederation: federation },
+    );
+    expect(response.status).toBe(202);
+    expect(federation).toHaveBeenCalledTimes(1);
+    expect(readiness).not.toHaveBeenCalled();
+
+    const missing = await handleGatekeeperRequest(
+      new Request("https://gatekeeper.example/api/federation/v1/unknown", { method: "POST" }),
+      env,
+      { readinessProbe: readiness, handleFederation: federation },
+    );
+    expect(missing.status).toBe(404);
+    expect(federation).toHaveBeenCalledTimes(1);
+  });
+
   it("logs bounded maintenance counts without Guild content", async () => {
     const logs: string[] = [];
     const clock = [100, 135];
@@ -84,6 +109,30 @@ describe("Guild Gatekeeper operations", () => {
       },
       async drainWorkflows() {
         return 4;
+      },
+      async drainEmbeddings() {
+        return 2;
+      },
+      async scanMemory() {
+        return { deterministic: 1, contradictions: 0 };
+      },
+      async drainExports() {
+        return { processed: 1, completed: 1, failed: 0, expired: 0 };
+      },
+      async drainAutomation() {
+        return [{ status: "dispatched", requestId: "request", agentRunId: "run", duplicate: false }];
+      },
+      async drainRetention() {
+        return [{
+          status: "completed" as const,
+          runId: "run",
+          dryRun: true,
+          candidateCount: 3,
+          affectedCount: 0,
+        }];
+      },
+      async drainFederation() {
+        return { status: "sent" as const, deliveryId: "delivery", remoteStatus: "accepted" as const };
       },
       now() {
         return clock.shift() ?? 135;
@@ -102,6 +151,12 @@ describe("Guild Gatekeeper operations", () => {
       durationMs: 35,
       files: { expired: 3, claimed: 2, completed: 1, deferred: 1 },
       workflowMessages: 4,
+      embeddings: 2,
+      memoryHealth: { deterministic: 1, contradictions: 0 },
+      dataExports: { processed: 1, completed: 1, failed: 0, expired: 0 },
+      automation: { processed: 1, dispatched: 1 },
+      retention: { processed: 1, completed: 1, failed: 0, leaseLost: 0 },
+      federation: { status: "sent" },
     })]);
   });
 
@@ -113,6 +168,24 @@ describe("Guild Gatekeeper operations", () => {
       },
       async drainWorkflows() {
         return 0;
+      },
+      async drainEmbeddings() {
+        return 0;
+      },
+      async scanMemory() {
+        return { deterministic: 0, contradictions: 0 };
+      },
+      async drainExports() {
+        return { processed: 0, completed: 0, failed: 0, expired: 0 };
+      },
+      async drainAutomation() {
+        return [{ status: "idle" }];
+      },
+      async drainRetention() {
+        return [];
+      },
+      async drainFederation() {
+        return { status: "idle" as const };
       },
       now: () => 100,
       info() {

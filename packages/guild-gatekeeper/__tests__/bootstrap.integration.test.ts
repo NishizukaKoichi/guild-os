@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { withGuildTransaction } from "@guild-os/postgres";
 import type { GuildEnv } from "../src/config.js";
 import { prepareGuildAccount } from "../src/bootstrap.js";
 import { GuildManagementApiImpl } from "../src/management-api.js";
@@ -175,5 +176,104 @@ integration("Guild bootstrap boundary", () => {
     expect(context.spaces.every((space) => !space.canConfigure)).toBe(true);
     expect(context.canConfigure).toBe(false);
     expect(context.canConfigureSpaces).toBe(false);
+  });
+
+  it("assigns complete template onboarding on claim and adds Role-scoped paths atomically", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const env = guildEnv(randomUUID());
+    const rootId = randomUUID();
+    const memberId = randomUUID();
+    const root = new GuildManagementApiImpl(env, rootId, true);
+    await root.initializeGuild({
+      ...collectiveSetup,
+      displayName: "Lifecycle Custodian",
+      preferredLocale: "en",
+      confirmation: env.GUILD_NAME,
+    });
+
+    const directory = await root.getDirectory();
+    const rootSpace = directory.spaces[0];
+    const participantRole = directory.roles.find((role) => role.name === "Participant");
+    if (!rootSpace || !participantRole) throw new Error("Template defaults were not provisioned.");
+    const invitation = await root.issueInvitation({
+      inviteeLabel: "Preboarding participant",
+      roleId: participantRole.id,
+      spaceId: rootSpace.id,
+      initialMembershipState: "preboarding",
+      expiresInDays: 7,
+    });
+    const member = new GuildManagementApiImpl(env, memberId, false);
+    await member.claimInvitation({
+      token: invitation.token,
+      displayName: "Preboarding Participant",
+      preferredLocale: "en",
+    });
+
+    const initialPage = await member.getLifecyclePage();
+    expect(initialPage.canManage).toBe(false);
+    expect(initialPage.paths).toEqual([]);
+    expect(initialPage.assignments).toEqual([]);
+    expect(initialPage.myAssignments).toHaveLength(1);
+    expect(initialPage.myAssignments[0]?.path.templateKey).toBe("blank");
+    expect(initialPage.myAssignments[0]?.requirements.map((requirement) => requirement.kind))
+      .toEqual(["memory", "acknowledgement", "activity"]);
+
+    const firstRequirement = initialPage.myAssignments[0]?.requirements[0];
+    const initialAssignment = initialPage.myAssignments[0]?.assignment;
+    if (!firstRequirement || !initialAssignment) throw new Error("Onboarding was not assigned.");
+    await member.completeOnboardingRequirement({
+      assignmentId: initialAssignment.id,
+      requirementId: firstRequirement.id,
+      evidence: "Read and understood during integration verification.",
+    });
+    expect((await member.getLifecyclePage()).myAssignments[0]?.requirements[0]?.completedAt)
+      .not.toBeNull();
+
+    const specialistRoleId = await root.createRole({
+      name: "Specialist participant",
+      permissions: ["lifecycle.read", "memory.read", "activity.read"],
+    });
+    const specialistPathId = await root.createOnboardingPath({
+      name: "Specialist orientation",
+      description: "Role-specific operating boundary.",
+      spaceId: rootSpace.id,
+      roleIds: [specialistRoleId],
+      requirements: [{
+        kind: "checklist",
+        resourceId: null,
+        title: "Confirm the specialist boundary",
+        instructions: "Acknowledge the additional Role scope.",
+        required: true,
+      }],
+    });
+    await root.assignRole({
+      identityId: memberId,
+      roleId: specialistRoleId,
+      spaceId: rootSpace.id,
+    });
+
+    const roleChangedPage = await member.getLifecyclePage();
+    expect(roleChangedPage.myAssignments.map((assignment) => assignment.path.id))
+      .toEqual(expect.arrayContaining([initialAssignment.pathId, specialistPathId]));
+    expect(roleChangedPage.myAssignments.find((assignment) =>
+      assignment.path.id === specialistPathId)?.requirements.map((requirement) => requirement.kind))
+      .toEqual(["checklist"]);
+
+    const persisted = await withGuildTransaction(
+      connectionString,
+      env.GUILD_ID,
+      async (connection) => (await connection.query<{
+        assignment_count: string;
+        member_activity_count: string;
+      }>(
+        `SELECT
+           (SELECT count(*)::text FROM onboarding_assignments
+             WHERE guild_id = $1 AND actor_id = $2) AS assignment_count,
+           (SELECT count(*)::text FROM activities
+             WHERE guild_id = $1 AND assignee_actor_id = $2) AS member_activity_count`,
+        [env.GUILD_ID, memberId],
+      )).rows[0],
+    );
+    expect(persisted).toEqual({ assignment_count: "2", member_activity_count: "1" });
   });
 });

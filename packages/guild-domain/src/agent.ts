@@ -23,6 +23,7 @@ export const AGENT_RUN_TRANSITIONS = {
 } as const satisfies Record<AgentRunStatus, readonly AgentRunStatus[]>;
 
 const EVENT_TYPE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_PLAN_STEPS = 50;
 const MAX_WEBHOOK_PAYLOAD_BYTES = 32 * 1024;
 const MAX_JSON_DEPTH = 10;
@@ -52,20 +53,62 @@ export function assertAgentRunPlan(plan: AgentRunPlan): void {
     );
   }
   for (const step of plan.steps) assertNonBlank(step, "Agent run step", 500);
-  if (plan.action.kind !== "https_webhook" || !EVENT_TYPE_PATTERN.test(plan.action.eventType)) {
-    throw new GuildDomainError(
-      "INVALID_INPUT",
-      "Webhook event type must use 1-100 letters, numbers, dots, underscores, or hyphens.",
-    );
-  }
-  const jsonState = { properties: 0 };
-  assertBoundedJson(plan.action.payload, 0, jsonState);
-  const payloadSize = new TextEncoder().encode(JSON.stringify(plan.action.payload)).byteLength;
-  if (payloadSize > MAX_WEBHOOK_PAYLOAD_BYTES) {
-    throw new GuildDomainError(
-      "INVALID_INPUT",
-      `Webhook payload must not exceed ${MAX_WEBHOOK_PAYLOAD_BYTES} bytes.`,
-    );
+  switch (plan.action.kind) {
+    case "memory_search":
+      assertNonBlank(plan.action.query, "Memory search query", 500);
+      break;
+    case "activity_draft":
+      assertNonBlank(plan.action.title, "Activity draft title", 200);
+      if (plan.action.description.length > 10_000) {
+        throw new GuildDomainError("INVALID_INPUT", "Activity draft description is too long.");
+      }
+      break;
+    case "agent_delegate":
+      if (!UUID_PATTERN.test(plan.action.targetAgentActorId)) {
+        throw new GuildDomainError("INVALID_INPUT", "Delegated Agent ID is invalid.");
+      }
+      assertNonBlank(plan.action.objective, "Delegated objective", 5_000);
+      break;
+    case "connection_invoke": {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(plan.action.capabilityId)) {
+        throw new GuildDomainError("INVALID_INPUT", "Connection capability ID is invalid.");
+      }
+      const jsonState = { properties: 0 };
+      assertBoundedJson(plan.action.input, 0, jsonState);
+      const inputSize = new TextEncoder().encode(JSON.stringify(plan.action.input)).byteLength;
+      if (inputSize > MAX_WEBHOOK_PAYLOAD_BYTES) {
+        throw new GuildDomainError(
+          "INVALID_INPUT",
+          `Connection input must not exceed ${MAX_WEBHOOK_PAYLOAD_BYTES} bytes.`,
+        );
+      }
+      break;
+    }
+    case "https_webhook": {
+      if (!EVENT_TYPE_PATTERN.test(plan.action.eventType)) {
+        throw new GuildDomainError(
+          "INVALID_INPUT",
+          "Webhook event type must use 1-100 letters, numbers, dots, underscores, or hyphens.",
+        );
+      }
+      const jsonState = { properties: 0 };
+      assertBoundedJson(plan.action.payload, 0, jsonState);
+      const payloadSize = new TextEncoder().encode(JSON.stringify(plan.action.payload)).byteLength;
+      if (payloadSize > MAX_WEBHOOK_PAYLOAD_BYTES) {
+        throw new GuildDomainError(
+          "INVALID_INPUT",
+          `Webhook payload must not exceed ${MAX_WEBHOOK_PAYLOAD_BYTES} bytes.`,
+        );
+      }
+      break;
+    }
+    case "federation_publish":
+      if (!UUID_PATTERN.test(plan.action.federationLinkId) ||
+          plan.action.grantIds.length < 1 || plan.action.grantIds.length > 100 ||
+          !plan.action.grantIds.every((id) => UUID_PATTERN.test(id))) {
+        throw new GuildDomainError("INVALID_INPUT", "Federation publication scope is invalid.");
+      }
+      break;
   }
   assertEstimatedUsage(plan.estimatedUsage);
   if (plan.estimatedUsage.steps !== plan.steps.length) {

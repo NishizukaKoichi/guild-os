@@ -10,6 +10,8 @@ import {
   assertNonBlank,
   collectiveTemplate,
   type Activity,
+  type ActivityDependency,
+  type ActivityOutcome,
   type ActivityStatus,
   type ActivityType,
   type ActorKind,
@@ -24,6 +26,8 @@ import {
   type IdentityStatus,
   type LocalizedText,
   type MemoryRecord,
+  type MemoryLayer,
+  type JsonObject,
   type MemoryType,
   type MemoryVersion,
   type Visibility,
@@ -91,6 +95,24 @@ export interface CollectiveActivity extends Activity {
   compatibilitySourceType: "goal" | "project" | "quest" | "step" | null;
 }
 
+export interface ActivityReference {
+  id: string;
+  title: string;
+  status: ActivityStatus;
+}
+
+export interface CollectiveActivityDependency {
+  dependency: ActivityDependency;
+  activity: ActivityReference;
+  dependsOnActivity: ActivityReference;
+}
+
+export interface CollectiveActivityGraph {
+  dependencies: readonly CollectiveActivityDependency[];
+  dependents: readonly CollectiveActivityDependency[];
+  outcome: ActivityOutcome | null;
+}
+
 export interface CreateMemoryInput {
   id: string;
   actorId: string;
@@ -105,6 +127,10 @@ export interface CreateMemoryInput {
   allowedActorIds: readonly string[];
   sourceIds: readonly string[];
   confidence: number | null;
+  custody?: "guild" | "personal";
+  layer?: Exclude<MemoryLayer, "canonical">;
+  provenance?: JsonObject;
+  lastVerifiedAt?: string | null;
   changeNote: string;
   chronicleEvent: ChronicleEvent;
 }
@@ -164,6 +190,32 @@ export interface ActivityAssignmentInput extends ActivityMutationInput {
   assigneeActorId: string | null;
 }
 
+export interface AddActivityDependencyInput extends ActivityMutationInput {
+  id: string;
+  dependsOnActivityId: string;
+  kind: ActivityDependency["kind"];
+}
+
+export interface RemoveActivityDependencyInput extends ActivityMutationInput {
+  dependencyId: string;
+  expectedDependencyVersion: number;
+}
+
+export interface CompleteActivityInput extends ActivityMutationInput {
+  summary: string;
+  evidenceSourceIds: readonly string[];
+}
+
+export interface ActivityGraphMutationResult {
+  activityVersion: number;
+  dependency: ActivityDependency;
+}
+
+export interface ActivityCompletionResult {
+  activityVersion: number;
+  outcome: ActivityOutcome;
+}
+
 export interface ConfigureCollectiveInput {
   templateKey: CollectiveTemplateKey;
   vocabularyOverrides: Partial<CollectiveTemplateLabels>;
@@ -198,11 +250,14 @@ type MemoryRow = QueryResultRow & {
   status: "active" | "archived";
   workflow: "canonical" | null;
   governance_state: MemoryRecord["governanceState"];
+  layer: MemoryLayer;
   visibility: Visibility;
   classification: Classification;
   allowed_actor_ids: string[];
   current_version: number;
   confidence: string | null;
+  provenance: JsonObject;
+  last_verified_at: string | null;
   source_ids: string[];
   review_due_at: string | null;
   title: LocalizedText;
@@ -248,6 +303,40 @@ type ActivityRow = QueryResultRow & {
   legacy_source_type: CollectiveActivity["compatibilitySourceType"];
   created_at: string;
   updated_at: string;
+};
+
+type ActivityDependencyRow = QueryResultRow & {
+  id: string;
+  guild_id: string;
+  activity_id: string;
+  depends_on_activity_id: string;
+  kind: ActivityDependency["kind"];
+  status: ActivityDependency["status"];
+  version: number;
+  created_by_actor_id: string;
+  updated_by_actor_id: string;
+  revoked_by_actor_id: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ActivityDependencyViewRow = ActivityDependencyRow & {
+  activity_title: string;
+  activity_status: ActivityStatus;
+  depends_on_activity_title: string;
+  depends_on_activity_status: ActivityStatus;
+};
+
+type ActivityOutcomeRow = QueryResultRow & {
+  guild_id: string;
+  activity_id: string;
+  version: number;
+  activity_version: number;
+  summary: string;
+  evidence_source_ids: string[];
+  completed_by_actor_id: string;
+  completed_at: string;
 };
 
 type SettingsRow = QueryResultRow & {
@@ -309,11 +398,14 @@ function memoryFromRow(row: MemoryRow): MemorySummary {
     status: row.status,
     workflow: row.workflow,
     governanceState: row.governance_state,
+    layer: row.layer,
     visibility: row.visibility,
     classification: row.classification,
     allowedActorIds: row.allowed_actor_ids,
     currentVersion: row.current_version,
     confidence: row.confidence === null ? null : Number(row.confidence),
+    provenance: row.provenance,
+    lastVerifiedAt: optionalTimestamp(row.last_verified_at),
     sourceIds: row.source_ids,
     title: row.title,
     summary: row.summary,
@@ -361,6 +453,37 @@ function activityFromRow(row: ActivityRow): CollectiveActivity {
     compatibilitySourceType: row.legacy_source_type,
     createdAt: isoTimestamp(row.created_at),
     updatedAt: isoTimestamp(row.updated_at),
+  };
+}
+
+function activityDependencyFromRow(row: ActivityDependencyRow): ActivityDependency {
+  return {
+    id: row.id,
+    guildId: row.guild_id,
+    activityId: row.activity_id,
+    dependsOnActivityId: row.depends_on_activity_id,
+    kind: row.kind,
+    status: row.status,
+    version: row.version,
+    createdByActorId: row.created_by_actor_id,
+    updatedByActorId: row.updated_by_actor_id,
+    revokedByActorId: row.revoked_by_actor_id,
+    revokedAt: optionalTimestamp(row.revoked_at),
+    createdAt: isoTimestamp(row.created_at),
+    updatedAt: isoTimestamp(row.updated_at),
+  };
+}
+
+function activityOutcomeFromRow(row: ActivityOutcomeRow): ActivityOutcome {
+  return {
+    guildId: row.guild_id,
+    activityId: row.activity_id,
+    version: row.version,
+    activityVersion: row.activity_version,
+    summary: row.summary,
+    evidenceSourceIds: row.evidence_source_ids,
+    completedByActorId: row.completed_by_actor_id,
+    completedAt: isoTimestamp(row.completed_at),
   };
 }
 
@@ -537,6 +660,8 @@ export class GuildCollectiveRepository {
     query: string,
     locale: AppLocale = "en",
     limit = 24,
+    embedding: readonly number[] | null = null,
+    embeddingModel = "@cf/baai/bge-m3",
   ): Promise<readonly MemorySearchCandidate[]> {
     assertNonBlank(query, "Memory search query", 500);
     if (!(SUPPORTED_LOCALES as readonly string[]).includes(locale)) {
@@ -553,27 +678,43 @@ export class GuildCollectiveRepository {
        ), search_terms AS (
          SELECT search.config, websearch_to_tsquery(search.config, $3) AS terms
            FROM search
+       ), query_embedding AS (
+         SELECT CASE WHEN $6::text IS NULL THEN NULL::vector ELSE $6::vector END AS value
        )
        ${this.#memorySelect(
          "CASE WHEN memory.workflow = 'canonical' THEN memory.canonical_version ELSE memory.current_version END",
        )}
          CROSS JOIN memory_access access
          CROSS JOIN search_terms
+         CROSS JOIN query_embedding
+         LEFT JOIN memory_embeddings semantic
+           ON semantic.guild_id = memory.guild_id
+          AND semantic.memory_id = memory.id
+          AND semantic.memory_version = version.version
+          AND semantic.locale = $4
+          AND semantic.model = $7
+         JOIN resource_custody custody
+           ON custody.guild_id = memory.guild_id
+          AND custody.resource_type = 'memory' AND custody.resource_id = memory.id
+          AND custody.custody IN ('guild', 'shared')
         WHERE memory.guild_id = $1 AND ${this.#readPredicate("memory", "memory")}
           AND memory.status = 'active'
           AND (memory.workflow IS NULL OR (
             memory.canonical_version IS NOT NULL
             AND memory.governance_state NOT IN ('deprecated', 'archived')
           ))
-          AND (
+          AND (query_embedding.value IS NOT NULL OR (
             numnode(search_terms.terms) > 0
               AND to_tsvector(search_terms.config,
                 version.title::text || ' ' || version.summary::text || ' ' || version.body::text
               ) @@ search_terms.terms
             OR lower(version.title::text || ' ' || version.summary::text || ' ' || version.body::text)
                  LIKE '%' || lower($3) || '%'
-          )
+          ))
         ORDER BY
+          CASE memory.layer WHEN 'canonical' THEN 3 WHEN 'working' THEN 2 ELSE 1 END DESC,
+          CASE WHEN query_embedding.value IS NULL OR semantic.embedding IS NULL THEN 0
+               ELSE 1 - (semantic.embedding <=> query_embedding.value) END DESC,
           CASE WHEN lower(version.title::text) LIKE '%' || lower($3) || '%' THEN 1 ELSE 0 END DESC,
           ts_rank(
             to_tsvector(search_terms.config,
@@ -582,7 +723,15 @@ export class GuildCollectiveRepository {
           ) DESC,
           memory.updated_at DESC, memory.id
         LIMIT $5`,
-      [this.#guildId, actorId, query, locale, limit],
+      [
+        this.#guildId,
+        actorId,
+        query,
+        locale,
+        limit,
+        embedding === null ? null : `[${embedding.join(",")}]`,
+        embeddingModel,
+      ],
     )).rows;
     return rows.map((row) => ({
       ...memoryFromRow(row),
@@ -618,9 +767,10 @@ export class GuildCollectiveRepository {
       `INSERT INTO memories
          (id, guild_id, space_id, owner_actor_id, creator_actor_id, type,
           status, workflow, governance_state, visibility, classification,
-          allowed_actor_ids, current_version, confidence, source_ids)
+          allowed_actor_ids, current_version, confidence, source_ids, layer,
+          provenance, last_verified_at, origin_custody)
        VALUES ($1, $2, $3, $4, $5, $6, 'active', NULL, NULL, $7, $8,
-               $9::uuid[], 1, $10, $11::uuid[])`,
+               $9::uuid[], 1, $10, $11::uuid[], $12, $13::jsonb, $14, $15)`,
       [
         input.id,
         this.#guildId,
@@ -633,6 +783,10 @@ export class GuildCollectiveRepository {
         input.allowedActorIds,
         input.confidence,
         input.sourceIds,
+        input.layer ?? (input.type === "external" ? "external" : "working"),
+        JSON.stringify(input.provenance ?? {}),
+        input.lastVerifiedAt ?? null,
+        input.custody ?? "guild",
       ],
     );
     await this.#connection.query(
@@ -756,6 +910,91 @@ export class GuildCollectiveRepository {
     return this.#page(rows, pageSize, activityFromRow);
   }
 
+  async listActivityGraphs(
+    actorId: string,
+    activityIds: readonly string[],
+  ): Promise<ReadonlyMap<string, CollectiveActivityGraph>> {
+    const uniqueIds = [...new Set(activityIds)];
+    if (uniqueIds.length > MAX_PAGE_SIZE) {
+      throw new GuildDomainError("INVALID_INPUT", "Too many Activity graphs were requested.");
+    }
+    const graphs = new Map<string, {
+      dependencies: CollectiveActivityDependency[];
+      dependents: CollectiveActivityDependency[];
+      outcome: ActivityOutcome | null;
+    }>();
+    for (const activityId of uniqueIds) {
+      graphs.set(activityId, { dependencies: [], dependents: [], outcome: null });
+    }
+    if (uniqueIds.length === 0) return graphs;
+
+    const visibleActivitiesCte = `${this.#authorizationCtes("activity", "activity.read")},
+      visible_activities AS (
+        SELECT activity.id, activity.title, activity.status
+          FROM activities activity
+          CROSS JOIN activity_access access
+         WHERE activity.guild_id = $1 AND ${this.#readPredicate("activity", "activity")}
+      )`;
+    const dependencyRows = (await this.#connection.query<ActivityDependencyViewRow>(
+      `WITH RECURSIVE ${visibleActivitiesCte}
+       SELECT dependency.id::text, dependency.guild_id::text,
+              dependency.activity_id::text, dependency.depends_on_activity_id::text,
+              dependency.kind, dependency.status, dependency.version,
+              dependency.created_by_actor_id::text, dependency.updated_by_actor_id::text,
+              dependency.revoked_by_actor_id::text, dependency.revoked_at::text,
+              dependency.created_at::text, dependency.updated_at::text,
+              activity.title AS activity_title, activity.status AS activity_status,
+              predecessor.title AS depends_on_activity_title,
+              predecessor.status AS depends_on_activity_status
+         FROM activity_dependencies dependency
+         JOIN visible_activities activity ON activity.id = dependency.activity_id
+         JOIN visible_activities predecessor
+           ON predecessor.id = dependency.depends_on_activity_id
+        WHERE dependency.guild_id = $1 AND dependency.status = 'active'
+          AND (dependency.activity_id = ANY($3::uuid[])
+            OR dependency.depends_on_activity_id = ANY($3::uuid[]))
+        ORDER BY dependency.created_at, dependency.id`,
+      [this.#guildId, actorId, uniqueIds],
+    )).rows;
+
+    for (const row of dependencyRows) {
+      const view: CollectiveActivityDependency = {
+        dependency: activityDependencyFromRow(row),
+        activity: {
+          id: row.activity_id,
+          title: row.activity_title,
+          status: row.activity_status,
+        },
+        dependsOnActivity: {
+          id: row.depends_on_activity_id,
+          title: row.depends_on_activity_title,
+          status: row.depends_on_activity_status,
+        },
+      };
+      graphs.get(row.activity_id)?.dependencies.push(view);
+      graphs.get(row.depends_on_activity_id)?.dependents.push(view);
+    }
+
+    const outcomeRows = (await this.#connection.query<ActivityOutcomeRow>(
+      `WITH RECURSIVE ${visibleActivitiesCte}
+       SELECT DISTINCT ON (outcome.activity_id)
+              outcome.guild_id::text, outcome.activity_id::text,
+              outcome.version, outcome.activity_version, outcome.summary,
+              outcome.evidence_source_ids::text[],
+              outcome.completed_by_actor_id::text, outcome.completed_at::text
+         FROM activity_outcomes outcome
+         JOIN visible_activities activity ON activity.id = outcome.activity_id
+        WHERE outcome.guild_id = $1 AND outcome.activity_id = ANY($3::uuid[])
+        ORDER BY outcome.activity_id, outcome.version DESC`,
+      [this.#guildId, actorId, uniqueIds],
+    )).rows;
+    for (const row of outcomeRows) {
+      const graph = graphs.get(row.activity_id);
+      if (graph) graph.outcome = activityOutcomeFromRow(row);
+    }
+    return graphs;
+  }
+
   async getActivity(activityId: string, forUpdate = false): Promise<CollectiveActivity> {
     const row = (await this.#connection.query<ActivityRow>(
       `${this.#activitySelect()} WHERE activity.guild_id = $1 AND activity.id = $2${
@@ -823,6 +1062,12 @@ export class GuildCollectiveRepository {
     const activity = await this.getActivity(input.activityId, true);
     this.#assertDirectActivity(activity);
     this.#assertExpectedVersion(activity.version, input.expectedVersion, "Activity");
+    if (input.status === "completed") {
+      throw new GuildDomainError(
+        "INVALID_INPUT",
+        "Complete an Activity with an outcome instead of changing its status directly.",
+      );
+    }
     assertActivityTransition(activity.status, input.status);
     const result = await this.#connection.query<{ version: number }>(
       `UPDATE activities SET status = $3, version = version + 1
@@ -850,6 +1095,191 @@ export class GuildCollectiveRepository {
     if (!version) throw new Error("Activity changed since it was loaded.");
     await this.#chronicle.appendChronicle(input.chronicleEvent);
     return version;
+  }
+
+  async getActivityDependency(
+    dependencyId: string,
+    forUpdate = false,
+  ): Promise<ActivityDependency> {
+    const row = (await this.#connection.query<ActivityDependencyRow>(
+      `${this.#activityDependencySelect()}
+        WHERE dependency.guild_id = $1 AND dependency.id = $2${
+        forUpdate ? " FOR UPDATE OF dependency" : ""
+      }`,
+      [this.#guildId, dependencyId],
+    )).rows[0];
+    if (!row) throw new GuildDomainError("INVALID_INPUT", "Activity dependency was not found.");
+    return activityDependencyFromRow(row);
+  }
+
+  async addActivityDependency(
+    input: AddActivityDependencyInput,
+  ): Promise<ActivityGraphMutationResult> {
+    this.#assertEvent(input.chronicleEvent, input.actorId, "activity", input.activityId);
+    this.#assertDependencyKind(input.kind);
+    await this.#lockActivityDependencyGraph();
+    const activity = await this.getActivity(input.activityId, true);
+    this.#assertDirectActivity(activity);
+    this.#assertExpectedVersion(activity.version, input.expectedVersion, "Activity");
+    await this.getActivity(input.dependsOnActivityId, true);
+
+    const existing = (await this.#connection.query<ActivityDependencyRow>(
+      `${this.#activityDependencySelect()}
+        WHERE dependency.guild_id = $1
+          AND dependency.activity_id = $2
+          AND dependency.depends_on_activity_id = $3
+          AND dependency.kind = $4
+        FOR UPDATE OF dependency`,
+      [this.#guildId, input.activityId, input.dependsOnActivityId, input.kind],
+    )).rows[0];
+    if (existing?.status === "active") {
+      throw new GuildDomainError("INVALID_INPUT", "This Activity dependency is already active.");
+    }
+
+    let dependency: ActivityDependency;
+    if (existing) {
+      const row = (await this.#connection.query<ActivityDependencyRow>(
+        `UPDATE activity_dependencies dependency
+            SET status = 'active', version = dependency.version + 1,
+                updated_by_actor_id = $3, revoked_by_actor_id = NULL, revoked_at = NULL
+          WHERE dependency.guild_id = $1 AND dependency.id = $2
+          RETURNING dependency.id::text, dependency.guild_id::text,
+                    dependency.activity_id::text, dependency.depends_on_activity_id::text,
+                    dependency.kind, dependency.status, dependency.version,
+                    dependency.created_by_actor_id::text,
+                    dependency.updated_by_actor_id::text,
+                    dependency.revoked_by_actor_id::text, dependency.revoked_at::text,
+                    dependency.created_at::text, dependency.updated_at::text`,
+        [this.#guildId, existing.id, input.actorId],
+      )).rows[0];
+      if (!row) throw new Error("Activity dependency could not be reactivated.");
+      dependency = activityDependencyFromRow(row);
+    } else {
+      const row = (await this.#connection.query<ActivityDependencyRow>(
+        `INSERT INTO activity_dependencies
+           (id, guild_id, activity_id, depends_on_activity_id, kind,
+            created_by_actor_id, updated_by_actor_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $6)
+         RETURNING id::text, guild_id::text, activity_id::text,
+                   depends_on_activity_id::text, kind, status, version,
+                   created_by_actor_id::text, updated_by_actor_id::text,
+                   revoked_by_actor_id::text, revoked_at::text,
+                   created_at::text, updated_at::text`,
+        [
+          input.id,
+          this.#guildId,
+          input.activityId,
+          input.dependsOnActivityId,
+          input.kind,
+          input.actorId,
+        ],
+      )).rows[0];
+      if (!row) throw new Error("Activity dependency could not be created.");
+      dependency = activityDependencyFromRow(row);
+    }
+
+    const activityVersion = await this.#advanceActivityVersion(
+      input.activityId,
+      input.expectedVersion,
+    );
+    await this.#chronicle.appendChronicle(input.chronicleEvent);
+    return { activityVersion, dependency };
+  }
+
+  async removeActivityDependency(
+    input: RemoveActivityDependencyInput,
+  ): Promise<ActivityGraphMutationResult> {
+    this.#assertEvent(input.chronicleEvent, input.actorId, "activity", input.activityId);
+    await this.#lockActivityDependencyGraph();
+    const activity = await this.getActivity(input.activityId, true);
+    this.#assertDirectActivity(activity);
+    this.#assertExpectedVersion(activity.version, input.expectedVersion, "Activity");
+    const current = await this.getActivityDependency(input.dependencyId, true);
+    if (current.activityId !== input.activityId || current.status !== "active") {
+      throw new GuildDomainError("INVALID_INPUT", "Activity dependency is not active here.");
+    }
+    this.#assertExpectedVersion(
+      current.version,
+      input.expectedDependencyVersion,
+      "Activity dependency",
+    );
+
+    const row = (await this.#connection.query<ActivityDependencyRow>(
+      `UPDATE activity_dependencies dependency
+          SET status = 'revoked', version = dependency.version + 1,
+              updated_by_actor_id = $3, revoked_by_actor_id = $3, revoked_at = now()
+        WHERE dependency.guild_id = $1 AND dependency.id = $2
+          AND dependency.status = 'active' AND dependency.version = $4
+        RETURNING dependency.id::text, dependency.guild_id::text,
+                  dependency.activity_id::text, dependency.depends_on_activity_id::text,
+                  dependency.kind, dependency.status, dependency.version,
+                  dependency.created_by_actor_id::text,
+                  dependency.updated_by_actor_id::text,
+                  dependency.revoked_by_actor_id::text, dependency.revoked_at::text,
+                  dependency.created_at::text, dependency.updated_at::text`,
+      [this.#guildId, input.dependencyId, input.actorId, input.expectedDependencyVersion],
+    )).rows[0];
+    if (!row) throw new Error("Activity dependency changed since it was loaded.");
+    const activityVersion = await this.#advanceActivityVersion(
+      input.activityId,
+      input.expectedVersion,
+    );
+    await this.#chronicle.appendChronicle(input.chronicleEvent);
+    return { activityVersion, dependency: activityDependencyFromRow(row) };
+  }
+
+  async completeActivity(input: CompleteActivityInput): Promise<ActivityCompletionResult> {
+    this.#assertEvent(input.chronicleEvent, input.actorId, "activity", input.activityId);
+    assertNonBlank(input.summary, "Activity outcome summary", 10_000);
+    if (input.evidenceSourceIds.length > 100 ||
+        new Set(input.evidenceSourceIds).size !== input.evidenceSourceIds.length) {
+      throw new GuildDomainError(
+        "INVALID_INPUT",
+        "Activity outcome evidence must contain at most 100 unique source IDs.",
+      );
+    }
+    await this.#lockActivityDependencyGraph();
+    const activity = await this.getActivity(input.activityId, true);
+    this.#assertDirectActivity(activity);
+    this.#assertExpectedVersion(activity.version, input.expectedVersion, "Activity");
+    assertActivityTransition(activity.status, "completed");
+
+    const activityResult = await this.#connection.query<{ version: number }>(
+      `UPDATE activities SET status = 'completed', version = version + 1
+        WHERE guild_id = $1 AND id = $2 AND version = $3 RETURNING version`,
+      [this.#guildId, input.activityId, input.expectedVersion],
+    );
+    const activityVersion = activityResult.rows[0]?.version;
+    if (!activityVersion) throw new Error("Activity changed since it was loaded.");
+
+    const outcomeVersion = (await this.#connection.query<{ version: number }>(
+      `SELECT COALESCE(max(version), 0) + 1 AS version
+         FROM activity_outcomes
+        WHERE guild_id = $1 AND activity_id = $2`,
+      [this.#guildId, input.activityId],
+    )).rows[0]?.version;
+    if (!outcomeVersion) throw new Error("Activity outcome version could not be allocated.");
+    const outcomeRow = (await this.#connection.query<ActivityOutcomeRow>(
+      `INSERT INTO activity_outcomes
+         (guild_id, activity_id, version, activity_version, summary,
+          evidence_source_ids, completed_by_actor_id)
+       VALUES ($1, $2, $3, $4, $5, $6::uuid[], $7)
+       RETURNING guild_id::text, activity_id::text, version, activity_version,
+                 summary, evidence_source_ids::text[], completed_by_actor_id::text,
+                 completed_at::text`,
+      [
+        this.#guildId,
+        input.activityId,
+        outcomeVersion,
+        activityVersion,
+        input.summary.trim(),
+        input.evidenceSourceIds,
+        input.actorId,
+      ],
+    )).rows[0];
+    if (!outcomeRow) throw new Error("Activity outcome could not be recorded.");
+    await this.#chronicle.appendChronicle(input.chronicleEvent);
+    return { activityVersion, outcome: activityOutcomeFromRow(outcomeRow) };
   }
 
   async #assertAssignee(actorId: string): Promise<void> {
@@ -941,13 +1371,50 @@ export class GuildCollectiveRepository {
               OR $2::uuid = ANY(${alias}.allowed_actor_ids))`;
   }
 
+  #activityDependencySelect(): string {
+    return `SELECT dependency.id::text, dependency.guild_id::text,
+                   dependency.activity_id::text, dependency.depends_on_activity_id::text,
+                   dependency.kind, dependency.status, dependency.version,
+                   dependency.created_by_actor_id::text,
+                   dependency.updated_by_actor_id::text,
+                   dependency.revoked_by_actor_id::text, dependency.revoked_at::text,
+                   dependency.created_at::text, dependency.updated_at::text
+              FROM activity_dependencies dependency`;
+  }
+
+  async #lockActivityDependencyGraph(): Promise<void> {
+    await this.#connection.query(
+      `SELECT pg_advisory_xact_lock(
+         hashtext('activity_dependencies'), hashtext($1::text)
+       )`,
+      [this.#guildId],
+    );
+  }
+
+  async #advanceActivityVersion(activityId: string, expectedVersion: number): Promise<number> {
+    const version = (await this.#connection.query<{ version: number }>(
+      `UPDATE activities SET version = version + 1
+        WHERE guild_id = $1 AND id = $2 AND version = $3 RETURNING version`,
+      [this.#guildId, activityId, expectedVersion],
+    )).rows[0]?.version;
+    if (!version) throw new Error("Activity changed since it was loaded.");
+    return version;
+  }
+
+  #assertDependencyKind(kind: string): asserts kind is ActivityDependency["kind"] {
+    if (!["blocks", "relates_to", "follows"].includes(kind)) {
+      throw new GuildDomainError("INVALID_INPUT", "Activity dependency kind is invalid.");
+    }
+  }
+
   #memorySelect(versionExpression = "memory.current_version"): string {
     return `SELECT memory.id::text, memory.guild_id::text, memory.space_id::text,
                    memory.owner_actor_id::text, memory.creator_actor_id::text,
                    memory.type, memory.status, memory.workflow,
-                   memory.governance_state, memory.visibility, memory.classification,
+                   memory.governance_state, memory.layer, memory.visibility, memory.classification,
                    memory.allowed_actor_ids::text[], memory.current_version,
-                   memory.confidence::text, memory.source_ids::text[],
+                   memory.confidence::text, memory.provenance,
+                   memory.last_verified_at::text, memory.source_ids::text[],
                    memory.review_due_at::text, version.title, version.summary,
                    version.body, version.version AS evidence_version,
                    memory.created_at::text, memory.updated_at::text

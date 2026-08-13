@@ -1,10 +1,16 @@
 import {
   ArrowRight,
   CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  GitBranch,
+  Link2,
   ListTodo,
   LoaderCircle,
   Plus,
   Search,
+  Trash2,
   Workflow,
   X,
 } from "lucide-react";
@@ -19,6 +25,8 @@ import {
   type Visibility,
 } from "@guild-os/domain";
 import type {
+  AddActivityDependencyRequest,
+  CompleteActivityRequest,
   CreateActivityRequest,
   GuildUiApi,
   UiActivity,
@@ -36,12 +44,17 @@ import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
 import {
   classificationTranslationKey,
+  type TranslationKey,
   useI18n,
   visibilityTranslationKey,
 } from "../i18n";
 
 function messageFrom(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
+}
+
+function dependencyKindKey(kind: AddActivityDependencyRequest["kind"]): TranslationKey {
+  return `activity.dependency.${kind}` as TranslationKey;
 }
 
 function ActivityEditor({
@@ -180,6 +193,186 @@ function ActivityEditor({
   );
 }
 
+function ActivityDependencyDialog({
+  api,
+  activity,
+  candidates,
+  onAdd,
+  onClose,
+}: {
+  api: GuildUiApi;
+  activity: UiActivity;
+  candidates: readonly UiActivity[];
+  onAdd(input: AddActivityDependencyRequest): Promise<void>;
+  onClose(): void;
+}) {
+  const { t } = useI18n();
+  const [search, setSearch] = useState("");
+  const [available, setAvailable] = useState<readonly UiActivity[]>(candidates);
+  const [dependsOnActivityId, setDependsOnActivityId] = useState(candidates[0]?.id ?? "");
+  const [kind, setKind] = useState<AddActivityDependencyRequest["kind"]>("blocks");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!search.trim()) {
+      setAvailable(candidates);
+      setDependsOnActivityId((current) => current || candidates[0]?.id || "");
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void api.getActivityPage({ search: search.trim() }).then((result) => {
+        if (controller.signal.aborted) return;
+        const existing = new Set(activity.dependencies.map((edge) => edge.dependsOnActivityId));
+        const matches = result.items.filter((candidate) =>
+          candidate.id !== activity.id && !existing.has(candidate.id));
+        setAvailable(matches);
+        setDependsOnActivityId((current) => matches.some((candidate) => candidate.id === current)
+          ? current
+          : matches[0]?.id ?? "");
+      }).catch(() => {
+        if (!controller.signal.aborted) setError(t("error.generic"));
+      });
+    }, 250);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [activity.dependencies, activity.id, api, candidates, search, t]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!dependsOnActivityId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onAdd({
+        activityId: activity.id,
+        expectedVersion: activity.version,
+        dependsOnActivityId,
+        kind,
+      });
+      onClose();
+    } catch {
+      setError(t("error.generic"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="activity-dependency-dialog-title">
+        <header className="dialog-header">
+          <h2 id="activity-dependency-dialog-title">{t("activity.dependencyDialogTitle")}</h2>
+          <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}><X size={19} /></button>
+        </header>
+        <form className="stack-form" onSubmit={(event) => void submit(event)}>
+          {error ? <Notice kind="error">{error}</Notice> : null}
+          <p>{activity.title}</p>
+          <label className="search-field">
+            <Search size={17} />
+            <span className="sr-only">{t("common.search")}</span>
+            <input value={search} placeholder={t("activity.searchPlaceholder")} onChange={(event) => setSearch(event.target.value)} />
+          </label>
+          <label>
+            <span>{t("activity.dependencyTarget")}</span>
+            <select required value={dependsOnActivityId} onChange={(event) => setDependsOnActivityId(event.target.value)}>
+              {available.length ? available.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.title}</option>) : <option value="">{t("activity.noDependencies")}</option>}
+            </select>
+          </label>
+          <label>
+            <span>{t("activity.dependencyKind")}</span>
+            <select value={kind} onChange={(event) => setKind(event.target.value as AddActivityDependencyRequest["kind"])}>
+              {(["blocks", "follows", "relates_to"] as const).map((value) => <option key={value} value={value}>{t(dependencyKindKey(value))}</option>)}
+            </select>
+          </label>
+          <footer className="dialog-actions">
+            <button className="secondary-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
+            <button className="primary-button" type="submit" disabled={busy || !dependsOnActivityId}>{busy ? <LoaderCircle className="spin" size={17} /> : <Link2 size={17} />}<span>{t("activity.saveDependency")}</span></button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function ActivityOutcomeDialog({
+  activity,
+  onComplete,
+  onClose,
+}: {
+  activity: UiActivity;
+  onComplete(input: CompleteActivityRequest): Promise<void>;
+  onClose(): void;
+}) {
+  const { t } = useI18n();
+  const [summary, setSummary] = useState("");
+  const [evidenceSourceIds, setEvidenceSourceIds] = useState<readonly string[]>(activity.sourceIds);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggleEvidence(sourceId: string) {
+    setEvidenceSourceIds((current) => current.includes(sourceId)
+      ? current.filter((candidate) => candidate !== sourceId)
+      : [...current, sourceId]);
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await onComplete({
+        activityId: activity.id,
+        expectedVersion: activity.version,
+        summary: summary.trim(),
+        evidenceSourceIds,
+      });
+      onClose();
+    } catch {
+      setError(t("error.generic"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="activity-outcome-dialog-title">
+        <header className="dialog-header">
+          <h2 id="activity-outcome-dialog-title">{t("activity.outcomeDialogTitle")}</h2>
+          <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}><X size={19} /></button>
+        </header>
+        <form className="stack-form" onSubmit={(event) => void submit(event)}>
+          {error ? <Notice kind="error">{error}</Notice> : null}
+          <p>{activity.title}</p>
+          <label>
+            <span>{t("activity.outcomeSummary")}</span>
+            <textarea required maxLength={10_000} rows={6} value={summary} placeholder={t("activity.outcomeSummaryPlaceholder")} onChange={(event) => setSummary(event.target.value)} />
+          </label>
+          {activity.sourceIds.length ? (
+            <fieldset>
+              <legend>{t("activity.evidenceSources")}</legend>
+              {activity.sourceIds.map((sourceId, index) => (
+                <label key={sourceId} className="checkbox-row">
+                  <input type="checkbox" checked={evidenceSourceIds.includes(sourceId)} onChange={() => toggleEvidence(sourceId)} />
+                  <span>{t("activity.evidenceSource", { number: index + 1 })}</span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
+          <footer className="dialog-actions">
+            <button className="secondary-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
+            <button className="primary-button" type="submit" disabled={busy || !summary.trim()}>{busy ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}<span>{t("activity.recordOutcome")}</span></button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 export function ActivityPage({
   api,
   collective,
@@ -196,20 +389,27 @@ export function ActivityPage({
   const [search, setSearch] = useState("");
   const [type, setType] = useState<ActivityType | "">("");
   const [editor, setEditor] = useState<UiActivity | "new" | null>(null);
+  const [dependencyEditor, setDependencyEditor] = useState<UiActivity | null>(null);
+  const [outcomeEditor, setOutcomeEditor] = useState<UiActivity | null>(null);
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const filterTypes = useMemo(() => visibleActivityTypes(collective), [collective]);
   const actors = useMemo(() => new Map(directory?.identities.map((identity) => [identity.id, identity.displayName]) ?? []), [directory]);
   const dates = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }), [locale]);
+  const dateTimes = useMemo(() => new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }), [locale]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setPage(await api.getActivityPage({ search: search.trim() || null, types: type ? [type] : undefined }));
-    } catch (cause) {
-      setError(messageFrom(cause, t("error.generic")));
+    } catch {
+      setError(t("error.generic"));
     } finally {
       setLoading(false);
     }
@@ -235,8 +435,8 @@ export function ActivityPage({
     try {
       await api.changeActivityStatus({ activityId: activity.id, expectedVersion: activity.version, status });
       await load();
-    } catch (cause) {
-      setError(messageFrom(cause, t("error.generic")));
+    } catch {
+      setError(t("error.generic"));
     } finally {
       setBusyId(null);
     }
@@ -255,6 +455,33 @@ export function ActivityPage({
     }
   }
 
+  async function removeDependency(activity: UiActivity, dependencyId: string, version: number) {
+    setBusyId(activity.id);
+    setError(null);
+    try {
+      await api.removeActivityDependency({
+        activityId: activity.id,
+        expectedVersion: activity.version,
+        dependencyId,
+        expectedDependencyVersion: version,
+      });
+      await load();
+    } catch {
+      setError(t("error.generic"));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function toggleExpanded(activityId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(activityId)) next.delete(activityId);
+      else next.add(activityId);
+      return next;
+    });
+  }
+
   return (
     <>
       <PageHeader title={collective.labels.activity} subtitle={t("activity.subtitle")} action={page?.creatableSpaceIds.length ? <button className="primary-button" type="button" onClick={() => setEditor("new")}><Plus size={17} /><span>{collective.labels.startActivity}</span></button> : undefined} />
@@ -269,7 +496,12 @@ export function ActivityPage({
         <section className="activity-list">
           {page.items.map((activity) => {
             const nextStatuses = ACTIVITY_TRANSITIONS[activity.status];
+            const hasIncompleteBlocker = activity.dependencies.some((edge) =>
+              edge.kind === "blocks" && edge.dependsOnActivity.status !== "completed");
+            const availableStatuses = nextStatuses.filter((status) =>
+              !hasIncompleteBlocker || !["ready", "active", "completed"].includes(status));
             const activityProfile = contextProfileForSpace(collective, activity.spaceId);
+            const expanded = expandedIds.has(activity.id);
             return (
               <article className="activity-row" key={activity.id} style={{ "--activity-depth": depth(activity) } as React.CSSProperties}>
                 <span className="activity-branch" aria-hidden="true"><Workflow size={16} /></span>
@@ -278,11 +510,30 @@ export function ActivityPage({
                   <h2>{activity.title}</h2>
                   {activity.description ? <p>{activity.description}</p> : null}
                   <small>{activity.assigneeActorId ? actors.get(activity.assigneeActorId) ?? t("common.unknown") : t("activity.unassigned")}{activity.dueAt ? <> · <CalendarClock size={13} /> {dates.format(new Date(activity.dueAt))}</> : null}</small>
+                  {expanded ? (
+                    <section className="activity-detail-panel">
+                      <div>
+                        <h3><GitBranch size={16} />{t("activity.dependencies")}</h3>
+                        {activity.dependencies.length ? <ul>{activity.dependencies.map((edge) => <li key={edge.id}><span>{t(dependencyKindKey(edge.kind))}</span>{" "}<strong>{edge.dependsOnActivity.title}</strong>{" · "}<span>{activityStatusLabel(edge.dependsOnActivity.status, locale)}</span>{activity.capabilities.manageDependencies ? <button className="icon-button" type="button" disabled={busyId === activity.id} title={t("activity.removeDependency")} aria-label={t("activity.removeDependency")} onClick={() => void removeDependency(activity, edge.id, edge.version)}><Trash2 size={15} /></button> : null}</li>)}</ul> : <p>{t("activity.noDependencies")}</p>}
+                        {activity.capabilities.manageDependencies ? <button className="secondary-button" type="button" onClick={() => setDependencyEditor(activity)}><Link2 size={16} />{t("activity.addDependency")}</button> : null}
+                      </div>
+                      <div>
+                        <h3><GitBranch size={16} />{t("activity.dependents")}</h3>
+                        {activity.dependents.length ? <ul>{activity.dependents.map((edge) => <li key={edge.id}><span>{t(dependencyKindKey(edge.kind))}</span>{" "}<strong>{edge.activity.title}</strong>{" · "}<span>{activityStatusLabel(edge.activity.status, locale)}</span></li>)}</ul> : <p>{t("activity.noDependents")}</p>}
+                      </div>
+                      <div>
+                        <h3><CheckCircle2 size={16} />{t("activity.outcome")}</h3>
+                        {activity.outcome ? <><p>{activity.outcome.summary}</p><small>{t("activity.completedBy")}: {actors.get(activity.outcome.completedByActorId) ?? t("common.unknown")} · {t("activity.completedAt")}: {dateTimes.format(new Date(activity.outcome.completedAt))}</small>{activity.outcome.evidenceSourceIds.length ? <small>{t("activity.outcomeEvidenceCount", { count: activity.outcome.evidenceSourceIds.length })}</small> : null}</> : <p>{t("activity.noOutcome")}</p>}
+                        {activity.capabilities.recordOutcome && !hasIncompleteBlocker && nextStatuses.some((status) => status === "completed") ? <button className="primary-button" type="button" onClick={() => setOutcomeEditor(activity)}><CheckCircle2 size={16} />{t("activity.completeWithOutcome")}</button> : null}
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
                 <div className="activity-controls">
+                  <button className="text-button" type="button" aria-expanded={expanded} onClick={() => toggleExpanded(activity.id)}>{expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}{t("activity.details")}</button>
                   {activity.compatibilitySourceType ? <button className="text-button" type="button" onClick={onOpenStructured}>{t("activity.openWorkflow")}<ArrowRight size={15} /></button> : null}
                   {activity.capabilities.assign ? <label><span className="sr-only">{t("activity.assignee")}</span><select aria-label={t("activity.assignee")} disabled={busyId === activity.id} value={activity.assigneeActorId ?? ""} onChange={(event) => void assign(activity, event.target.value)}><option value="">{t("activity.unassigned")}</option>{directory?.identities.filter((identity) => identity.status === "active" && ["preboarding", "active"].includes(identity.membershipState)).map((identity) => <option key={identity.id} value={identity.id}>{identity.displayName}</option>)}</select></label> : null}
-                  {activity.capabilities.changeStatus && nextStatuses.length ? <label><span className="sr-only">{t("activity.status")}</span><select aria-label={t("activity.status")} disabled={busyId === activity.id} value="" onChange={(event) => { if (event.target.value) void changeStatus(activity, event.target.value as ActivityStatus); }}><option value="">{activityStatusLabel(activity.status, locale)}</option>{nextStatuses.map((status) => <option key={status} value={status}>{activityStatusLabel(status, locale)}</option>)}</select></label> : null}
+                  {activity.capabilities.changeStatus && availableStatuses.length ? <label><span className="sr-only">{t("activity.status")}</span><select aria-label={t("activity.status")} disabled={busyId === activity.id} value="" onChange={(event) => { if (!event.target.value) return; if (event.target.value === "completed") setOutcomeEditor(activity); else void changeStatus(activity, event.target.value as ActivityStatus); }}><option value="">{activityStatusLabel(activity.status, locale)}</option>{availableStatuses.map((status) => <option key={status} value={status}>{activityStatusLabel(status, locale)}</option>)}</select></label> : null}
                   {activity.capabilities.addChild ? <button className="icon-button" type="button" title={activityProfile.labels.startActivity} aria-label={activityProfile.labels.startActivity} onClick={() => setEditor(activity)}><Plus size={17} /></button> : null}
                 </div>
               </article>
@@ -302,6 +553,28 @@ export function ActivityPage({
           await load();
         }}
         onClose={() => setEditor(null)}
+      /> : null}
+      {dependencyEditor && page ? <ActivityDependencyDialog
+        api={api}
+        activity={dependencyEditor}
+        candidates={page.items.filter((candidate) =>
+          candidate.id !== dependencyEditor.id &&
+          !dependencyEditor.dependencies.some((edge) => edge.dependsOnActivityId === candidate.id))}
+        onAdd={async (input) => {
+          await api.addActivityDependency(input);
+          setDependencyEditor(null);
+          await load();
+        }}
+        onClose={() => setDependencyEditor(null)}
+      /> : null}
+      {outcomeEditor ? <ActivityOutcomeDialog
+        activity={outcomeEditor}
+        onComplete={async (input) => {
+          await api.completeActivity(input);
+          setOutcomeEditor(null);
+          await load();
+        }}
+        onClose={() => setOutcomeEditor(null)}
       /> : null}
     </>
   );

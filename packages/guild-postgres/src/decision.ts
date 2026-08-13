@@ -144,6 +144,31 @@ type DecisionApprovalRow = QueryResultRow & {
   created_at: string;
 };
 
+type DecisionConstitutionRow = QueryResultRow & {
+  version: number;
+  level2_approval_quorum: number;
+  level3_approval_quorum: number;
+};
+
+type DecisionResolutionRow = QueryResultRow & {
+  resolution_status: "proposed" | "approved" | "rejected";
+  resolution_option_id: string | null;
+  approval_count: number;
+  participation_count: number;
+  rejection_count: number;
+  matching_count: number;
+  eligible_count: number;
+  policy_gate_passed: boolean;
+  resolution_reason: string;
+};
+
+interface DecisionMethodCapture {
+  constitutionVersion: number;
+  requiredParticipation: number;
+  eligibleParticipantCount: number;
+  policyGatePassed: boolean;
+}
+
 const DEFAULT_PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 100;
 
@@ -357,21 +382,28 @@ export class GuildDecisionRepository {
     if (!Number.isSafeInteger(input.requiredApprovals) || input.requiredApprovals < 1) {
       throw new Error("Decision approval quorum is invalid.");
     }
-    const approverCount = await this.#countEligibleApprovers(decision);
-    if (approverCount < input.requiredApprovals) {
-      throw new Error("Decision approval quorum exceeds the number of eligible Human approvers.");
-    }
+    const governance = await this.#captureMethodGovernance(decision, input.requiredApprovals);
     const result = await this.#connection.query<{ version: number }>(
       `UPDATE decisions
           SET status = 'proposed', required_approvals = $3, version = version + 1
         WHERE guild_id = $1 AND id = $2 AND version = $4
         RETURNING version`,
-      [this.#guildId, input.id, input.requiredApprovals, input.expectedVersion],
+      [this.#guildId, input.id, governance.requiredParticipation, input.expectedVersion],
     );
     const version = result.rows[0]?.version;
     if (!version) throw new Error("Decision changed since it was loaded.");
     await this.#notifyEligibleApprovers(decision, version);
-    await this.#chronicle.appendChronicle(input.chronicleEvent);
+    await this.#chronicle.appendChronicle({
+      ...input.chronicleEvent,
+      details: {
+        ...input.chronicleEvent.details,
+        decisionMethod: decision.method,
+        constitutionVersion: governance.constitutionVersion,
+        requiredParticipation: governance.requiredParticipation,
+        eligibleParticipantCount: governance.eligibleParticipantCount,
+        policyGatePassed: governance.policyGatePassed,
+      },
+    });
     return version;
   }
 
@@ -393,38 +425,33 @@ export class GuildDecisionRepository {
         input.reason,
       ],
     );
-    const counts = (await this.#connection.query<{
-      approval_count: number;
-      matching_count: number;
-    }>(
-      `SELECT count(*) FILTER (WHERE verdict = 'approve')::integer AS approval_count,
-              count(*) FILTER (
-                WHERE verdict = 'approve' AND selected_option_id = $3
-              )::integer AS matching_count
-         FROM decision_approvals
-        WHERE guild_id = $1 AND decision_id = $2`,
-      [this.#guildId, input.id, input.selectedOptionId],
+    const resolution = (await this.#connection.query<DecisionResolutionRow>(
+      `SELECT resolution_status, resolution_option_id::text, approval_count,
+              participation_count, rejection_count, matching_count, eligible_count,
+              policy_gate_passed, resolution_reason
+         FROM guild_runtime.evaluate_decision_resolution($1, $2)`,
+      [this.#guildId, input.id],
     )).rows[0];
-    const approvalCount = counts?.approval_count ?? 0;
-    const approved = input.verdict === "approve" &&
-      (counts?.matching_count ?? 0) >= decision.requiredApprovals;
-    const rejected = input.verdict === "reject";
-    const status = rejected ? "rejected" as const : approved ? "approved" as const : "proposed" as const;
+    if (!resolution) throw new Error("Decision method evaluation did not return a result.");
+    const status = resolution.resolution_status;
+    const approvalCount = resolution.approval_count;
     const result = await this.#connection.query<{ version: number }>(
       `UPDATE decisions
           SET status = $3,
               approval_count = $4,
-              selected_option_id = CASE WHEN $3 = 'approved' THEN $5::uuid ELSE NULL END,
+              participation_count = $5,
+              selected_option_id = CASE WHEN $3 = 'approved' THEN $6::uuid ELSE NULL END,
               decided_at = CASE WHEN $3 IN ('approved', 'rejected') THEN now() ELSE NULL END,
               version = version + 1
-        WHERE guild_id = $1 AND id = $2 AND version = $6
+        WHERE guild_id = $1 AND id = $2 AND version = $7
         RETURNING version`,
       [
         this.#guildId,
         input.id,
         status,
         approvalCount,
-        input.selectedOptionId,
+        resolution.participation_count,
+        resolution.resolution_option_id,
         input.expectedVersion,
       ],
     );
@@ -433,7 +460,22 @@ export class GuildDecisionRepository {
     if (status !== "proposed") {
       await this.#notify(decision.proposerIdentityId, decision, version);
     }
-    await this.#chronicle.appendChronicle(input.chronicleEvent);
+    await this.#chronicle.appendChronicle({
+      ...input.chronicleEvent,
+      details: {
+        ...input.chronicleEvent.details,
+        decisionMethod: decision.method,
+        resolutionStatus: status,
+        resolutionReason: resolution.resolution_reason,
+        selectedOptionId: resolution.resolution_option_id,
+        approvalCount,
+        participationCount: resolution.participation_count,
+        rejectionCount: resolution.rejection_count,
+        matchingCount: resolution.matching_count,
+        eligibleParticipantCount: resolution.eligible_count,
+        policyGatePassed: resolution.policy_gate_passed,
+      },
+    });
     return { version, status, approvalCount };
   }
 
@@ -483,31 +525,139 @@ export class GuildDecisionRepository {
     }
   }
 
-  async #countEligibleApprovers(decision: Decision): Promise<number> {
+  async #captureMethodGovernance(
+    decision: Decision,
+    requestedApprovals: number,
+  ): Promise<DecisionMethodCapture> {
+    const constitution = (await this.#connection.query<DecisionConstitutionRow>(
+      `SELECT version, level2_approval_quorum, level3_approval_quorum
+         FROM constitutions WHERE guild_id = $1`,
+      [this.#guildId],
+    )).rows[0];
+    if (!constitution) throw new Error("Guild Constitution was not found.");
+
+    const requiresEvidence = decision.method === "editorial" ||
+      decision.method === "policy" || decision.method === "hybrid";
+    const policyGatePassed = !requiresEvidence ||
+      decision.sourceIds.length > 0 && decision.rationale.trim().length > 0;
+    if (!policyGatePassed) {
+      throw new Error(
+        `${decision.method} Decisions require a rationale and at least one evidence source.`,
+      );
+    }
+
+    const constitutionQuorum = decision.classification === "restricted"
+      ? constitution.level3_approval_quorum
+      : constitution.level2_approval_quorum;
+    const requiredParticipation = decision.method === "custodian" ||
+      decision.method === "editorial" || decision.method === "policy"
+      ? 1
+      : decision.method === "hybrid"
+        ? Math.max(requestedApprovals, constitutionQuorum)
+        : requestedApprovals;
+
+    const eligibleParticipantCount = await this.#captureParticipants(decision);
+    if (eligibleParticipantCount < requiredParticipation) {
+      throw new Error(
+        "Decision participation threshold exceeds the number of eligible active Humans.",
+      );
+    }
+
+    await this.#connection.query(
+      `INSERT INTO decision_method_snapshots
+         (guild_id, decision_id, method, constitution_version,
+          required_participation, eligible_participant_count,
+          policy_gate_passed, policy_evidence)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      [
+        this.#guildId,
+        decision.id,
+        decision.method,
+        constitution.version,
+        requiredParticipation,
+        eligibleParticipantCount,
+        policyGatePassed,
+        JSON.stringify({
+          sourceCount: decision.sourceIds.length,
+          rationalePresent: decision.rationale.trim().length > 0,
+          constitutionQuorum,
+          requestedApprovals,
+          effectiveRequiredParticipation: requiredParticipation,
+        }),
+      ],
+    );
+    return {
+      constitutionVersion: constitution.version,
+      requiredParticipation,
+      eligibleParticipantCount,
+      policyGatePassed,
+    };
+  }
+
+  async #captureParticipants(decision: Decision): Promise<number> {
+    if (decision.method === "custodian" || decision.method === "editorial") {
+      await this.#connection.query(
+        `INSERT INTO decision_participant_snapshots
+           (guild_id, decision_id, identity_id, is_custodian)
+         SELECT $1, $2, identity_row.id, true
+           FROM identities identity_row
+           JOIN memberships membership_row
+             ON membership_row.guild_id = identity_row.guild_id
+            AND membership_row.identity_id = identity_row.id
+          WHERE identity_row.guild_id = $1
+            AND identity_row.id = $3
+            AND identity_row.kind = 'human'
+            AND identity_row.status = 'active'
+            AND membership_row.state = 'active'
+            AND CASE $4::text
+                  WHEN 'public' THEN 0 WHEN 'internal' THEN 1
+                  WHEN 'confidential' THEN 2 WHEN 'restricted' THEN 3
+                END <= CASE membership_row.clearance
+                  WHEN 'public' THEN 0 WHEN 'internal' THEN 1
+                  WHEN 'confidential' THEN 2 WHEN 'restricted' THEN 3
+                END`,
+        [this.#guildId, decision.id, decision.ownerIdentityId, decision.classification],
+      );
+    } else {
+      await this.#connection.query(
+        `WITH ${this.#eligibleApproversCte()}
+         INSERT INTO decision_participant_snapshots
+           (guild_id, decision_id, identity_id, is_custodian)
+         SELECT $1, $7, approver.id, approver.id = $5
+           FROM eligible_approvers approver`,
+        [...this.#eligibleApproverParameters(decision), decision.id],
+      );
+    }
     const result = await this.#connection.query<{ count: number }>(
-      `WITH ${this.#eligibleApproversCte()}
-       SELECT count(*)::integer AS count FROM eligible_approvers`,
-      this.#eligibleApproverParameters(decision),
+      `SELECT count(*)::integer AS count
+         FROM decision_participant_snapshots
+        WHERE guild_id = $1 AND decision_id = $2`,
+      [this.#guildId, decision.id],
     );
     return result.rows[0]?.count ?? 0;
   }
 
   async #notifyEligibleApprovers(decision: Decision, version: number): Promise<void> {
     await this.#connection.query(
-      `WITH ${this.#eligibleApproversCte()}
-       INSERT INTO inbox_notifications
+      `INSERT INTO inbox_notifications
          (id, guild_id, recipient_identity_id, kind, title, body, resource_type, resource_id,
           space_id, owner_identity_id, visibility, classification, allowed_identity_ids,
           deduplication_key)
-       SELECT gen_random_uuid(), $1, approver.id, 'approval', $7, '', 'decision', $8,
-              $2, $5, $4, $3, $6::uuid[], $9
-         FROM eligible_approvers approver
+       SELECT gen_random_uuid(), $1, participant.identity_id, 'approval', $3, '',
+              'decision', $2, $4, $5, $6, $7, $8::uuid[], $9
+         FROM decision_participant_snapshots participant
+        WHERE participant.guild_id = $1 AND participant.decision_id = $2
        ON CONFLICT (guild_id, recipient_identity_id, deduplication_key)
          WHERE deduplication_key IS NOT NULL DO NOTHING`,
       [
-        ...this.#eligibleApproverParameters(decision),
-        decision.title,
+        this.#guildId,
         decision.id,
+        decision.title,
+        decision.spaceId,
+        decision.ownerIdentityId,
+        decision.visibility,
+        decision.classification,
+        decision.allowedIdentityIds ?? [],
         `decision-approval:${decision.id}:v${version}`,
       ],
     );

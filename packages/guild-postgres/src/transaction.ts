@@ -50,6 +50,7 @@ export async function withGuildTransaction<T>(
   guildId: string,
   operation: (connection: GuildTransactionConnection) => Promise<T>,
   factory: SqlConnectionFactory = defaultFactory,
+  isolation: "repeatable read" | "serializable" | null = null,
 ): Promise<T> {
   if (!UUID_PATTERN.test(guildId)) {
     throw new Error("Guild ID must be a UUID before opening a database transaction.");
@@ -58,6 +59,9 @@ export async function withGuildTransaction<T>(
   await connection.connect();
   try {
     await connection.query("BEGIN");
+    if (isolation !== null) {
+      await connection.query(`SET TRANSACTION ISOLATION LEVEL ${isolation.toUpperCase()}`);
+    }
     await connection.query("SELECT set_config('app.guild_id', $1, true)", [guildId]);
     const result = await operation(connection as GuildTransactionConnection);
     await connection.query("COMMIT");

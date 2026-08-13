@@ -36,6 +36,12 @@ type ConstitutionRow = QueryResultRow & {
   level3_approval_quorum: number;
   data_retention_days: number;
   agent_defaults: AgentLimits;
+  principles: string;
+  public_scope: string;
+  membership_policy: NonNullable<Constitution["membershipPolicy"]>;
+  data_policy: NonNullable<Constitution["dataPolicy"]>;
+  agent_policy: NonNullable<Constitution["agentPolicy"]>;
+  external_sharing_policy: NonNullable<Constitution["externalSharingPolicy"]>;
   updated_by_identity_id: string;
   updated_at: string;
 };
@@ -151,7 +157,9 @@ async function loadBoundedAuthorizationSnapshot(
   )).rows, "Guild");
   const constitutionRow = requireRow((await connection.query<ConstitutionRow>(
     `SELECT guild_id::text, version, level2_approval_quorum, level3_approval_quorum,
-            data_retention_days, agent_defaults, updated_by_identity_id::text, updated_at::text
+            data_retention_days, agent_defaults, principles, public_scope,
+            membership_policy, data_policy, agent_policy, external_sharing_policy,
+            updated_by_identity_id::text, updated_at::text
        FROM constitutions WHERE guild_id = $1`,
     [guildId],
   )).rows, "Constitution");
@@ -224,6 +232,12 @@ async function loadBoundedAuthorizationSnapshot(
     level3ApprovalQuorum: constitutionRow.level3_approval_quorum,
     dataRetentionDays: constitutionRow.data_retention_days,
     agentDefaults: constitutionRow.agent_defaults,
+    principles: constitutionRow.principles,
+    publicScope: constitutionRow.public_scope,
+    membershipPolicy: constitutionRow.membership_policy,
+    dataPolicy: constitutionRow.data_policy,
+    agentPolicy: constitutionRow.agent_policy,
+    externalSharingPolicy: constitutionRow.external_sharing_policy,
     updatedByIdentityId: constitutionRow.updated_by_identity_id,
     updatedAt: constitutionRow.updated_at,
   };

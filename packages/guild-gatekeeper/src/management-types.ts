@@ -1,13 +1,17 @@
 import type {
   AgentLimits,
   AgentRun,
+  AgentRunPlan,
   AgentRunUsage,
   AgentApprovalRequest,
   AgentApprovalVote,
+  ActivityDependency,
+  ActivityOutcome,
   ActivityStatus,
   ActivityType,
   Announcement,
   AppLocale,
+  AutomationRule,
   Classification,
   CollectiveOnboardingAnswers,
   CollectiveTemplate,
@@ -28,23 +32,44 @@ import type {
   LocalizedText,
   MembershipState,
   MemoryType,
+  MemoryLayer,
+  MemoryReviewSignal,
   Permission,
   Project,
   ProjectStatus,
   Quest,
   QuestStatus,
+  RiskLevel,
   Step,
   StepStatus,
   Visibility,
   ChronicleEvent,
+  Connector,
   Constitution,
+  ContextRelation,
   Conversation,
   ConversationMessageState,
   ConversationStatus,
   ConversationSubjectType,
   ConnectorStatus,
+  ContributionCorrectionRequest,
+  EmergencyPrivateAccessGrant,
+  FederationGrant,
+  FederationLink,
+  HandoverCase,
+  HandoverItem,
+  Guild,
   JsonObject,
+  OnboardingAssignment,
+  OnboardingPath,
+  OnboardingRequirement,
+  PrivateMessage,
+  PrivateThread,
+  ModelProvider,
+  ModelRoute,
+  ResourceCustody,
   RootOwnershipTransfer,
+  WorkflowDefinition,
 } from "@guild-os/domain";
 
 interface UiBootstrapBase {
@@ -285,11 +310,14 @@ export interface UiMemory {
   status: "active" | "archived";
   workflow: "canonical" | null;
   governanceState: KnowledgeState | null;
+  layer: MemoryLayer;
   visibility: Visibility;
   classification: Classification;
   allowedActorIds: readonly string[];
   currentVersion: number;
   confidence: number | null;
+  provenance: JsonObject;
+  lastVerifiedAt: string | null;
   sourceIds: readonly string[];
   title: LocalizedText;
   summary: LocalizedText;
@@ -323,6 +351,10 @@ export interface CreateMemoryRequest {
   allowedActorIds: readonly string[];
   sourceIds: readonly string[];
   confidence: number | null;
+  custody: "guild" | "personal";
+  layer: MemoryLayer;
+  provenance: JsonObject;
+  lastVerifiedAt: string | null;
   changeNote: string;
 }
 
@@ -345,7 +377,31 @@ export interface UiActivityCapabilities {
   changeStatus: boolean;
   assign: boolean;
   addChild: boolean;
+  manageDependencies: boolean;
+  recordOutcome: boolean;
 }
+
+export interface UiActivityDependency {
+  id: string;
+  activityId: string;
+  dependsOnActivityId: string;
+  kind: ActivityDependency["kind"];
+  version: number;
+  createdByActorId: string;
+  createdAt: string;
+  activity: {
+    id: string;
+    title: string;
+    status: ActivityStatus;
+  };
+  dependsOnActivity: {
+    id: string;
+    title: string;
+    status: ActivityStatus;
+  };
+}
+
+export type UiActivityOutcome = Omit<ActivityOutcome, "guildId">;
 
 export interface UiActivity {
   id: string;
@@ -369,6 +425,9 @@ export interface UiActivity {
   compatibilitySourceType: "goal" | "project" | "quest" | "step" | null;
   createdAt: string;
   updatedAt: string;
+  dependencies: readonly UiActivityDependency[];
+  dependents: readonly UiActivityDependency[];
+  outcome: UiActivityOutcome | null;
   capabilities: UiActivityCapabilities;
 }
 
@@ -416,6 +475,27 @@ export interface AssignActivityRequest {
   assigneeActorId: string | null;
 }
 
+export interface AddActivityDependencyRequest {
+  activityId: string;
+  expectedVersion: number;
+  dependsOnActivityId: string;
+  kind: ActivityDependency["kind"];
+}
+
+export interface RemoveActivityDependencyRequest {
+  activityId: string;
+  expectedVersion: number;
+  dependencyId: string;
+  expectedDependencyVersion: number;
+}
+
+export interface CompleteActivityRequest {
+  activityId: string;
+  expectedVersion: number;
+  summary: string;
+  evidenceSourceIds: readonly string[];
+}
+
 export interface UiDirectoryRequest {
   identityCursor?: string | null;
   invitationCursor?: string | null;
@@ -457,6 +537,12 @@ export interface UpdateConstitutionRequest {
   level3ApprovalQuorum: number;
   dataRetentionDays: number;
   agentDefaults: AgentLimits;
+  principles: string;
+  publicScope: string;
+  membershipPolicy: NonNullable<Constitution["membershipPolicy"]>;
+  dataPolicy: NonNullable<Constitution["dataPolicy"]>;
+  agentPolicy: NonNullable<Constitution["agentPolicy"]>;
+  externalSharingPolicy: NonNullable<Constitution["externalSharingPolicy"]>;
   reason: string;
 }
 
@@ -632,7 +718,9 @@ export interface AskGuildRequest {
 }
 
 export interface AskGuildCitation {
-  memoryId: string;
+  resourceType: "memory" | "actor" | "decision";
+  resourceId: string;
+  memoryId: string | null;
   /** @deprecated Use memoryId. Null for Memory without the Canonical workflow. */
   knowledgeId: string | null;
   governed: boolean;
@@ -646,6 +734,110 @@ export interface AskGuildResponse {
   answer: string;
   citations: readonly AskGuildCitation[];
   inferred: boolean;
+}
+
+export interface CreateIntentPlanRequest {
+  requestId: string;
+  question: string;
+  objective: string;
+  locale: AppLocale;
+  spaceId: string | null;
+}
+
+export type UiIntentProposalStatus =
+  | "ready"
+  | "executing"
+  | "completed"
+  | "rejected"
+  | "failed"
+  | "expired";
+
+export type UiIntentActionStatus =
+  | "pending"
+  | "processing"
+  | "staged"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export type UiIntentActionKind =
+  | "memory.propose"
+  | "activity.create"
+  | "activity.assign"
+  | "decision.propose"
+  | "agent.run";
+
+export interface UiIntentEvidence {
+  sourceType: string;
+  sourceId: string;
+  label: string;
+  metadata: JsonObject;
+}
+
+export interface UiIntentAction {
+  position: number;
+  kind: UiIntentActionKind;
+  riskLevel: RiskLevel;
+  status: UiIntentActionStatus;
+  attemptCount: number;
+  requiredPermission: Permission;
+  explicitConfirmationRequired: true;
+  durableHumanApprovals: number;
+  reauthenticationRequired: boolean;
+  resourceType: "memory" | "activity" | "decision" | "agent_run";
+  resourceId: string;
+  resourceLabel: string;
+  agentActorId: string | null;
+  agentName: string | null;
+  result: JsonObject | null;
+  errorSummary: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface UiIntentProposal {
+  id: string;
+  objective: string;
+  locale: AppLocale;
+  spaceId: string | null;
+  status: UiIntentProposalStatus;
+  maximumRiskLevel: RiskLevel;
+  evidence: readonly UiIntentEvidence[];
+  actions: readonly UiIntentAction[];
+  nextActionPosition: number | null;
+  canAct: boolean;
+  expiresAt: string;
+  completedAt: string | null;
+  errorSummary: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIntentPlanResponse {
+  created: boolean;
+  source: "model" | "deterministic_fallback" | "existing";
+  proposal: UiIntentProposal;
+}
+
+export interface ActIntentRequest {
+  proposalId: string;
+  confirmation: true;
+}
+
+export interface ActIntentResponse {
+  outcome:
+    | "busy"
+    | "expired"
+    | "completed"
+    | "failed"
+    | "retry_scheduled"
+    | "action_succeeded"
+    | "agent_staged"
+    | "agent_waiting";
+  position: number | null;
+  errorCode: string | null;
+  proposal: UiIntentProposal;
 }
 
 export interface UiWorkCapabilities {
@@ -1054,7 +1246,575 @@ export interface ReviewAgentRunRequest {
   approvalRequestId: string;
   verdict: "approve" | "reject";
   reason: string;
-  reauthenticatedAt: string | null;
+}
+
+export interface UiActorReference {
+  id: string;
+  displayName: string;
+  kind: IdentityKind;
+  membershipState: MembershipState;
+}
+
+export interface UiPrivateThread extends Omit<PrivateThread, "guildId"> {
+  participantActorIds: readonly string[];
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+}
+
+export interface UiPrivateThreadDetail {
+  thread: UiPrivateThread;
+  messages: readonly Omit<PrivateMessage, "guildId">[];
+  emergencyGrant: Omit<EmergencyPrivateAccessGrant, "guildId"> | null;
+  promotions: readonly UiPrivateMessagePromotion[];
+  promotionKinds: readonly PrivateMessagePromotionKind[];
+}
+
+export type PrivateMessagePromotionKind = "memory" | "activity" | "decision" | "handover";
+
+export interface UiPrivateMessagePromotion {
+  id: string;
+  threadId: string;
+  sourceMessageId: string;
+  promotedByActorId: string;
+  selectionStart: number;
+  selectionLength: number;
+  sourceSha256: string;
+  destinationKind: PrivateMessagePromotionKind;
+  destinationDraftId: string;
+  chronicleEventId: string;
+  createdAt: string;
+}
+
+interface PrivateMessagePromotionBoundary {
+  spaceId: string | null;
+  visibility: Visibility;
+  classification: Classification;
+  allowedActorIds: readonly string[];
+}
+
+export type PrivateMessagePromotionDestination =
+  | (PrivateMessagePromotionBoundary & {
+    kind: "memory";
+    locale: AppLocale;
+    memoryType: MemoryType;
+    title: string;
+    summary: string;
+  })
+  | (PrivateMessagePromotionBoundary & {
+    kind: "activity";
+    activityType: ActivityType;
+    title: string;
+    assigneeActorId: string | null;
+  })
+  | (PrivateMessagePromotionBoundary & {
+    kind: "decision";
+    method: DecisionMethod;
+    title: string;
+    rationale: string;
+  })
+  | {
+    kind: "handover";
+    departingActorId: string;
+    successorActorId: string | null;
+  };
+
+export interface PromotePrivateMessageRequest {
+  threadId: string;
+  sourceMessageId: string;
+  selectionStart: number;
+  selectionLength: number;
+  idempotencyKey: string;
+  destination: PrivateMessagePromotionDestination;
+}
+
+export interface UiPrivatePage {
+  threads: readonly UiPrivateThread[];
+  eligibleActors: readonly UiActorReference[];
+  availableSpaces: readonly Pick<UiDirectorySpace, "id" | "name">[];
+  emergencyCandidates: readonly {
+    id: string;
+    classification: Classification;
+    createdAt: string;
+  }[];
+  canCreate: boolean;
+  canCreateGuildWide: boolean;
+  canUseEmergencyAccess: boolean;
+}
+
+export interface CreatePrivateThreadRequest {
+  participantActorIds: readonly string[];
+  spaceId: string | null;
+  subject: string;
+  classification: Classification;
+  body: string;
+}
+
+export interface PostPrivateMessageRequest {
+  threadId: string;
+  body: string;
+}
+
+export interface BeginEmergencyPrivateAccessRequest {
+  threadId: string;
+  reason: string;
+  intendedAccess: string;
+  durationMinutes: number;
+  confirmation: string;
+}
+
+export interface CloseEmergencyPrivateAccessRequest {
+  grantId: string;
+  viewedInformation: string;
+  changesMade: string;
+}
+
+export interface UiOnboardingPath extends Omit<OnboardingPath, "guildId"> {
+  requirements: readonly Omit<OnboardingRequirement, "guildId">[];
+}
+
+export interface UiOnboardingAssignment extends Omit<OnboardingAssignment, "guildId"> {
+  actorDisplayName: string;
+  pathName: string;
+  completedRequirementCount: number;
+  totalRequirementCount: number;
+}
+
+export interface UiOnboardingAssignmentDetail {
+  assignment: Omit<OnboardingAssignment, "guildId">;
+  path: Omit<OnboardingPath, "guildId">;
+  requirements: readonly (Omit<OnboardingRequirement, "guildId"> & {
+    completedAt: string | null;
+    evidence: string;
+  })[];
+}
+
+export interface UiHandover extends Omit<HandoverCase, "guildId"> {
+  items: readonly Omit<HandoverItem, "guildId">[];
+}
+
+export interface UiLifecyclePage {
+  paths: readonly UiOnboardingPath[];
+  assignments: readonly UiOnboardingAssignment[];
+  myAssignments: readonly UiOnboardingAssignmentDetail[];
+  handovers: readonly UiHandover[];
+  preboardingActors: readonly UiActorReference[];
+  successorActors: readonly UiActorReference[];
+  canManage: boolean;
+}
+
+export interface CreateOnboardingPathRequest {
+  name: string;
+  description: string;
+  spaceId: string | null;
+  roleIds: readonly string[];
+  requirements: readonly {
+    kind: OnboardingRequirement["kind"];
+    resourceId: string | null;
+    title: string;
+    instructions: string;
+    required: boolean;
+  }[];
+}
+
+export interface AssignOnboardingRequest {
+  actorId: string;
+  pathId: string;
+  dueAt: string | null;
+}
+
+export interface CompleteOnboardingRequirementRequest {
+  assignmentId: string;
+  requirementId: string;
+  evidence: string;
+}
+
+export interface OffboardActorRequest {
+  actorId: string;
+  successorActorId: string | null;
+  reason: string;
+}
+
+export interface CompleteHandoverItemRequest {
+  caseId: string;
+  itemId: string;
+  disposition: HandoverItem["disposition"];
+  note: string;
+}
+
+export interface UiContributionFacet {
+  facet: "knowledge" | "activity" | "decision" | "support" | "agent_supervision" | "governance";
+  count: number;
+}
+
+export interface UiContributionEvidence {
+  eventId: string;
+  sequence: string;
+  action: string;
+  subjectType: string;
+  subjectId: string;
+  occurredAt: string;
+  facet: UiContributionFacet["facet"];
+}
+
+export interface UiContributionProfile {
+  actorId: string;
+  actorDisplayName: string;
+  facets: readonly UiContributionFacet[];
+  evidence: readonly UiContributionEvidence[];
+  corrections: readonly Omit<ContributionCorrectionRequest, "guildId">[];
+  pendingCorrections: readonly UiGovernedContributionCorrection[];
+  canRequestCorrection: boolean;
+}
+
+export interface UiGovernedContributionCorrection {
+  id: string;
+  subjectActorId: string;
+  requestedByActorId: string;
+  evidenceEventId: string;
+  evidenceSha256: string;
+  reason: string;
+  status: "pending" | "accepted" | "rejected";
+  reviewedByActorId: string | null;
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  version: number;
+  requestChronicleEventId: string;
+  resolutionChronicleEventId: string | null;
+  createdAt: string;
+}
+
+export interface RequestContributionCorrectionInput {
+  chronicleEventId: string;
+  reason: string;
+}
+
+export interface ReviewContributionCorrectionRequest {
+  requestId: string;
+  expectedVersion: number;
+  outcome: "accepted" | "rejected";
+  reason: string;
+}
+
+export interface UiContextRelation extends Omit<ContextRelation, "guildId"> {}
+
+export interface UiContextNode {
+  type: string;
+  id: string;
+  label: string;
+}
+
+export interface UiContextPage {
+  relations: readonly UiContextRelation[];
+  nodes: readonly UiContextNode[];
+  reviewSignals: readonly Omit<MemoryReviewSignal, "guildId">[];
+  personalCustody: readonly Omit<ResourceCustody, "guildId">[];
+  custodyCounts: Readonly<Record<ResourceCustody["custody"], number>> | null;
+  canManageRelations: boolean;
+  canReviewMemory: boolean;
+}
+
+export interface CreateContextRelationRequest {
+  fromType: string;
+  fromId: string;
+  relationType: string;
+  toType: string;
+  toId: string;
+  rationale: string;
+}
+
+export interface RevokeContextRelationRequest {
+  relationId: string;
+  expectedVersion: number;
+}
+
+export interface ResolveMemoryReviewSignalRequest {
+  signalId: string;
+  expectedVersion: number;
+  status: "resolved" | "dismissed";
+  resolution: string;
+}
+
+export interface SharePersonalDataRequest {
+  resourceType: ResourceCustody["resourceType"];
+  resourceId: string;
+  expectedVersion: number;
+}
+
+export interface UiConnection extends Omit<Connector, "guildId" | "secretReference"> {
+  secretConfigured: boolean;
+}
+
+export interface UiConnectionHealthResult {
+  readonly status: "healthy" | "unhealthy";
+  readonly code: string;
+  readonly message: string;
+  readonly checkedAt: string;
+}
+
+export interface UiDiscoveredConnectionCapability {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>> | null;
+  readonly source: "mcp_tool" | "gatekeeper_action" | "webhook" | "service_action";
+}
+
+export interface UiConnectionDiscoveryResult {
+  readonly capabilities: readonly UiDiscoveredConnectionCapability[];
+  readonly oauth: {
+    readonly issuer: string;
+    readonly authorizationEndpoint: string;
+    readonly tokenEndpoint: string;
+    readonly jwksUri: string | null;
+    readonly registrationEndpoint: string | null;
+    readonly revocationEndpoint: string | null;
+    readonly introspectionEndpoint: string | null;
+    readonly scopesSupported: readonly string[];
+    readonly responseTypesSupported: readonly string[];
+    readonly grantTypesSupported: readonly string[];
+    readonly codeChallengeMethodsSupported: readonly string[];
+  } | null;
+}
+
+export type UiWorkflowDefinition = Omit<WorkflowDefinition, "guildId">;
+export type UiAutomationRule = Omit<AutomationRule, "guildId">;
+
+export interface UiFederationLink extends Omit<FederationLink, "guildId" | "secretReference"> {
+  secretConfigured: boolean;
+}
+
+export type UiFederationGrant = Omit<FederationGrant, "guildId">;
+
+export interface UiModelProvider extends Omit<ModelProvider, "guildId" | "secretReference"> {
+  secretConfigured: boolean;
+}
+
+export type UiModelRoute = Omit<ModelRoute, "guildId">;
+
+export interface UiWorkflowRunRequest {
+  id: string;
+  workflowId: string;
+  automationRuleId: string | null;
+  requestedByActorId: string;
+  agentActorId: string;
+  triggerKind: "schedule" | "event" | "manual" | "delegation";
+  triggerEventId: string | null;
+  input: JsonObject;
+  status: "queued" | "planning" | "running" | "succeeded" | "failed" | "cancelled";
+  output: JsonObject | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UiGuildExportInventory {
+  guild: Pick<Guild, "id" | "name" | "purpose" | "createdAt">;
+  generatedAt: string;
+  totalRows: string;
+  tables: readonly { tableName: string; rowCount: string }[];
+  files: readonly {
+    id: string;
+    r2Key: string;
+    sha256: string;
+    mediaType: string;
+    byteSize: string;
+    createdAt: string;
+  }[];
+  schemaMigrations: readonly { name: string; checksum: string; appliedAt: string }[];
+}
+
+export interface UiDataExportJob {
+  id: string;
+  requestedCategories: readonly string[];
+  includeRequesterPersonal: boolean;
+  status: "queued" | "processing" | "completed" | "failed" | "expired";
+  attemptCount: number;
+  maxAttempts: number;
+  retryable: boolean;
+  sha256: string | null;
+  byteCount: number | null;
+  rowCount: number | null;
+  fileCount: number | null;
+  completedAt: string | null;
+  expiresAt: string | null;
+  errorSummary: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export type UiRetentionCategory =
+  | "memories"
+  | "activities"
+  | "decisions"
+  | "conversations"
+  | "files"
+  | "agent_runs"
+  | "chronicle";
+
+export type UiRetentionActionKind = "retain" | "archive" | "purge";
+
+export interface UiRetentionAction {
+  readonly category: UiRetentionCategory;
+  readonly action: UiRetentionActionKind;
+  readonly status: "pending" | "processing" | "completed" | "failed";
+  readonly candidateCount: number;
+  readonly affectedCount: number;
+  readonly errorSummary: string | null;
+}
+
+export interface UiRetentionRun {
+  readonly id: string;
+  readonly dryRun: boolean;
+  readonly policyVersion: number;
+  readonly cutoffAt: string;
+  readonly status: "queued" | "processing" | "completed" | "failed";
+  readonly irreversibleAuthorizationRecorded: boolean;
+  readonly resultSummary: Readonly<Record<string, unknown>> | null;
+  readonly errorSummary: string | null;
+  readonly completedAt: string | null;
+  readonly createdAt: string;
+  readonly actions: readonly UiRetentionAction[];
+}
+
+export interface PlanRetentionRequest {
+  readonly dryRun: boolean;
+  readonly cutoffAt: string;
+  readonly actions: readonly {
+    readonly category: UiRetentionCategory;
+    readonly action: UiRetentionActionKind;
+  }[];
+  readonly previewRunId: string | null;
+  readonly confirmation: string;
+  readonly idempotencyKey: string;
+}
+
+export interface UiOperationsPage {
+  connections: readonly UiConnection[];
+  workflows: readonly UiWorkflowDefinition[];
+  automationRules: readonly UiAutomationRule[];
+  workflowRuns: readonly UiWorkflowRunRequest[];
+  federationLinks: readonly UiFederationLink[];
+  federationGrants: readonly UiFederationGrant[];
+  modelProviders: readonly UiModelProvider[];
+  modelRoutes: readonly UiModelRoute[];
+  exportInventory: UiGuildExportInventory | null;
+  dataExports: readonly UiDataExportJob[];
+  retentionRuns: readonly UiRetentionRun[];
+  dataRetentionDays: number;
+  constitutionVersion: number;
+  agents: readonly UiActorReference[];
+  capabilities: {
+    readConnections: boolean;
+    manageConnections: boolean;
+    readAutomation: boolean;
+    manageAutomation: boolean;
+    readFederation: boolean;
+    manageFederation: boolean;
+    readData: boolean;
+    manageData: boolean;
+    applyRetention: boolean;
+  };
+}
+
+export interface CreateConnectionRequest {
+  spaceId: string | null;
+  name: string;
+  kind: Connector["kind"];
+  capabilityPermissions: readonly Permission[];
+  endpointUrl: string | null;
+  secretReference: string | null;
+  visibility: Visibility;
+  classification: Classification;
+  description: string;
+  provider: string;
+  configuration: JsonObject;
+  authKind: NonNullable<Connector["authKind"]>;
+  writeRiskLevel: NonNullable<Connector["writeRiskLevel"]>;
+}
+
+export interface CreateWorkflowRequest {
+  spaceId: string | null;
+  name: string;
+  description: string;
+  nodes: readonly JsonObject[];
+  edges: readonly JsonObject[];
+  allowedActionKinds: readonly AgentRunPlan["action"]["kind"][];
+  capabilityPermissions: readonly Permission[];
+  visibility: Visibility;
+  classification: Classification;
+  maxConcurrentRuns: number;
+}
+
+export interface SetVersionedStatusRequest<TStatus extends string> {
+  id: string;
+  expectedVersion: number;
+  status: TStatus;
+}
+
+export interface CreateAutomationRuleRequest {
+  workflowId: string;
+  agentActorId: string;
+  name: string;
+  triggerKind: AutomationRule["triggerKind"];
+  triggerExpression: string;
+  timezone: string;
+  inputTemplate: JsonObject;
+  nextRunAt: string | null;
+}
+
+export interface RunWorkflowRequest {
+  workflowId: string;
+  agentActorId: string;
+  input: JsonObject;
+  idempotencyKey: string;
+}
+
+export interface CreateFederationLinkRequest {
+  remoteGuildId: string;
+  remoteName: string;
+  endpointUrl: string;
+  secretReference: string;
+  direction: FederationLink["direction"];
+  allowedResourceTypes: readonly FederationGrant["resourceType"][];
+}
+
+export interface CreateFederationGrantRequest {
+  federationLinkId: string;
+  resourceType: FederationGrant["resourceType"];
+  resourceId: string;
+  permission: FederationGrant["permission"];
+}
+
+export interface CreateModelProviderRequest {
+  name: string;
+  kind: ModelProvider["kind"];
+  endpointUrl: string | null;
+  secretReference: string | null;
+  allowedModels: readonly string[];
+}
+
+export interface SetModelRouteRequest {
+  purpose: ModelRoute["purpose"];
+  providerId: string;
+  primaryModel: string;
+  fallbackModel: string | null;
+  maxTokens: number;
+  dailyBudgetMinor: number;
+  cacheEnabled: boolean;
+  status: ModelRoute["status"];
+  expectedVersion: number | null;
+}
+
+export interface RequestDataExportRequest {
+  includeRequesterPersonal: boolean;
+  idempotencyKey: string;
+}
+
+export interface RetryDataExportRequest {
+  id: string;
+  expectedVersion: number;
 }
 
 export interface GuildUiApi {
@@ -1101,6 +1861,55 @@ export interface GuildUiApi {
     identityId: string,
     nextState: "active" | "suspended" | "departed",
   ): Promise<void>;
+  offboardActor(input: OffboardActorRequest): Promise<UiHandover>;
+  getPrivatePage(): Promise<UiPrivatePage>;
+  getPrivateThread(threadId: string): Promise<UiPrivateThreadDetail>;
+  createPrivateThread(input: CreatePrivateThreadRequest): Promise<string>;
+  postPrivateMessage(input: PostPrivateMessageRequest): Promise<void>;
+  promotePrivateMessage(input: PromotePrivateMessageRequest): Promise<UiPrivateMessagePromotion>;
+  beginEmergencyPrivateAccess(input: BeginEmergencyPrivateAccessRequest): Promise<string>;
+  closeEmergencyPrivateAccess(input: CloseEmergencyPrivateAccessRequest): Promise<void>;
+  getLifecyclePage(): Promise<UiLifecyclePage>;
+  createOnboardingPath(input: CreateOnboardingPathRequest): Promise<string>;
+  assignOnboarding(input: AssignOnboardingRequest): Promise<string>;
+  completeOnboardingRequirement(input: CompleteOnboardingRequirementRequest): Promise<void>;
+  completeHandoverItem(input: CompleteHandoverItemRequest): Promise<void>;
+  getContributionProfile(actorId?: string | null): Promise<UiContributionProfile>;
+  requestContributionCorrection(input: RequestContributionCorrectionInput): Promise<string>;
+  reviewContributionCorrection(
+    input: ReviewContributionCorrectionRequest,
+  ): Promise<UiGovernedContributionCorrection>;
+  getContextPage(): Promise<UiContextPage>;
+  createContextRelation(input: CreateContextRelationRequest): Promise<string>;
+  revokeContextRelation(input: RevokeContextRelationRequest): Promise<number>;
+  resolveMemoryReviewSignal(input: ResolveMemoryReviewSignalRequest): Promise<number>;
+  sharePersonalData(input: SharePersonalDataRequest): Promise<void>;
+  getOperationsPage(): Promise<UiOperationsPage>;
+  createConnection(input: CreateConnectionRequest): Promise<string>;
+  checkConnectionHealth(connectionId: string): Promise<UiConnectionHealthResult>;
+  discoverConnection(connectionId: string): Promise<UiConnectionDiscoveryResult>;
+  revokeConnection(input: SetVersionedStatusRequest<"revoked">): Promise<void>;
+  createWorkflow(input: CreateWorkflowRequest): Promise<string>;
+  setWorkflowStatus(
+    input: SetVersionedStatusRequest<UiWorkflowDefinition["status"]>,
+  ): Promise<void>;
+  createAutomationRule(input: CreateAutomationRuleRequest): Promise<string>;
+  setAutomationRuleStatus(
+    input: SetVersionedStatusRequest<UiAutomationRule["status"]>,
+  ): Promise<void>;
+  runWorkflow(input: RunWorkflowRequest): Promise<string>;
+  createFederationLink(input: CreateFederationLinkRequest): Promise<string>;
+  activateFederationLink(input: SetVersionedStatusRequest<"active">): Promise<void>;
+  revokeFederationLink(input: SetVersionedStatusRequest<"revoked">): Promise<void>;
+  createFederationGrant(input: CreateFederationGrantRequest): Promise<string>;
+  revokeFederationGrant(input: SetVersionedStatusRequest<"revoked">): Promise<void>;
+  createModelProvider(input: CreateModelProviderRequest): Promise<string>;
+  revokeModelProvider(input: SetVersionedStatusRequest<"revoked">): Promise<void>;
+  setModelRoute(input: SetModelRouteRequest): Promise<string>;
+  requestDataExport(input: RequestDataExportRequest): Promise<string>;
+  retryDataExport(input: RetryDataExportRequest): Promise<void>;
+  downloadDataExport(id: string): Promise<Blob>;
+  planRetention(input: PlanRetentionRequest): Promise<string>;
   getMemoryPage(request?: UiMemoryPageRequest): Promise<UiMemoryPage>;
   createMemory(input: CreateMemoryRequest): Promise<string>;
   saveMemory(input: SaveMemoryRequest): Promise<number>;
@@ -1109,6 +1918,9 @@ export interface GuildUiApi {
   createActivity(input: CreateActivityRequest): Promise<string>;
   changeActivityStatus(input: ChangeActivityStatusRequest): Promise<number>;
   assignActivity(input: AssignActivityRequest): Promise<number>;
+  addActivityDependency(input: AddActivityDependencyRequest): Promise<number>;
+  removeActivityDependency(input: RemoveActivityDependencyRequest): Promise<number>;
+  completeActivity(input: CompleteActivityRequest): Promise<number>;
   getKnowledgePage(request?: UiKnowledgePageRequest): Promise<UiKnowledgePage>;
   getKnowledge(knowledgeId: string): Promise<UiKnowledgeDetail>;
   createKnowledge(input: CreateKnowledgeRequest): Promise<string>;
@@ -1123,6 +1935,10 @@ export interface GuildUiApi {
   downloadKnowledgeFile(fileId: string): Promise<Blob>;
   deleteKnowledgeFile(input: KnowledgeTransitionRequest & { fileId: string }): Promise<void>;
   askGuild(input: AskGuildRequest): Promise<AskGuildResponse>;
+  createIntentPlan(input: CreateIntentPlanRequest): Promise<CreateIntentPlanResponse>;
+  listIntentProposals(): Promise<readonly UiIntentProposal[]>;
+  getIntentProposal(proposalId: string): Promise<UiIntentProposal>;
+  actIntent(input: ActIntentRequest): Promise<ActIntentResponse>;
   getWorkPage(request?: UiWorkPageRequest): Promise<UiWorkPage>;
   getQuestDetail(questId: string): Promise<UiQuestDetail>;
   createGoal(input: CreateGoalRequest): Promise<string>;
