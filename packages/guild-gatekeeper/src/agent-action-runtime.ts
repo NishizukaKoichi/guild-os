@@ -15,13 +15,13 @@ import {
   agentRunActionPolicy,
   GuildAgentRunRepository,
   GuildCollectiveRepository,
+  GuildOperationsRepository,
   GuildPostgresRepository,
   withGuildTransaction,
   type ExternalAgentActionExecutionRecord,
   type ExternalAgentActionScope,
   type StoredAgentRunDetail,
 } from "@guild-os/postgres";
-import { GuildOperationsRepository } from "../../guild-postgres/src/operations.js";
 import {
   executeGuildAgentAction,
   type GuildAgentActionExecutionRecord,

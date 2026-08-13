@@ -5,11 +5,13 @@ import {
   type ActorMembershipState,
   type CollectiveTemplateKey,
 } from "@guild-os/domain";
-import type { QueryResultRow } from "@guild-os/postgres";
+import type {
+  QueryResultRow,
+  GuildTransactionConnection,
+} from "@guild-os/postgres";
 import {
   withGuildTransaction,
-  type GuildTransactionConnection,
-} from "../../guild-postgres/src/transaction.js";
+} from "@guild-os/postgres";
 import {
   buildCanonicalMemoryReconfirmationPlan,
   buildOffboardingPlan,

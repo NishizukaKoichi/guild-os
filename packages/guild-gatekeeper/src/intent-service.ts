@@ -35,7 +35,7 @@ import type {
   RequeueIntentActionInput,
   StageAgentIntentActionInput,
   StoredIntentAction,
-} from "../../guild-postgres/src/intent.js";
+} from "@guild-os/postgres";
 import type { CreateGovernedAgentRunInput } from "./agent-service.js";
 import { parseAutomationAgentRunPlan } from "./automation-runtime.js";
 import type { GuildEnv } from "./config.js";
