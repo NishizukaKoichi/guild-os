@@ -13,7 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        # Match production PostgreSQL and include the vector extension required
+        # by canonical-memory semantic search migrations.
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_DB: guild_os
           POSTGRES_PASSWORD: postgres
