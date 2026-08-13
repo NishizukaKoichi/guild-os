@@ -14,15 +14,21 @@ There is no seller-operated API, licensing server, or required subscription.
 > Cloudflare OS is early-access software. This repository pins a reviewed upstream commit and never
 > follows an unpinned branch in production.
 
-## Implementation status
+## Release status
 
-Implemented and tested:
+This checkout implements the Guild OS v1.0 full-spec product surface. A purchaser release is
+acceptable only when the
+[full-spec acceptance contract](docs/full-spec-acceptance.md), the local gates, the target database
+preflight, deployment evidence, restore rehearsal, and production smoke all pass for the same
+reviewed commit.
+
+Capability areas present in the codebase include:
 
 - Pinned Cloudflare OS Starter deployment wrapper
 - Global Actor plus Guild-scoped Membership for Human, Agent, Service, and Guild Actor kinds
 - Neutral Membership lifecycle and Role/Capability engine with hierarchical Space scopes
 - Blank, Company, Community, Research, Creator, Open Source, and Agent Collective Templates
-- Complete Guild and per-Space Context Profiles for labels, creation choices, Decision methods,
+- Guild and per-Space Context Profiles for labels, creation choices, Decision methods,
   workflows, dashboard order, and suggested Agents
 - Root Owner and private-data invariants
 - Root-only, versioned Constitution management with mandatory Chronicle reasons
@@ -70,20 +76,33 @@ Implemented and tested:
   post-Kill delivery-race Chronicle evidence
 - Permission-filtered Agent/Space/Connector discovery for Cloudflare OS and a responsive run,
   approval, result, usage, and Kill management surface
-- English-first UI with complete Japanese and Simplified Chinese dictionaries and persisted language choice
+- English-first UI with Japanese and Simplified Chinese dictionaries and persisted language choice
 - Transactional Membership lifecycle with immediate data denial, connector revocation, and Chronicle
   evidence
 - Strict Gatekeeper liveness/readiness, bounded maintenance metrics, reproducible resource locking,
-  verified whole-system backup/restore preparation, release evidence, and Access production smoke
+  whole-system backup/restore preparation, release evidence, and Access production smoke tooling
 
-Not exposed as finished product features yet:
+The completed full-spec surface also includes:
 
-- Scoped People views for non-global administrators
-- Semantic search index beyond the current PostgreSQL full-text retrieval
-- Guild federation
+- permission-prefiltered hybrid lexical and pgvector retrieval, with vectors kept as a rebuildable
+  derivative and automatic lexical fallback;
+- explicit private-message promotion into Memory, Activity, Decision, or Handover with provenance;
+- Role- and Space-aware onboarding, atomic offboarding and handover, and evidence-backed
+  Contribution correction requests;
+- purchaser-configured Connections with remote capability allowlists, health checks, discovery,
+  revocation, and governed invocation for MCP, Gatekeeper API, HTTPS Webhook, and Service Binding;
+- durable scheduled and event-triggered Automation, bounded Agent delegation, and Kill handling;
+- explicit Federation grants, signed inbound/outbound transport, durable delivery, revocation, and
+  selected Memory, Activity, and Decision publication;
+- administrator data export plus retention preview, exact-plan apply, reauthentication, history,
+  checkpoints, and R2 deletion-outbox visibility.
 
-These incomplete capabilities are absent from the user-facing action surface rather than presented
-as nonfunctional controls.
+Intentional product boundaries remain explicit. OAuth Connections perform metadata discovery but
+not authorization-code exchange; direct database and storage action adapters are unsupported; a
+custom Service Binding still requires a real purchaser deployment binding. Provider-route daily
+budgets are policy metadata, while enforced cost and execution bounds come from the Guild
+Constitution, Agent profile, immutable Run limits, and purchaser provider account. Do not bypass
+these boundaries with direct database edits or undocumented Worker bindings.
 
 ## Architecture
 
@@ -116,9 +135,18 @@ must target Actor, Memory, and Activity; compatibility removal is governed by
 [the migration runbook](docs/collective-migration.md), not by an ad hoc table drop.
 
 See [architecture](docs/architecture.md), [Context Profiles](docs/context-profiles.md),
-[security](docs/security.md), and the
-[accepted decisions](docs/adr/). Operational owners should also keep the
-[deployment](docs/deployment.md) and [backup and recovery](docs/backup-and-recovery.md) runbooks.
+[security](docs/security.md), and the [accepted decisions](docs/adr/).
+
+Purchaser operations documentation:
+
+| Runbook | Purpose |
+| --- | --- |
+| [Production deployment](docs/deployment.md) | Clean-room setup, purchaser infrastructure, release, smoke, and rollback |
+| [Connections and Agent providers](docs/connections-and-agent-providers.md) | Model routes, Secret references, MCP, Gatekeeper, Webhook, and Service Binding allowlists |
+| [Semantic Memory](docs/semantic-memory.md) | Permission ordering, pgvector operations, monitoring, rebuild, fallback, and rollback |
+| [Data ownership and retention](docs/data-ownership-and-retention.md) | Custody classes, export scope, retention dry-runs, evidence, and purge boundaries |
+| [Backup and recovery](docs/backup-and-recovery.md) | Complete backup, isolated restore, disaster recovery, and migration |
+| [Administrator handover](docs/admin-handover.md) | Asset transfer, Root succession, offboarding, and acceptance record |
 
 ## Prerequisites
 
@@ -126,19 +154,27 @@ See [architecture](docs/architecture.md), [Context Profiles](docs/context-profil
 - pnpm 11
 - A purchaser-owned Cloudflare account
 - A purchaser-owned PostgreSQL database reachable by Hyperdrive
-- Workers, KV, R2, Browser Rendering, and Dynamic Worker Loaders
+- PostgreSQL `vector` and `pg_trgm` extensions enabled once by a database administrator before the
+  application-role migration
+- Workers, KV, R2, Browser Rendering, Dynamic Worker Loaders, and a Workers AI binding for the
+  deployment fallback
 - A Cloudflare Access self-hosted application for the Workshop hostname
 
-Workers AI access is required for Ask Guild. The v1 Agent write path does not call a model itself;
-it receives a plan from Cloudflare OS and executes only the configured signed Webhook after approval.
+Model routes may use purchaser-owned Workers AI or an OpenAI-compatible HTTPS provider. Provider
+credentials remain Worker Secret bindings; only their binding names are stored in PostgreSQL. The
+fixed governed Agent write path uses the configured signed Webhook after approval. Read
+[Connections and Agent providers](docs/connections-and-agent-providers.md) before adding a provider
+or external action.
 
 ## Local setup
 
 ```sh
-git submodule update --init
+git submodule sync --recursive
+git submodule update --init --recursive
 pnpm install --frozen-lockfile
 pnpm audit:dependencies
 pnpm peers:check
+pnpm types:check
 pnpm test
 pnpm test:cloudflare-os
 pnpm build
@@ -153,11 +189,20 @@ uses reserved example values and is never a production configuration.
 
 ## PostgreSQL
 
-Create a blank PostgreSQL database, then run migrations with the connection string supplied only
-through the process environment:
+Create a blank PostgreSQL database. Before the restricted application role runs migrations, a
+provider administrator must enable the two reviewed extensions in that database:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+No application runtime role should receive extension-management or superuser authority. Then run
+migrations with the application connection string supplied only through the process environment:
 
 ```sh
-export DATABASE_URL='postgresql://user:password@host:5432/guild_os?sslmode=verify-full'
+read -r -s DATABASE_URL
+export DATABASE_URL
 pnpm db:migrate
 unset DATABASE_URL
 ```
@@ -174,7 +219,10 @@ already-applied migration was modified.
 Before production deploy, verify the actual target without changing it:
 
 ```sh
-DATABASE_URL='postgresql://...' pnpm db:verify
+read -r -s DATABASE_URL
+export DATABASE_URL
+pnpm db:verify
+unset DATABASE_URL
 ```
 
 This requires PostgreSQL 17+, TLS, a non-superuser role without `BYPASSRLS`, the exact migration
@@ -182,12 +230,15 @@ set and checksums for the release, and forced RLS on every Guild table. Plaintex
 available only for explicit local diagnostics with `--allow-insecure-localhost`.
 
 CI applies every migration twice to an ephemeral PostgreSQL 17 database owned by a non-superuser,
-then verifies Guild RLS isolation, Root Owner integrity, and Chronicle immutability. Local
-integration verification uses the same command:
+then verifies Guild RLS isolation, Root Owner integrity, and Chronicle immutability. For local
+integration verification, supply a migrated, disposable test database; these commands mutate it:
 
 ```sh
-DATABASE_URL=postgresql://... pnpm --filter @guild-os/postgres test:integration
-DATABASE_URL=postgresql://... pnpm --filter @guild-os/gatekeeper test:integration
+read -r -s DATABASE_URL
+export DATABASE_URL
+pnpm --filter @guild-os/postgres test:integration
+pnpm --filter @guild-os/gatekeeper test:integration
+unset DATABASE_URL
 pnpm --filter @guild-os/gatekeeper test:e2e
 ```
 
@@ -214,7 +265,8 @@ chmod 600 deployment.local.jsonc
 8. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
 
 Provide the Webhook signing secret only for the live deploy. It must contain at least 32 random
-bytes and must never be stored in either deployment JSONC file or a tracked environment file:
+bytes and must never be stored in either deployment JSONC file or a tracked environment file. Enter
+values only into hidden shell prompts; the names below are Secret references, not values:
 
 ```sh
 read -r -s GUILD_WEBHOOK_SIGNING_SECRET
@@ -266,8 +318,8 @@ Store codes under separate purchaser custody. Using one current code from an aut
 changes Root atomically, preserves the configured Role for the prior Root, invalidates the full
 generation, and records the incident. See [backup and recovery](docs/backup-and-recovery.md).
 
-The current v1 completion evidence and remaining gates are tracked in
-[v1 completion](docs/v1-completion.md).
+The authoritative release scope and remaining acceptance gates are tracked in the
+[full-spec acceptance contract](docs/full-spec-acceptance.md).
 
 ## Verification and deployment
 

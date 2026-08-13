@@ -4,6 +4,43 @@ This runbook deploys one purchaser-owned Guild. The purchaser must own the Cloud
 PostgreSQL database, domain, model credentials, Webhook receiver, backups, and administrator
 identities. No seller service is required after deployment.
 
+Deployment success is not product completion. The reviewed commit must still satisfy the
+[full-spec acceptance contract](full-spec-acceptance.md), and every capability promised to a
+purchaser must pass its own acceptance path.
+
+## 0. Clean-room checkout
+
+Start from a purchaser-owned Git URL in a new directory. Do not copy a seller working tree,
+`node_modules`, generated Worker configuration, production data, or an instance configuration.
+
+```sh
+read -r PURCHASER_REPOSITORY_URL
+read -r RELEASE_COMMIT
+git clone "$PURCHASER_REPOSITORY_URL" guild-os
+cd guild-os
+git checkout --detach "$RELEASE_COMMIT"
+unset PURCHASER_REPOSITORY_URL RELEASE_COMMIT
+git submodule sync --recursive
+git submodule update --init --recursive
+corepack enable
+corepack prepare pnpm@11.9.0 --activate
+pnpm install --frozen-lockfile
+```
+
+Confirm that the clone contains the expected pinned Cloudflare OS gitlink and no purchaser data:
+
+```sh
+git status --short
+git rev-parse --show-toplevel
+git rev-parse HEAD
+git submodule status
+node --version
+pnpm --version
+```
+
+The release toolchain is Node.js 24 and pnpm 11.9.0. `git status --short` must be empty. A leading
+`+`, `-`, or `U` in `git submodule status` is not an acceptable release state.
+
 ## 1. Record the release
 
 Start from a clean, reviewed commit and record the exact release before provisioning anything:
@@ -23,7 +60,9 @@ unreviewed changes.
 ## 2. Create purchaser-owned infrastructure
 
 1. Create a blank PostgreSQL database with TLS, automated provider backups, point-in-time recovery
-   where available, and a dedicated non-superuser application role.
+   where available, and a dedicated non-superuser application role. As a provider administrator,
+   enable `vector` and `pg_trgm` once, then remove the privileged session. The application role must
+   not receive extension-management authority.
 2. Run `pnpm db:migrate` with the direct database URL containing exactly
    `sslmode=verify-full`. Never put that URL in Git or either deployment configuration file.
    Then run `pnpm db:verify`; production verification requires PostgreSQL 17+, TLS, a non-superuser
@@ -37,6 +76,10 @@ unreviewed changes.
    that follows [the receiver contract](agent-webhook.md), including HMAC verification, a
    five-minute replay window, and durable idempotency. The bundled receiver uses one SQLite-backed
    Durable Object per idempotency key and can use a `workersDev` or custom-domain route.
+7. Decide which purchaser-owned model and Connection paths are actually in release scope. Create
+   only the provider accounts, public Gatekeepers, MCP endpoints, or Service Bindings required by
+   that scope. Record Secret reference names, never values. Follow
+   [Connections and Agent providers](connections-and-agent-providers.md).
 
 Use the current official Cloudflare instructions for
 [Hyperdrive](https://developers.cloudflare.com/hyperdrive/get-started/),
@@ -66,6 +109,11 @@ chmod 600 deployment.local.jsonc
 - KV namespace IDs and R2 bucket names after automatic provisioning
 - Per-Identity Ask and emergency-recovery attempt limits
 
+The top-level deployment schema configures the built-in Workers AI path, fixed HMAC Webhook, and
+bundled Workers. It does not declare arbitrary purchaser Connection Secrets or Service Bindings.
+Those are separately reviewed instance extensions and must be inventoried, reapplied, and verified
+after every deploy.
+
 For first deployment, `null` KV/R2 values allow Wrangler automatic provisioning. After every Worker
 is deployed, the deploy script reads the single version receiving 100 percent of traffic, verifies
 that its release message contains the current Git SHA, captures the actual KV/R2 bindings returned
@@ -85,7 +133,8 @@ class and SHA-256, never its filesystem path or plaintext values.
 ## 4. Verify without changing cloud state
 
 ```sh
-git submodule update --init
+git submodule sync --recursive
+git submodule update --init --recursive
 pnpm install --frozen-lockfile
 pnpm audit:dependencies
 pnpm peers:check
@@ -107,6 +156,34 @@ not create cloud resources.
 CI points it at `fixtures/deployment.ci.jsonc`, whose reserved values exist only to prove all Worker
 bundles. Local setup without a purchaser configuration still fails clearly on template
 placeholders.
+
+Verify that `/readyz` is pinned to the final migration file and its exact SHA-256. This command is
+read-only and exits nonzero on drift:
+
+```sh
+node --input-type=module <<'NODE'
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+
+const directory = "packages/guild-postgres/migrations";
+const migrations = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+const latest = migrations.at(-1);
+const source = await readFile("packages/guild-postgres/src/schema.ts", "utf8");
+const marker = source.match(/CURRENT_GUILD_SCHEMA_MIGRATION\s*=\s*\n?\s*"([^"]+)"/)?.[1];
+const expected = source.match(/CURRENT_GUILD_SCHEMA_CHECKSUM\s*=\s*\n?\s*"([a-f0-9]+)"/)?.[1];
+const actual = latest
+  ? createHash("sha256").update(await readFile(`${directory}/${latest}`)).digest("hex")
+  : null;
+if (!latest || marker !== latest || expected !== actual) {
+  throw new Error(`readiness drift: marker=${marker} latest=${latest} checksum=${expected}`);
+}
+console.log(`readiness marker verified: ${latest}`);
+NODE
+```
+
+The command must print `readiness marker verified` before deployment. A new migration must advance
+the source marker, exact checksum, and migration-order test in the same reviewed change. Never
+bypass a failure by weakening `/readyz` or by changing the target database's migration ledger.
 
 ## 5. Supply secrets and deploy
 
@@ -132,7 +209,7 @@ Deploy and clear the shell environment:
 
 ```sh
 pnpm deploy
-unset GUILD_WEBHOOK_SIGNING_SECRET CF_AI_GATEWAY_API_TOKEN
+unset DATABASE_URL GUILD_WEBHOOK_SIGNING_SECRET CF_AI_GATEWAY_API_TOKEN
 ```
 
 The deploy script rejects uncommitted source or an unpinned submodule, verifies the direct database,
@@ -143,10 +220,30 @@ the first update, creates restricted temporary secret files for Wrangler, delete
 paths, and removes database, Webhook, AI, and Access smoke credentials from unrelated child
 processes.
 
+`pnpm deploy` installs only the Secret values understood by `scripts/deploy.mjs`:
+`GUILD_WEBHOOK_SIGNING_SECRET` and, when enabled, `CF_AI_GATEWAY_API_TOKEN`. External model-provider
+and Connection Secret references are ordinary Guild Gatekeeper Worker bindings. Install each value
+interactively, then verify only the binding names:
+
+```sh
+read -r SECRET_REFERENCE
+read -r GUILD_GATEKEEPER_WORKER_NAME
+pnpm exec wrangler secret put "$SECRET_REFERENCE" \
+  --name "$GUILD_GATEKEEPER_WORKER_NAME"
+pnpm exec wrangler secret list \
+  --name "$GUILD_GATEKEEPER_WORKER_NAME" --format json
+unset SECRET_REFERENCE GUILD_GATEKEEPER_WORKER_NAME
+```
+
+A custom Cloudflare Service Binding cannot be created by inserting a Connection row. It requires a
+reviewed deployment extension and an actual `Fetcher` binding on the Guild Gatekeeper Worker.
+
 Generate a non-secret release record after deployment. The output must be a new absolute path
 outside the repository:
 
 ```sh
+read -r -s DATABASE_URL
+export DATABASE_URL
 pnpm release:evidence -- \
   --output /Volumes/EncryptedOps/guild-os/releases/RELEASE.json
 unset DATABASE_URL
@@ -222,17 +319,65 @@ Use synthetic names and non-sensitive content for the first test:
     codes and pending transfers become invalid, `break_glass.used` records the disclosure and
     changes, and a fresh generation can be created under the new Root.
 
+For every enabled external model or Connection, add synthetic acceptance for the exact provider,
+route purpose, remote capability allowlist, health/discovery response, approval level, invocation,
+revocation path, and provider-side audit trail. A saved metadata row is not an integration test. A
+Service Binding additionally requires confirmation that the named `Fetcher` binding exists in the
+active Guild Gatekeeper Worker version.
+
 Do not admit real users until the automated smoke and all twelve human checks pass and their
 checksums/results are attached to the release record.
 For the bundled receiver, the repeat-delivery test is executable as `pnpm smoke:webhook`; see
 [`packages/webhook-receiver/README.md`](../packages/webhook-receiver/README.md).
 
-## 8. Rollback
+## 8. Migration to another purchaser environment
 
-For code-only failure, use Cloudflare Workers version rollback or redeploy the last known-good Git
-commit. Never roll back the database by deleting migrations. If a new migration is incompatible,
-restore the pre-release database and object backup into a new environment, point a newly reviewed
-Hyperdrive configuration at it, and redeploy the matching code.
+Use a complete verified backup, not the logical NDJSON export, for full-environment migration.
+Create new Cloudflare and PostgreSQL resources in the destination account. The resource names and
+IDs change; the restored Guild UUID remains the UUID recorded in the backup unless a separately
+reviewed data transformation changes every Guild-scoped reference. The current restore tooling does
+not perform such an identity rewrite.
+
+1. Freeze source writes and create a final verified backup.
+2. Prepare the backup offline with `pnpm restore:prepare`.
+3. Restore PostgreSQL, KV, and R2 into new destination resources from that same backup set.
+4. Recreate and review Access policies instead of blindly transplanting old account object IDs.
+5. Create new Hyperdrive, Worker, Workflow, Durable Object, and Service Binding identities.
+6. Reinstall provider and Connection Secret values under purchaser custody; only reference names
+   travel in application metadata.
+7. Deploy the exact source commit recorded by the backup, then apply only reviewed forward
+   migrations.
+8. Run database verification, production smoke, full Human acceptance, and an export checksum.
+9. Switch the Access-protected hostname only after owner approval; keep the source denied but intact
+   through the rollback window.
+
+See [Backup and recovery](backup-and-recovery.md) for the store-level procedure and
+[Administrator handover](admin-handover.md) for ownership acceptance.
+
+## 9. Rollback
+
+For code-only failure with no incompatible data change, inspect the active deployment and roll each
+affected Worker back to its recorded last-known-good Version ID:
+
+```sh
+read -r WORKER_NAME
+pnpm exec wrangler deployments status \
+  --name "$WORKER_NAME" --json
+read -r VERSION_ID
+pnpm exec wrangler versions view "$VERSION_ID" \
+  --name "$WORKER_NAME"
+pnpm exec wrangler rollback "$VERSION_ID" \
+  --name "$WORKER_NAME" --message "purchaser-approved rollback"
+unset VERSION_ID WORKER_NAME
+```
+
+The rollback command changes production and requires purchaser approval. Confirm the Version ID
+against release evidence before executing it. Roll back the coordinated Worker set, not one Worker
+in isolation when contracts changed between them.
+
+Never roll back the database by deleting migrations. If a new migration is incompatible, preserve
+the failed environment, restore the pre-release database and object backup into new resources,
+point a newly reviewed Hyperdrive configuration at it, and deploy the matching code.
 
 After any rollback, repeat Access, Guild bootstrap, Knowledge read, Agent denial, and Chronicle
 checks. See [backup and recovery](backup-and-recovery.md) for the data procedure.

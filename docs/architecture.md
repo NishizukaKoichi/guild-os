@@ -24,8 +24,9 @@ Agent or Gadget
 ## Ownership model
 
 One deployment is one Guild. This makes the Cloudflare account and database a hard tenant boundary,
-not merely an application filter. A Guild may contain hierarchical Spaces. Cross-Guild exchange is
-later implemented as an explicit, revocable federation connector.
+not merely an application filter. A Guild may contain hierarchical Spaces. Cross-Guild exchange
+uses explicit, revocable Federation grants, signed transport, and selected-resource publication;
+there is no ambient cross-Guild search or shared seller-controlled tenant.
 
 Opening the application is read-only. Before the Guild exists, the account-bound management API
 returns a minimal `initialize` state. Only a trusted Workshop administrator can submit the explicit

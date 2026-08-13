@@ -289,7 +289,8 @@ does not make deleted files visible or lose the cleanup obligation.
 
 Before a production release, complete and verify:
 
-- Keep Level 3 actions disabled until a reauthentication-capable, multi-approver connector is added
+- Exercise one synthetic Level 3 action and prove recent reauthentication, the Constitution's
+  distinct-Human quorum, exact risk/Connection matching, and execution-time authority recheck
 - External Access/session recovery rehearsal in the deployed environment
 - Break Glass custody, use, alert review, and post-database-restore rotation rehearsal
 - Backup restore rehearsal

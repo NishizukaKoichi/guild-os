@@ -16,6 +16,11 @@ does not depend on a seller account or service.
 | Deployment | Restorable resource lock, summary, and source/migration hashes; no secret values |
 | Context Artifacts | Optional verified Git bundle |
 
+PostgreSQL includes Guild-owned Connection and model-provider metadata, their capability/model
+allowlists, and Secret reference names. It cannot include Worker Secret values, external-provider
+state, or a Cloudflare Service Binding that exists only in deployment configuration. Recreate those
+runtime bindings from the purchaser's separate custody register during restore.
+
 Secrets and plaintext Break Glass codes are deliberately excluded. Keep database credentials,
 Webhook HMAC values, OAuth/provider secrets, and recovery codes in separate purchaser-controlled
 custody.
@@ -23,8 +28,8 @@ custody.
 ## Policy
 
 Choose RPO and RTO before admitting real users. A reasonable small-team baseline is provider PITR,
-one daily logical backup, 30 daily copies, 12 monthly copies, and a quarterly restore rehearsal.
-Keep at least one encrypted copy in a different account and failure domain.
+one daily complete application backup, 30 daily copies, 12 monthly copies, and a quarterly restore
+rehearsal. Keep at least one encrypted copy in a different account and failure domain.
 
 The backup directory contains private organizational data. Put it on a FileVault/LUKS/BitLocker
 volume or another encrypted destination before using the required confirmation flag. The flag is an
@@ -52,8 +57,10 @@ downloads each object, preserves list metadata in the index, and rejects a bucke
 changes before the export completes.
 
 ```sh
-export DATABASE_URL='postgresql://...'
-export CLOUDFLARE_API_TOKEN='...'
+read -r -s DATABASE_URL
+export DATABASE_URL
+read -r -s CLOUDFLARE_API_TOKEN
+export CLOUDFLARE_API_TOKEN
 
 pnpm backup:create -- \
   --output /Volumes/EncryptedOps/guild-os/2026-08-12T010000Z \
@@ -64,6 +71,9 @@ unset DATABASE_URL CLOUDFLARE_API_TOKEN
 pnpm backup:verify -- \
   --input /Volumes/EncryptedOps/guild-os/2026-08-12T010000Z
 ```
+
+The hidden prompts keep values out of the command text and shell history. They do not replace a
+purchaser secret manager. Never put either value in an environment file in the repository.
 
 When Context Artifacts is enabled, also pass its clean local mirror:
 
@@ -131,21 +141,37 @@ This command verifies all manifest, file, KV, and R2 checksums again. It emits
 `restore-plan.json` and bounded `kv/<store>/batch-*.json` files compatible with Wrangler's binary
 bulk shape. It performs no network call and mutates no cloud resource.
 
+Keep the original backup immutable. The prepared directory is an execution plan, not a second
+backup. Record both directory checksums and the exact source commit outside the repository.
+
 ## Restore rehearsal
 
 Create a new PostgreSQL database, Hyperdrive configuration, KV namespaces, R2 buckets, Access
-application, Worker names, Guild UUID, and HMAC secret. Keep Access restricted to recovery testers.
+application, Worker names, and HMAC secret. Keep Access restricted to recovery testers. Use the
+Guild UUID recorded by the backup in the isolated target; resource IDs and names change, but the
+restored Guild identity does not. The current restore tooling does not rewrite every Guild-scoped
+foreign key to a new UUID.
 
 1. Restore PostgreSQL and verify the catalog:
 
    ```sh
    # Configure PGHOST, PGPORT, PGUSER, PGDATABASE, PGPASSWORD, and PGSSLMODE
    # for the isolated target; do not expose a credential URL in process arguments.
-   PGOPTIONS="-c app.guild_id=GUILD_UUID" psql \
+   read -r BACKUP_GUILD_UUID
+   PGOPTIONS="-c app.guild_id=$BACKUP_GUILD_UUID" psql \
      --no-psqlrc --single-transaction --set ON_ERROR_STOP=on \
-     --file BACKUP/postgres/guild-os.sql
-   DATABASE_URL="$RESTORE_DATABASE_URL" pnpm db:migrate
+     --file /absolute/verified-backup/postgres/guild-os.sql
+   unset BACKUP_GUILD_UUID
+   read -r -s DATABASE_URL
+   export DATABASE_URL
+   pnpm db:migrate
+   pnpm db:verify
+   unset DATABASE_URL
    ```
+
+   `restore-plan.json` records the immutable backup under `sourceBackup.path`; its PostgreSQL entry
+   identifies `postgres/guild-os.sql`. The prepared directory contains the plan and generated KV
+   batches, not a duplicate SQL dump.
 
    Compare every restored Guild table count and the maximum Chronicle sequence with
    `stores.postgres.expectedGuildTableRows` and `expectedChronicleSequence` in
@@ -164,13 +190,42 @@ application, Worker names, Guild UUID, and HMAC secret. Keep Access restricted t
 4. Recreate the Access application and policies from `cloudflare/access.json`; review identities,
    session duration, and hostname instead of applying the old object blindly.
 5. Configure a new ignored `deployment.local.jsonc` and let the first deploy create a new lock.
-   Never transplant production resource IDs into the rehearsal.
+   Set `guild.id` to the backup Guild UUID. Never transplant production Cloudflare resource IDs
+   into the rehearsal.
 6. Deploy the exact source commit recorded by the backup, then apply only reviewed newer migrations.
-7. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
+7. Recreate every provider Secret and Connection Secret or Service Binding from purchaser custody.
+   Verify the binding names and the exact model/capability allowlists; never copy a Secret value
+   from application metadata because it is not stored there.
+8. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
    Inbox, Chronicle ordering, Agent approval/delivery, and Kill behavior.
-8. Rotate Break Glass codes. A point-in-time database restore can revive the generation pointer that
+9. Rotate Break Glass codes. A point-in-time database restore can revive the generation pointer that
    existed at that historical time.
-9. Record measured RPO/RTO and the release, backup, restore-plan, and smoke checksums.
+10. Record measured RPO/RTO and the release, backup, restore-plan, and smoke checksums.
+
+After application checks, verify every destination store against the same restore plan. A successful
+login is not evidence that KV, R2, private data, Connection metadata, or Chronicle ordering was
+restored.
+
+## Purchaser migration
+
+A migration to another Cloudflare/PostgreSQL account is a restore into new resources followed by a
+controlled hostname cutover:
+
+1. Pass a restore rehearsal before the migration window.
+2. Freeze source writes and restrict Access to migration operators.
+3. Create a final backup and run `pnpm backup:verify` against it.
+4. Prepare and restore that one backup set into destination resources using the recorded Guild UUID.
+5. Recreate Access, provider Secrets, Connection Secrets, Service Bindings, and HMAC values under
+   destination purchaser custody.
+6. Deploy the backup's source commit, verify the database, and run production smoke plus Human
+   acceptance against a nonproduction hostname.
+7. Compare PostgreSQL row counts and Chronicle sequence, KV inventory, R2 object count/bytes/hashes,
+   Access policy, active Worker Versions, and logical-export checksum.
+8. Obtain owner approval, move the hostname, and keep the source environment denied but intact for
+   the agreed rollback window.
+
+Do not use the seven-day logical NDJSON export as a full migration source. Do not combine a provider
+PITR database point with KV/R2 from a different backup merely because the timestamps are close.
 
 ## Production recovery
 
@@ -182,6 +237,21 @@ the old environment denied but intact until its retention decision is recorded.
 Never delete migrations to roll back. Never combine a PostgreSQL point from one backup with KV or R2
 from another. For one missing immutable R2 object, restore only that key and verify its SHA-256
 against PostgreSQL metadata and the backup index.
+
+## Recovery evidence
+
+A recovery is accepted only when the purchaser record includes:
+
+- backup ID, format version, creation/verification status, and manifest checksum;
+- source Git commit, Cloudflare OS gitlink, database migration set, and active Worker Versions;
+- source and destination account/resource identifiers without credentials;
+- restored row counts, maximum Chronicle sequence, KV counts, and R2 object/byte/hash totals;
+- new deployment evidence and production smoke checksums;
+- Secret reference and Service Binding inventory verification without values;
+- measured RPO/RTO, owner approval, cutover time, and rollback deadline.
+
+Keep this evidence with the purchaser's operations records. Do not commit it to the reusable source
+template.
 
 ## Break Glass custody
 

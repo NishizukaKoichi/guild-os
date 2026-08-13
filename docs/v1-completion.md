@@ -1,41 +1,43 @@
 # Guild OS v1.0 Completion Matrix
 
-Updated: 2026-08-13
+Updated: 2026-08-14
 
 `Complete` means the behavior has executable unit, PostgreSQL/Gatekeeper integration, and browser
 acceptance coverage, with representative production verification through the real Access,
 Hyperdrive, R2, Workers AI, Workflow, and Webhook boundaries. Destructive recovery and two-account
 authority cases are rehearsed in isolated acceptance environments instead of against live data.
 
-| # | v1.0 acceptance condition | Status | Acceptance evidence | Release operation |
-| --- | --- | --- | --- | --- |
-| 1 | Create Guild and invite Humans | Complete | Explicit Workshop-admin bootstrap, serialized first-Root claim, privacy-minimized nonmember response, hashed one-time invitation, People UI, PostgreSQL/browser tests | Recheck Access and one invitation after identity-policy changes |
-| 2 | Register Human, Agent, Service identities | Complete | Human invitation claim; Agent/Service creation; Role assignment; stop, suspend, and depart controls; integration and responsive browser tests | Recheck lifecycle after Role-schema changes |
-| 3 | Enforce Role, Space, Permission before model context | Complete | Forced RLS, SQL prefilter plus domain recheck, wrong-Space/explicit-share/clearance leakage tests, and model-observation ordering test | Run DB preflight and Ask smoke for every release |
-| 4 | Knowledge files, versions, approval, publish, deprecate | Complete | Immutable lifecycle, human-only approval, R2 two-phase upload and cleanup, sandboxed file-chooser E2E, and production canonical Knowledge verification | Recheck one R2 upload after storage-binding changes |
-| 5 | Ask Guild with authorized citations | Complete | Canonical-only bounded context, Workers AI call, version citations, no-evidence response, rate limiting, leakage tests, and cited production answer | Recheck one cited answer after model changes |
-| 6 | Goal, Project, Quest, Step assigned to Human/Agent | Complete | Database-enforced hierarchy/Space/version/assignment rules, notifications, Chronicle, integration tests, and full responsive E2E | Recheck representative assignment after schema changes |
-| 7 | Agent Plan, approval, one external write | Complete | Cloudflare OS action staging, Guild Human quorum, current authority intersection, Workflow/outbox execution, signed idempotent Webhook, production delivery, and race tests | Recheck signed receiver path for every release |
-| 8 | Formal Decision with evidence and approvals | Complete | Immutable proposal, Constitution quorum, append-only reviews, evidence/dissent/supersession rules, notifications, integration tests, and responsive E2E | Recheck representative approval after Constitution changes |
-| 9 | Role/Space Announcement, Inbox, Knowledge notification | Complete | Immutable audience, set-based fan-out, deduplication, current-authority reads, integration tests, and responsive E2E | Recheck current-authority visibility after permission changes |
-| 10 | Chronicle all important Human/Agent actions | Complete | Append-only forced-RLS history with lifecycle, approval, execution, Kill, offboarding, and late-delivery evidence plus searchable responsive UI | Compare sequence across every backup and restore |
-| 11 | Human departure and Agent stop revoke access/tokens immediately | Complete | Transactional Identity disable, Connector revocation, run Kill, approval expiry, outbox cancellation, Workflow termination, and current-authority recheck | Rehearse in isolated acceptance after capability changes |
-| 12 | Agent budget/token/time/step/retry/delegation limits and Kill Switch | Complete | Immutable intersected limits, database/runtime checks, zero-retry external write, atomic claim, Kill UI, dispatch exhaustion, and Kill-race tests | Rehearse timeout/Kill after Workflow changes |
+## Full-spec capability acceptance
+
+| Area | Status | Acceptance evidence | Release operation |
+| --- | --- | --- | --- |
+| Sovereignty | Complete | Human Root Custodian, versioned Constitution, two-party transfer, one-use Break Glass, Root invariants, and Chronicle integration/E2E | Rehearse transfer and recovery with two synthetic Humans |
+| Actors | Complete | Human, Agent, Service, and Guild share Actor/Membership/Role/Capability tables, services, and Members UI | Recheck invitation and every Actor kind after identity changes |
+| Context Graph | Complete | Boundary-aware relations among Actors, Memory, Activity, Decisions, Events, Files, Connections, and external sources | Traverse an allowed and denied relation in smoke |
+| Memory | Complete | Canonical/Working/External layers, candidates, immutable versions, provenance, files, review signals, deprecation, and Personal/Shared custody | Recheck one complete governed Memory lifecycle |
+| Semantic retrieval | Complete | SQL authorization before hybrid lexical/vector ranking, exact-version citations, personal exclusion, lexical fallback, and rebuild runbook | Drain embeddings and run authorized/denied Ask smoke |
+| Activity | Complete | Recursive typed Activity, dependencies, assignments, outcomes, Space containment, and optimistic concurrency | Create a Template-specific Activity and dependency |
+| Decisions | Complete | Custodian, consent, vote, review, editorial, policy, and hybrid methods with immutable evidence and participation | Recheck one quorum result and dissent |
+| Communication | Complete | Role/Space Announcements, current-authority Inbox, contextual Conversations, private messages, and explicit provenance-preserving promotion | Verify private text is absent from Chronicle and retrieval until promotion |
+| Onboarding | Complete | Template/Role/Space paths, multiple required Memory/confirmation/Activity items, progress, and activation | Complete a three-requirement Preboarding journey |
+| Offboarding | Complete | Atomic access denial, token/Connection/schedule/approval/run stop, outbox cancellation, and explicit handover | Rehearse one Human departure and one Agent stop |
+| Contribution | Complete | Event-derived multidimensional evidence, no composite employee score, and correction request/review UI | Submit and resolve a synthetic correction |
+| Data ownership | Complete | Guild/Personal/Shared boundaries, logical export, complete backup, restore preparation, retention preview/apply, and purge evidence | Verify checksums and isolated restore preparation |
+| Ask / Plan / Act | Complete | Read-only Ask, inspectable Plan, policy-gated Act, proposal creation, approval request, assignment, and Connection action | Complete one read, reversible plan, and approved external action |
+| Agents | Complete | Model, Skills, Tools, Connections, schedules, intersected budget/token/time/step/retry/delegation limits, four risk levels, Kill, idempotency, and Home attention for failed or near-limit Runs | Rehearse Level 2, Level 3, timeout, duplicate, and Kill paths |
+| Connections | Complete | Purchaser-owned MCP, Gatekeeper API, HTTPS Webhook, and Service Binding configuration, allowlists, health, discovery, invocation, and revocation | Test every enabled production adapter with synthetic data |
+| Automation | Complete | Cron and event triggers, durable waits, bounded retry, deduplication, Agent delegation, Kill, and offboarding cancellation | Trigger one schedule and one event in acceptance |
+| Federation | Complete | Guild Actor, explicit grant, signed transport, durable delivery, selected resource publication, and revocation | Exchange and revoke one synthetic resource grant |
+| Templates | Complete | Blank, Company, Community, Research, Creator, Open Source, and Agent Collective configure Roles, vocabulary, choices, methods, workflows, onboarding, Home, and suggested Agents; Spaces override | Browser acceptance at 1440, 390, and 320 pixels |
+| Internationalization | Complete | English default, complete English/Japanese/Simplified Chinese UI dictionaries, persisted choice, and original-language user content | Switch all three languages in browser acceptance |
+| Operations | Complete | Purchaser-owned deploy, model and Connection setup, observability, export, retention, backup, restore, rollback, and handover runbooks | Preserve exact-commit release, backup, smoke, and restore evidence externally |
 
 ## Collective substrate acceptance
 
-| Requirement | Status | Evidence |
-| --- | --- | --- |
-| Four Actor kinds on one Membership model | Complete | Actor tables/profiles, compatibility mirrors, unified Members UI, domain/PostgreSQL/E2E tests |
-| Neutral Membership and Capability vocabulary | Complete | Neutral canonical states/capabilities; Company wording isolated to its Template |
-| Broad Memory with optional governance | Complete | Direct versioned Memory plus Canonical Knowledge workflow adapter and immutable version tests |
-| Recursive Activity without fixed depth | Complete | Parent Activity, typed recursion, any operational Actor assignment, Space containment tests |
-| Seven Templates with Blank default | Complete | Initialization Role presets plus Guild/Space Context Profiles for labels, choices, workflows, dashboard order, and Agents |
-| Ask over authorized Memory | Complete | SQL prefilter, domain recheck, Canonical-version selection, citations, leakage integration tests |
-| Agent safety after Members integration | Complete | Agent/requester/Workflow/Connector intersection, active Agent delegation check, Human-only governance |
-| Lossless additive migration | Complete | ID-preserving backfills, count guards, compatibility triggers, clean PostgreSQL 17 replay twice |
-| Neutral responsive UI | Complete | Home/Ask/Members/Memory/Activity/More at 1440, 390, and 320 pixels |
-| Compatibility is removable | Complete | New code targets Collective repository/service; removal conditions are documented separately |
+The compatibility layer preserves existing IDs and Company workflows while new code targets the
+neutral Actor, Membership, Memory, Activity, Decision, Connection, Run, and Event substrate. Blank
+is the default Template; Company is one editable preset. Compatibility removal remains governed by
+the migration runbook and is not a v1 release shortcut.
 
 ## Current verified slice
 
