@@ -96,6 +96,46 @@ function unique(capabilities: readonly Capability[]): readonly Capability[] {
 }
 
 const templates: Record<CollectiveTemplateKey, CollectiveTemplate> = {
+  personal: {
+    key: "personal",
+    name: "Personal with AI",
+    description: "A private operating space for one person and governed AI assistants.",
+    labels: {
+      members: "People and AI",
+      member: "Collaborator",
+      human: "Owner",
+      agent: "AI assistant",
+      service: "Connected service",
+      guildActor: "Partner collective",
+      memory: "Personal operating memory",
+      memoryItem: "Note",
+      remember: "Save knowledge",
+      activity: "Goals and work",
+      activityItem: "Task",
+      startActivity: "Start a task",
+      decisions: "Approvals",
+      decision: "Approval",
+      history: "Activity history",
+      join: "Invite",
+      leave: "Remove",
+      participant: "Collaborator",
+      coordinator: "Owner",
+    },
+    roles: [
+      { name: "Personal administrator", capabilities: unique(ADMINISTER_CAPABILITIES) },
+      { name: "Collaborator", capabilities: unique(PARTICIPATE_CAPABILITIES) },
+      { name: "Observer", capabilities: unique(READ_CAPABILITIES) },
+    ],
+    activityTypes: ["task", "project", "investigation", "creation", "maintenance"],
+    memoryTypes: ["fact", "document", "experience", "decision", "learning", "agent_output"],
+    decisionMethods: ["custodian", "review", "hybrid"],
+    dashboardIntents: ["ask", "start", "remember", "members", "review"],
+    workflows: [
+      { key: "owner-review", name: "Owner review", activityType: "task", memoryType: null, decisionMethod: "review" },
+      { key: "capture-learning", name: "Capture learning", activityType: null, memoryType: "learning", decisionMethod: "custodian" },
+    ],
+    suggestedAgent: "Personal assistant",
+  },
   blank: {
     key: "blank",
     name: "Blank Guild",

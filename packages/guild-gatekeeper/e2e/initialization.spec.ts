@@ -13,17 +13,14 @@ function collectBrowserErrors(page: Page): string[] {
 
 async function fillInitialization(app: Page | FrameLocator) {
   await app.getByRole("button", { name: "Continue", exact: true }).click();
-  await app.getByLabel("Who or what participates?", { exact: true })
-    .fill("People, agents, services, and partner collectives");
-  await app.getByLabel("What should it remember?", { exact: true })
-    .fill("Evidence, decisions, experiences, and reusable methods");
-  await app.getByLabel("What will it do together?", { exact: true })
-    .fill("Research, discussions, events, and shared activities");
-  await app.getByLabel("How will it decide?", { exact: true })
-    .fill("Consent with explicit review for high-impact actions");
   await app.getByLabel("Root Owner display name", { exact: true }).fill("Jordan Lee");
-  await app.getByLabel("Type the Guild name to confirm", { exact: true })
-    .fill("Commonweal Research Guild");
+  await app.getByRole("checkbox", { name: /I accept responsibility/ }).check();
+}
+
+async function finishInitialization(app: Page | FrameLocator) {
+  await app.getByRole("button", { name: "Create Guild", exact: true }).click();
+  await expect(app.getByRole("heading", { name: "Your Guild is ready", exact: true })).toBeVisible();
+  await app.getByRole("button", { name: "Open Guild OS", exact: true }).click();
 }
 
 async function mountSandboxedStandaloneApp(
@@ -67,23 +64,25 @@ async function mountSandboxedStandaloneApp(
   return page.frameLocator('iframe[title="Gatekeeper app"]');
 }
 
-test("requires explicit confirmation before the Workshop administrator becomes Root", async ({ page }) => {
+test("requires explicit Root acceptance before the Workshop administrator becomes Root", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=uninitialized-admin");
 
-  await expect(page.getByRole("heading", { name: "What kind of collective are you creating?", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Blank Guild/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "How will you use Guild OS?", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Personal with AI/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Recommended for one person", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Create Guild", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await fillInitialization(page);
-  await page.getByRole("button", {
-    name: "Initialize and become Root Owner",
-    exact: true,
-  }).click();
+  await finishInitialization(page);
 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
-  await page.getByRole("button", { name: "Members", exact: true }).click();
-  await expect(page.getByText(/Coordinator/)).toBeVisible();
+  await page.getByRole("button", { name: "People and AI", exact: true }).click();
+  await expect(page.getByText(/Personal administrator/)).toBeVisible();
+  await expect(page.getByText("Personal assistant", { exact: true })).toBeVisible();
   await expect(page.getByText(/Employee|Manager|Preboarding/)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -102,10 +101,7 @@ test("turns the selected purpose into a complete initial context and Role preset
   await expect(preview.getByText("Research synthesizer", { exact: true })).toBeVisible();
 
   await fillInitialization(page);
-  await page.getByRole("button", {
-    name: "Initialize and become Root Owner",
-    exact: true,
-  }).click();
+  await finishInitialization(page);
 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Researchers", exact: true }).click();
@@ -124,7 +120,7 @@ test("does not expose initialization controls to a non-administrator on mobile",
     exact: true,
   })).toBeVisible();
   await expect(page.getByRole("button", {
-    name: "Initialize and become Root Owner",
+    name: "Create Guild",
     exact: true,
   })).toHaveCount(0);
   const viewport = await page.evaluate(() => ({
@@ -141,10 +137,7 @@ test("initializes inside the Cloudflare OS form-restricted sandbox", async ({ pa
   const app = await mountSandboxedStandaloneApp(page, "uninitialized-admin");
 
   await fillInitialization(app);
-  await app.getByRole("button", {
-    name: "Initialize and become Root Owner",
-    exact: true,
-  }).click();
+  await finishInitialization(app);
 
   await expect(app.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
@@ -155,10 +148,9 @@ test("supports keyboard submission in the form-restricted sandbox", async ({ pag
   const app = await mountSandboxedStandaloneApp(page, "uninitialized-admin");
 
   await fillInitialization(app);
-  const confirmation = app.getByLabel("Type the Guild name to confirm", { exact: true });
-  await confirmation.press("Enter");
+  await app.getByLabel("Root Owner display name", { exact: true }).press("Enter");
 
-  await expect(app.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await expect(app.getByRole("heading", { name: "Your Guild is ready", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

@@ -64,7 +64,7 @@ integration("Guild bootstrap boundary", () => {
       ...collectiveSetup,
       displayName: "Unauthorized Human",
       preferredLocale: "en",
-      confirmation: env.GUILD_NAME,
+      rootOwnershipAccepted: true,
     })).rejects.toThrow("Only a Cloudflare OS administrator");
 
     const root = new GuildManagementApiImpl(env, rootId, true);
@@ -72,13 +72,13 @@ integration("Guild bootstrap boundary", () => {
       ...collectiveSetup,
       displayName: "Purchaser Root",
       preferredLocale: "ja",
-      confirmation: "wrong Guild",
-    })).rejects.toThrow("Guild name exactly");
+      rootOwnershipAccepted: false,
+    })).rejects.toThrow("Root ownership must be accepted explicitly");
     const initialized = await root.initializeGuild({
       ...collectiveSetup,
       displayName: "Purchaser Root",
       preferredLocale: "ja",
-      confirmation: env.GUILD_NAME,
+      rootOwnershipAccepted: true,
     });
     expect(initialized).toMatchObject({
       screen: "member",
@@ -96,7 +96,7 @@ integration("Guild bootstrap boundary", () => {
       ...collectiveSetup,
       displayName: "Racing Administrator",
       preferredLocale: "en",
-      confirmation: env.GUILD_NAME,
+      rootOwnershipAccepted: true,
     })).rejects.toThrow("already initialized by another administrator");
 
     const restricted = await visitor.getBootstrap();
@@ -124,7 +124,7 @@ integration("Guild bootstrap boundary", () => {
       ...collectiveSetup,
       displayName: "Collective Custodian",
       preferredLocale: "en",
-      confirmation: env.GUILD_NAME,
+      rootOwnershipAccepted: true,
     });
     const rootSpace = (await root.getDirectory()).spaces[0];
     if (!rootSpace) throw new Error("Root Space was not created.");
@@ -188,7 +188,7 @@ integration("Guild bootstrap boundary", () => {
       ...collectiveSetup,
       displayName: "Lifecycle Custodian",
       preferredLocale: "en",
-      confirmation: env.GUILD_NAME,
+      rootOwnershipAccepted: true,
     });
 
     const directory = await root.getDirectory();

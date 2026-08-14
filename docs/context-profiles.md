@@ -1,8 +1,22 @@
 # Context Profiles
 
-Context Profiles let the same neutral Guild OS core speak and operate naturally for a Company,
-Community, Research Collective, Creator Collective, Open Source Project, Agent Collective, or a
-Blank Guild.
+Context Profiles let the same neutral Guild OS core speak and operate naturally for Personal work
+with AI, a Company, Community, Research Collective, Creator Collective, Open Source Project, Agent
+Collective, or a Blank Guild.
+
+## First setup
+
+The first setup asks how the purchaser intends to use Guild OS before asking for implementation
+details. Personal with AI is selected by default and is the shortest safe path for one person: it
+creates a human Root Owner, personal operating vocabulary, and one bounded Personal assistant.
+Company, Research, and Community are the other primary choices. Creator, Open Source, Agent
+Collective, and Blank remain available under advanced Profiles.
+
+The deployment-defined Guild name is read-only during setup. The administrator enters the human
+Root display name and accepts Root responsibility explicitly. Starting-context answers are
+generated from the selected Profile and can be customized in an optional section. After the
+transaction succeeds, a completion receipt shows the Profile, Root Owner, assistant state, and
+Connection state before the administrator opens the Guild.
 
 ## What changes
 

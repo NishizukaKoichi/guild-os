@@ -47,7 +47,7 @@ integration("private promotion and contribution management API", () => {
       ...collectiveSetup,
       displayName: "Governance Root",
       preferredLocale: "en",
-      confirmation: env.GUILD_NAME,
+      rootOwnershipAccepted: true,
     });
     const rootSpace = (await root.getDirectory()).spaces[0];
     if (!rootSpace) throw new Error("Root Space was not initialized.");

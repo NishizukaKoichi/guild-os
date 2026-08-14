@@ -1,6 +1,6 @@
 import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppLocale } from "@guild-os/domain";
+import type { AppLocale, CollectiveTemplateKey } from "@guild-os/domain";
 import type {
   AssignRoleRequest,
   CreateAgentRequest,
@@ -18,6 +18,7 @@ import type {
   UiBootstrapState,
   UiCollectiveContext,
   UiDirectory,
+  UiMemberBootstrapState,
   UpdateConstitutionRequest,
   UpdateRoleRequest,
 } from "../src/management-types";
@@ -32,6 +33,7 @@ import { ContextPage } from "./pages/ContextPage";
 import { HomePage } from "./pages/HomePage";
 import { InboxPage } from "./pages/InboxPage";
 import { InitializationPage } from "./pages/InitializationPage";
+import { InitializationCompletePage } from "./pages/InitializationCompletePage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { LifecyclePage } from "./pages/LifecyclePage";
 import { MemoryPage } from "./pages/MemoryPage";
@@ -54,6 +56,10 @@ export function App({ api }: { api: GuildUiApi }) {
   const [bootstrap, setBootstrap] = useState<UiBootstrapState | null>(null);
   const [directory, setDirectory] = useState<UiDirectory | null>(null);
   const [collectiveSource, setCollectiveSource] = useState<UiCollectiveContext | null>(null);
+  const [initializationReceipt, setInitializationReceipt] = useState<{
+    bootstrap: UiMemberBootstrapState;
+    templateKey: CollectiveTemplateKey;
+  } | null>(null);
   const collective = useMemo(() => collectiveSource
     ? localizeCollectiveContext(collectiveSource, locale)
     : null, [collectiveSource, locale]);
@@ -119,13 +125,28 @@ export function App({ api }: { api: GuildUiApi }) {
   }
 
   if (bootstrap.screen === "initialize") {
+    if (initializationReceipt) {
+      return (
+        <InitializationCompletePage
+          bootstrap={initializationReceipt.bootstrap}
+          templateKey={initializationReceipt.templateKey}
+          onContinue={() => {
+            setInitializationReceipt(null);
+            setPage("home");
+            void load();
+          }}
+        />
+      );
+    }
     return (
       <InitializationPage
         bootstrap={bootstrap}
         onInitialize={async (input: InitializeGuildRequest) => {
           const state = await api.initializeGuild(input);
-          setBootstrap(state);
-          await loadMemberData(state);
+          if (state.screen !== "member") {
+            throw new Error(t("initialization.error"));
+          }
+          setInitializationReceipt({ bootstrap: state, templateKey: input.templateKey });
         }}
       />
     );

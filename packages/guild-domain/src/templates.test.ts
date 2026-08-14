@@ -42,7 +42,7 @@ function workflowSignature(template: CollectiveTemplate): string {
 }
 
 describe("Collective template acceptance", () => {
-  it("ships exactly the seven supported Context Profiles", () => {
+  it("ships every supported Context Profile in its canonical order", () => {
     expect(COLLECTIVE_TEMPLATES.map(({ key }) => key)).toEqual(COLLECTIVE_TEMPLATE_KEYS);
     expectUnique(COLLECTIVE_TEMPLATES.map(({ key }) => key), "template keys");
   });

@@ -19,6 +19,17 @@ interface LocalizedTemplateCopy {
 }
 
 const japanese: Record<CollectiveTemplateKey, LocalizedTemplateCopy> = {
+  personal: {
+    name: "個人＋AI",
+    description: "自分と権限管理されたAIアシスタントで、記憶と仕事を共有します。",
+    labels: {
+      members: "人とAI", member: "協力者", human: "オーナー", agent: "AIアシスタント",
+      service: "連携サービス", guildActor: "協力共同体", memory: "個人の業務記憶", memoryItem: "ノート",
+      remember: "知識を残す", activity: "目標と仕事", activityItem: "タスク", startActivity: "タスクを始める",
+      decisions: "承認", decision: "承認", history: "活動履歴", join: "招待する",
+      leave: "外す", participant: "協力者", coordinator: "オーナー",
+    },
+  },
   blank: {
     name: "Blank Guild",
     description: "中立的な基本要素から、共同体の形を自由に作ります。",
@@ -99,6 +110,10 @@ const japanese: Record<CollectiveTemplateKey, LocalizedTemplateCopy> = {
 };
 
 const simplifiedChinese: Record<CollectiveTemplateKey, LocalizedTemplateCopy> = {
+  personal: {
+    name: "个人＋AI", description: "让个人与受权限管理的AI助手共享记忆和工作。",
+    labels: { members: "人与AI", member: "协作者", human: "所有者", agent: "AI助手", service: "连接服务", guildActor: "合作共同体", memory: "个人工作记忆", memoryItem: "笔记", remember: "保存知识", activity: "目标与工作", activityItem: "任务", startActivity: "开始任务", decisions: "审批", decision: "审批", history: "活动历史", join: "邀请", leave: "移除", participant: "协作者", coordinator: "所有者" },
+  },
   blank: {
     name: "空白 Guild", description: "从中立的基本元素开始，自由塑造共同体。",
     labels: { members: "成员", member: "成员", human: "人类", agent: "代理", service: "服务", guildActor: "共同体", memory: "记忆", memoryItem: "记忆", remember: "留下记忆", activity: "活动", activityItem: "活动", startActivity: "开始活动", decisions: "决策", decision: "决策", history: "历史", join: "加入", leave: "退出", participant: "参与者", coordinator: "协调者" },

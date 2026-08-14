@@ -55,6 +55,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0043_federation_runtime_service.sql",
     "0044_onboarding_role_scope.sql",
     "0045_private_promotion_request_fingerprint.sql",
+    "0046_personal_context_profile.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -117,4 +118,5 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[41].sql, /Access verification Service backfill/);
   assert.match(migrations[42].sql, /Federation runtime Service backfill/);
   assert.match(migrations[43].sql, /CREATE TABLE onboarding_path_roles/);
+  assert.match(migrations[45].sql, /Personal with AI Context Profile/);
 });

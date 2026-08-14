@@ -105,7 +105,7 @@ integration("Ask, Plan, and Act management API", () => {
       decisionStyle: "Human confirmation with durable approval for consequential actions.",
       displayName: "Intent Root",
       preferredLocale: "en",
-      confirmation: "Intent Journey Guild",
+      rootOwnershipAccepted: true,
     });
     const context = await api.getCollectiveContext();
     const rootSpace = context.spaces[0];

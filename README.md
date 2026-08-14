@@ -27,7 +27,8 @@ Capability areas present in the codebase include:
 - Pinned Cloudflare OS Starter deployment wrapper
 - Global Actor plus Guild-scoped Membership for Human, Agent, Service, and Guild Actor kinds
 - Neutral Membership lifecycle and Role/Capability engine with hierarchical Space scopes
-- Blank, Company, Community, Research, Creator, Open Source, and Agent Collective Templates
+- Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and
+  Blank Templates
 - Guild and per-Space Context Profiles for labels, creation choices, Decision methods,
   workflows, dashboard order, and suggested Agents
 - Root Owner and private-data invariants
@@ -297,10 +298,11 @@ The receiving service must verify the signature and persist the idempotency key 
 effect. See the [Agent Webhook contract](docs/agent-webhook.md).
 
 Opening **Guild** never initializes the database as a page-load side effect. On an uninitialized
-deployment, a Workshop administrator must enter their Root display name, choose a locale, type the
-configured Guild name exactly, and submit the initialization form. PostgreSQL serializes competing
-attempts, so only one human account can become Root Owner. Keep the Access policy and Workshop
-administrator list restricted to that intended person until initialization is complete.
+deployment, a Workshop administrator chooses how the Guild will be used, enters the human Root
+display name, explicitly accepts Root responsibility, and submits **Create Guild**. Personal with
+AI is the recommended default and provisions a bounded Personal assistant. PostgreSQL serializes
+competing attempts, so only one human account can become Root Owner. Keep the Access policy and
+Workshop administrator list restricted to that intended person until initialization is complete.
 
 The Root Owner then issues a high-entropy, one-time invitation from **Members**. A recipient's stable
 Cloudflare OS account capability is bound to the selected Role, Space, and initial Membership state

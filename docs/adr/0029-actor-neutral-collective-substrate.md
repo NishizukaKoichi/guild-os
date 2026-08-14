@@ -1,6 +1,8 @@
 # ADR 0029: Make Actor, Memory, and Activity the Collective substrate
 
 Space profile behavior is refined by [ADR 0030](0030-space-context-profiles.md).
+The Blank first-run default and equal-placement decision is superseded by
+[ADR 0035](0035-guided-first-run-and-personal-profile.md); the neutral substrate remains unchanged.
 
 ## Status
 

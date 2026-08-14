@@ -8,6 +8,12 @@ Deployment success is not product completion. The reviewed commit must still sat
 [full-spec acceptance contract](full-spec-acceptance.md), and every capability promised to a
 purchaser must pass its own acceptance path.
 
+This repository intentionally does not advertise a generic **Deploy to Cloudflare** button.
+Cloudflare's deploy-button flow does not deploy multiple Workers from one monorepo together, while
+Guild OS deploys the Workshop, Gatekeeper, receiver, and supporting purchaser-owned resources as
+one reviewed release. Use this runbook until an installer can preserve that full boundary without
+silently omitting services.
+
 ## 0. Clean-room checkout
 
 Start from a purchaser-owned Git URL in a new directory. Do not copy a seller working tree,
@@ -260,20 +266,27 @@ evidence to the sales template.
 1. Confirm Access allows only the intended Root Owner.
 2. Confirm the same person is the only configured Workshop administrator.
 3. Open the Workshop URL, then open **Guild**. Merely opening this page must not create Guild rows.
-4. Verify the displayed Guild name and purpose. Enter the intended human display name, select the
-   preferred locale, type the Guild name exactly, and submit **Initialize** once.
-5. Confirm the account becomes a Human Identity with active Membership and Root Owner status. From
+4. Choose the Context Profile that best matches the intended use. **Personal with AI** is the
+   recommended default for one person; Company, Research, and Community are primary alternatives.
+   Creator, Open Source, Agent Collective, and Blank are under advanced Profiles.
+5. Verify the read-only Guild name and purpose. Enter the intended human Root display name, select
+   the preferred locale, accept the Root-responsibility checkbox, and submit **Create Guild** once.
+   Starting-context fields are optional and already contain Profile-specific safe defaults.
+6. Verify the completion receipt, including Profile, Root Owner, assistant state, and Connection
+   state, then select **Open Guild OS**. Personal with AI must provision one bounded Personal
+   assistant; Connections remain off until an administrator enables them.
+7. Confirm the account becomes a Human Identity with active Membership and Root Owner status. From
    a second authenticated but uninvited account, verify that Root identity, Constitution, transfer,
    and Agent configuration are not visible.
-6. Create a second recovery administrator with the minimum intended Role; do not share the Root
+8. Create a second recovery administrator with the minimum intended Role; do not share the Root
    Owner login.
-7. Rehearse a Root handover to that Human and back again. The current Root proposes the transfer in
+9. Rehearse a Root handover to that Human and back again. The current Root proposes the transfer in
    **Settings**, the named Human accepts from their own session, and both sides verify the proposal
    and acceptance in **Chronicle**. Acceptance invalidates the prior Root's recovery-code generation.
-8. In **Settings > Emergency recovery**, select the Role retained by the prior Root and generate a
+10. In **Settings > Emergency recovery**, select the Role retained by the prior Root and generate a
    code set. Verify ten codes are shown exactly once, store them under separate offline custody,
    rotate once to prove the first set is invalidated, and retain only the latest set.
-9. Expand the Access Allow policy only after Guild invitation, claim, Root transfer, and recovery
+11. Expand the Access Allow policy only after Guild invitation, claim, Root transfer, and recovery
    custody have been tested.
 
 Root ownership cannot be assigned to an Agent, disabled, suspended, departed, or deleted through

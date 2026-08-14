@@ -120,7 +120,7 @@ export type UiBootstrapState =
 export interface InitializeGuildRequest {
   displayName: string;
   preferredLocale: AppLocale;
-  confirmation: string;
+  rootOwnershipAccepted: boolean;
   templateKey: CollectiveTemplateKey;
   purpose: string;
   participants: string;

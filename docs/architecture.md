@@ -66,8 +66,9 @@ and approval policy.
 
 Templates configure initial Roles, vocabulary, Memory and Activity types, Decision methods,
 workflows, dashboard intentions, and a suggested Agent. They do not branch the database schema or
-authorization semantics. Blank is the default. A Space can select a complete Context Profile, so
-multiple operating cultures can coexist inside one Guild. The compatibility database column remains
+authorization semantics. Personal with AI is the guided first-run default; Blank remains available
+as an advanced neutral starting point. A Space can select a complete Context Profile, so multiple
+operating cultures can coexist inside one Guild. The compatibility database column remains
 `vocabulary_profile_key`; runtime resolution applies the whole Template, not labels alone.
 
 ## Packages

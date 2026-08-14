@@ -30,9 +30,11 @@ email.
 
 Guild creation is an explicit command, not a page-load side effect. Before initialization, the UI
 shows the configured Guild name and purpose, but only a Workshop-authenticated administrator can
-submit the command. The caller must provide a human display name, locale, and exact Guild-name
-confirmation. A PostgreSQL advisory transaction lock makes the first completed initialization the
-only winner under concurrency.
+submit the command. The caller must provide a Context Profile, human display name, locale, and an
+explicit Root-responsibility acceptance flag. The display-name and checkbox controls are usability
+confirmation; trusted Workshop administrator identity, the account-bound capability, and the
+PostgreSQL transaction remain the authorization boundary. A PostgreSQL advisory transaction lock
+makes the first completed initialization the only winner under concurrency.
 
 Bootstrap data is partitioned by access state. A usable `preboarding` or `active` member receives
 the member bootstrap. Every other initialized account receives only public deployment labels, its
@@ -268,7 +270,7 @@ does not make deleted files visible or lose the cleanup obligation.
 | Threat | Control | Residual risk / response |
 | --- | --- | --- |
 | Forged Human or Agent ID | IDs come from account capability or permission-filtered discovery; PostgreSQL reloads active Identity and Membership | Rehearse Access and account-capability recovery in production |
-| Accidental or racing first-owner claim | Initialization requires trusted Workshop admin context, exact Guild-name confirmation, and a Guild-scoped PostgreSQL advisory transaction lock | A wrongly configured Workshop admin list can still authorize the wrong human; keep Access and admin policy single-person until acceptance |
+| Accidental or racing first-owner claim | Initialization requires trusted Workshop admin context, affirmative Root-responsibility acceptance, and a Guild-scoped PostgreSQL advisory transaction lock | A wrongly configured Workshop admin list can still authorize the wrong human; keep Access and admin policy single-person until acceptance |
 | Governance metadata enumeration by a nonmember | Discriminated bootstrap responses omit Root, Constitution, transfer, and Agent data before usable Membership | Configured Guild name and purpose remain visible to authenticated Workshop accounts by design |
 | Requester-to-Agent or Agent-to-Agent privilege escalation | Every active Agent and requester plus Workflow and Connector permission intersection at plan and execution | Incorrect Role design can still grant intended but excessive authority; audit Roles and delegation limits |
 | Unauthorized context leakage | SQL filters Role, Space, clearance, visibility, and sharing before model context | External model/provider policy remains purchaser-owned |

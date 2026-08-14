@@ -1753,7 +1753,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     },
     async initializeGuild(input) {
       if (restrictedBootstrap?.screen !== "initialize" ||
-          !restrictedBootstrap.canInitialize || input.confirmation !== bootstrap.guildName ||
+          !restrictedBootstrap.canInitialize || input.rootOwnershipAccepted !== true ||
           !input.displayName.trim() || [
             input.purpose,
             input.participants,
@@ -1765,6 +1765,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       }
       const rootAccountId = restrictedBootstrap.accountId;
       const template = collectiveTemplate(input.templateKey);
+      const initializedAgentId = template.suggestedAgent ? crypto.randomUUID() : null;
+      const initializedAgentRoleId = template.suggestedAgent ? crypto.randomUUID() : null;
       bootstrap = {
         ...bootstrap,
         accountId: rootAccountId,
@@ -1790,7 +1792,25 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         name: role.name,
         system: true,
         permissions: role.capabilities,
-      }));
+      })).concat(initializedAgentRoleId ? [{
+        id: initializedAgentRoleId,
+        name: `${template.suggestedAgent} role`,
+        system: true,
+        permissions: [
+          "memory.read",
+          "activity.read",
+          "activity.create",
+          "decision.read",
+          "conversation.read",
+          "conversation.create",
+          "connection.read",
+          "connection.execute",
+          "run.create",
+          "agent.read",
+          "agent.run",
+          "event.read",
+        ],
+      }] : []);
       directory = {
         ...directory,
         identities: [{
@@ -1803,15 +1823,37 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           clearance: "restricted",
           joinedAt: now(),
           departedAt: null,
-        }],
+        }, ...(initializedAgentId && template.suggestedAgent ? [{
+          id: initializedAgentId,
+          kind: "agent" as const,
+          displayName: template.suggestedAgent,
+          status: "active" as const,
+          preferredLocale: input.preferredLocale,
+          membershipState: "active" as const,
+          clearance: "internal" as const,
+          joinedAt: now(),
+          departedAt: null,
+        }] : [])],
         roles,
         roleBindings: roles[0] ? [{
           id: crypto.randomUUID(),
           identityId: rootAccountId,
           roleId: roles[0].id,
           spaceId: null,
+        }, ...(initializedAgentId && initializedAgentRoleId ? [{
+          id: crypto.randomUUID(),
+          identityId: initializedAgentId,
+          roleId: initializedAgentRoleId,
+          spaceId: rootSpaceId,
+        }] : [])] : [],
+        agentProfiles: initializedAgentId ? [{
+          identityId: initializedAgentId,
+          instructions: "Use only authorized context, create reversible drafts, and stop for required Human approval.",
+          model: "workers-ai/default",
+          toolIds: ["memory_search", "activity_draft"],
+          limits: bootstrap.agentDefaults,
+          status: "active",
         }] : [],
-        agentProfiles: [],
         spaces: [{ id: rootSpaceId, parentSpaceId: null, name: "Guild", status: "active" }],
         invitations: [],
       };

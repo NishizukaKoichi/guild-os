@@ -47,8 +47,9 @@ describe("Actor-neutral Collective primitives", () => {
     )).toThrow();
   });
 
-  it("keeps Blank first-class and Company as one editable preset", () => {
+  it("keeps Personal and Blank first-class while Company remains one editable preset", () => {
     expect(COLLECTIVE_TEMPLATES.map((template) => template.key)).toEqual([
+      "personal",
       "blank",
       "company",
       "community",
@@ -57,6 +58,7 @@ describe("Actor-neutral Collective primitives", () => {
       "open-source",
       "agent-collective",
     ]);
+    expect(collectiveTemplate("personal").suggestedAgent).toBe("Personal assistant");
     expect(collectiveTemplate("blank").roles[0]?.name).toBe("Coordinator");
     expect(collectiveTemplate("company").roles.map((role) => role.name)).toContain("Staff");
     expect(collectiveTemplate("research").activityTypes).toContain("experiment");

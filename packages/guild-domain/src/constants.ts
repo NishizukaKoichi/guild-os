@@ -102,6 +102,7 @@ export const ACTIVITY_TYPES = [
   "step",
 ] as const;
 export const COLLECTIVE_TEMPLATE_KEYS = [
+  "personal",
   "blank",
   "company",
   "community",

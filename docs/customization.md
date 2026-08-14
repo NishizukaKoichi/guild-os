@@ -15,17 +15,19 @@ Authentication and authorization are deliberately absent. Sign-in configuration 
 
 ## Collective Templates and Context Profiles
 
-Choose **More > Settings > Context profiles** to apply Blank, Company, Community, Research,
-Creator, Open Source, or Agent Collective. The Guild Profile controls labels, Home action order,
-Memory and Activity choices, Decision methods, workflow suggestions, and the suggested Agent. The
-four primary labels can be overridden, and every Space can inherit the Guild Profile or select a
-different built-in Profile. See the complete [Context Profile guide](context-profiles.md).
+Choose **More > Settings > Context profiles** to apply Personal with AI, Company, Community,
+Research, Creator, Open Source, Agent Collective, or Blank. The Guild Profile controls labels,
+Home action order, Memory and Activity choices, Decision methods, workflow suggestions, and the
+suggested Agent. The four primary labels can be overridden, and every Space can inherit the Guild
+Profile or select a different built-in Profile. See the complete
+[Context Profile guide](context-profiles.md).
 
 The selected Template's built-in Role preset is created during initialization. Custom Roles remain
 editable data under Guild Settings; built-in Roles are protected from accidental mutation.
 Applying a Profile after initialization does not silently replace existing Roles, assignments,
 Actors, or data. This prevents an operating-context change from becoming an authorization
-migration. Blank is the initialization default.
+migration. Personal with AI is the guided initialization default; Blank is the advanced neutral
+Profile.
 
 Built-in definitions live in `packages/guild-domain/src/templates.ts`; translated display copy
 lives in `packages/guild-gatekeeper/app/collective-language.ts`. To add a purchaser-owned Template:
