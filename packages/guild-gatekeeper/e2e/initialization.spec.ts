@@ -110,6 +110,71 @@ test("turns the selected purpose into a complete initial context and Role preset
   expect(errors).toEqual([]);
 });
 
+test("guides an Other collective without exposing raw Blank as the default", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("?standalone=uninitialized-admin");
+
+  const customChoice = page.getByRole("button", { name: /Other \/ Build your own/ });
+  await expect(customChoice).toBeVisible();
+  await expect(page.getByRole("button", { name: /Blank Guild/ })).toBeHidden();
+  await page.getByText("Advanced profiles", { exact: true }).click();
+  await expect(page.getByRole("button", { name: /Blank Guild/ })).toBeVisible();
+
+  await customChoice.click();
+  await expect(customChoice).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+
+  await page.getByLabel("Root Owner display name", { exact: true }).fill("Avery Quinn");
+  await page.getByRole("checkbox", { name: /I accept responsibility/ }).check();
+  await expect(page.getByRole("button", { name: "Create Guild", exact: true })).toBeDisabled();
+
+  await page.getByLabel("What do you call the participants?", { exact: true }).fill("Contributors");
+  await page.getByLabel("What do you call shared memory?", { exact: true }).fill("Commons");
+  await page.getByLabel("What do you call shared activity?", { exact: true }).fill("Missions");
+  await page.getByLabel("What do you call decisions?", { exact: true }).fill("Agreements");
+  await page.getByLabel("Why does this collective exist?", { exact: true }).fill("Maintain a shared neighborhood garden.");
+  await page.getByLabel("Who or what participates?", { exact: true }).fill("Residents, volunteers, and a planning assistant.");
+  await page.getByLabel("What should it remember?", { exact: true }).fill("Planting plans, observations, and shared agreements.");
+  await page.getByLabel("What will it do together?", { exact: true }).fill("Coordinate planting, maintenance, and community events.");
+  await page.getByLabel("How will it decide?", { exact: true }).fill("Consent for routine work and a vote for major changes.");
+
+  await page.getByRole("button", { name: "Create Guild", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your Guild is ready", exact: true })).toBeVisible();
+  await expect(page.locator(".initialization-receipt")).toContainText("Other / Build your own");
+  await page.getByRole("button", { name: "Open Guild OS", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: "Contributors", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Commons", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Missions", exact: true })).toBeVisible();
+  await expect(page.locator(".topbar-context")).toContainText("Other / Build your own");
+  await expect(page.getByText("Add to Commons", { exact: true })).toBeVisible();
+  await page.locator(".nav-group-toggle").filter({ hasText: /^More$/ }).click();
+  await expect(page.getByRole("button", { name: "Agreements", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+for (const width of [390, 320]) {
+  test(`keeps the guided Other setup usable at ${width}px`, async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("?standalone=uninitialized-admin");
+
+    await page.getByRole("button", { name: /Other \/ Build your own/ }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Name the shared concepts", exact: true }))
+      .toBeVisible();
+    await expect(page.getByLabel("How will it decide?", { exact: true })).toBeVisible();
+
+    const viewport = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(viewport.scrollWidth).toBe(viewport.clientWidth);
+    expect(errors).toEqual([]);
+  });
+}
+
 test("does not expose initialization controls to a non-administrator on mobile", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

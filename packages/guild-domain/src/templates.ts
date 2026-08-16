@@ -2,7 +2,52 @@ import type {
   Capability,
   CollectiveTemplate,
   CollectiveTemplateKey,
+  CollectiveTemplateLabels,
 } from "./types.js";
+import { GuildDomainError } from "./errors.js";
+
+export const COLLECTIVE_TEMPLATE_LABEL_KEYS = [
+  "members",
+  "member",
+  "human",
+  "agent",
+  "service",
+  "guildActor",
+  "memory",
+  "memoryItem",
+  "remember",
+  "activity",
+  "activityItem",
+  "startActivity",
+  "decisions",
+  "decision",
+  "history",
+  "join",
+  "leave",
+  "participant",
+  "coordinator",
+] as const satisfies readonly (keyof CollectiveTemplateLabels)[];
+
+const collectiveTemplateLabelKeys = new Set<string>(COLLECTIVE_TEMPLATE_LABEL_KEYS);
+
+export function assertVocabularyOverrides(
+  value: unknown,
+): asserts value is Partial<CollectiveTemplateLabels> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new GuildDomainError("INVALID_INPUT", "Vocabulary overrides must be an object.");
+  }
+  for (const [key, label] of Object.entries(value)) {
+    if (!collectiveTemplateLabelKeys.has(key)) {
+      throw new GuildDomainError("INVALID_INPUT", `Vocabulary label ${key} is not supported.`);
+    }
+    if (typeof label !== "string" || label.trim().length < 1 || label.length > 200) {
+      throw new GuildDomainError(
+        "INVALID_INPUT",
+        `Vocabulary label ${key} must contain 1 to 200 characters.`,
+      );
+    }
+  }
+}
 
 const READ_CAPABILITIES: readonly Capability[] = [
   "guild.read",

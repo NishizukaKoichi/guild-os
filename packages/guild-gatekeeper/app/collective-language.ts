@@ -156,9 +156,15 @@ export function localizeTemplate(
 export function localizeCollectiveContext(
   context: UiCollectiveContext,
   locale: AppLocale,
+  customTemplateCopy?: Readonly<Pick<CollectiveTemplate, "name" | "description">>,
 ): UiCollectiveContext {
   const templates = context.templates.map((template) => localizeTemplate(template, locale));
-  const template = templates.find((candidate) => candidate.key === context.template.key) ?? context.template;
+  const localizedTemplate = templates.find((candidate) => candidate.key === context.template.key) ??
+    context.template;
+  const template = context.template.key === "blank" &&
+      Object.keys(context.vocabularyOverrides).length > 0 && customTemplateCopy
+    ? { ...localizedTemplate, ...customTemplateCopy }
+    : localizedTemplate;
   const labels = { ...template.labels, ...context.vocabularyOverrides };
   return {
     ...context,

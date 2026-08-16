@@ -61,6 +61,7 @@ import {
   assertActivityText,
   assertActivityTransition,
   assertMemoryContent,
+  assertVocabularyOverrides,
   collectiveTemplate,
   COLLECTIVE_TEMPLATES,
   validateConstitution,
@@ -1765,6 +1766,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       }
       const rootAccountId = restrictedBootstrap.accountId;
       const template = collectiveTemplate(input.templateKey);
+      const vocabularyOverrides = input.vocabularyOverrides ?? {};
+      assertVocabularyOverrides(vocabularyOverrides);
+      const labels = { ...template.labels, ...vocabularyOverrides };
       const initializedAgentId = template.suggestedAgent ? crypto.randomUUID() : null;
       const initializedAgentRoleId = template.suggestedAgent ? crypto.randomUUID() : null;
       bootstrap = {
@@ -1860,8 +1864,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       collective = {
         ...collective,
         template,
-        labels: template.labels,
-        vocabularyOverrides: {},
+        labels,
+        vocabularyOverrides,
         onboardingAnswers: {
           purpose: input.purpose.trim(),
           participants: input.participants.trim(),
@@ -1875,7 +1879,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           parentSpaceId: space.parentSpaceId,
           name: space.name,
           vocabularyProfileKey: null,
-          labels: template.labels,
+          labels,
           canConfigure: true,
         })),
         canConfigure: true,

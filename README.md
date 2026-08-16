@@ -29,6 +29,8 @@ Capability areas present in the codebase include:
 - Neutral Membership lifecycle and Role/Capability engine with hierarchical Space scopes
 - Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and
   Blank Templates
+- Guided **Other / Build your own** first setup that applies purchaser vocabulary and five
+  operating-context answers to the neutral Blank substrate without requiring code
 - Guild and per-Space Context Profiles for labels, creation choices, Decision methods,
   workflows, dashboard order, and suggested Agents
 - Root Owner and private-data invariants
@@ -300,7 +302,9 @@ effect. See the [Agent Webhook contract](docs/agent-webhook.md).
 Opening **Guild** never initializes the database as a page-load side effect. On an uninitialized
 deployment, a Workshop administrator chooses how the Guild will be used, enters the human Root
 display name, explicitly accepts Root responsibility, and submits **Create Guild**. Personal with
-AI is the recommended default and provisions a bounded Personal assistant. PostgreSQL serializes
+AI is the recommended default and provisions a bounded Personal assistant. **Other / Build your
+own** asks for four shared terms and five short context answers; the raw Blank Profile remains an
+advanced developer choice. PostgreSQL serializes
 competing attempts, so only one human account can become Root Owner. Keep the Access policy and
 Workshop administrator list restricted to that intended person until initialization is complete.
 

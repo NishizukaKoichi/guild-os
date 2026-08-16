@@ -3,6 +3,7 @@ import {
   type AppLocale,
   type CollectiveOnboardingAnswers,
   type CollectiveTemplateKey,
+  type CollectiveTemplateLabels,
   type Constitution,
 } from "@guild-os/domain";
 import {
@@ -182,6 +183,7 @@ export async function initializeGuildAccount(
   preferredLocale: AppLocale,
   templateKey: CollectiveTemplateKey,
   onboardingAnswers: CollectiveOnboardingAnswers,
+  vocabularyOverrides: Partial<CollectiveTemplateLabels> = {},
 ): Promise<GuildSetupState> {
   if (!isAdmin) {
     throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
@@ -217,7 +219,7 @@ export async function initializeGuildAccount(
       if (created) {
         await new GuildCollectiveRepository(connection, env.GUILD_ID).configure({
           templateKey,
-          vocabularyOverrides: {},
+          vocabularyOverrides,
           onboardingAnswers,
           actorId: accountId,
           chronicleEvent: makeChronicleEvent(

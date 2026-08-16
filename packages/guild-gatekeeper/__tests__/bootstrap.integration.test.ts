@@ -79,6 +79,12 @@ integration("Guild bootstrap boundary", () => {
       displayName: "Purchaser Root",
       preferredLocale: "ja",
       rootOwnershipAccepted: true,
+      vocabularyOverrides: {
+        members: "Contributors",
+        memory: "Commons",
+        activity: "Missions",
+        decisions: "Agreements",
+      },
     });
     expect(initialized).toMatchObject({
       screen: "member",
@@ -89,6 +95,21 @@ integration("Guild bootstrap boundary", () => {
       rootOwnerDisplayName: "Purchaser Root",
       preferredLocale: "ja",
       membershipState: "active",
+    });
+    await expect(root.getCollectiveContext()).resolves.toMatchObject({
+      template: { key: "blank" },
+      labels: {
+        members: "Contributors",
+        memory: "Commons",
+        activity: "Missions",
+        decisions: "Agreements",
+      },
+      vocabularyOverrides: {
+        members: "Contributors",
+        memory: "Commons",
+        activity: "Missions",
+        decisions: "Agreements",
+      },
     });
 
     const otherAdmin = new GuildManagementApiImpl(env, otherAdminId, true);

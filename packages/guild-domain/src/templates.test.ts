@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertVocabularyOverrides,
+  COLLECTIVE_TEMPLATE_LABEL_KEYS,
   COLLECTIVE_TEMPLATE_KEYS,
   COLLECTIVE_TEMPLATES,
   type CollectiveTemplate,
@@ -42,6 +44,15 @@ function workflowSignature(template: CollectiveTemplate): string {
 }
 
 describe("Collective template acceptance", () => {
+  it("validates only supported, bounded vocabulary overrides", () => {
+    expect(COLLECTIVE_TEMPLATE_LABEL_KEYS).toHaveLength(19);
+    expect(() => assertVocabularyOverrides({ members: "Researchers", activity: "Experiments" }))
+      .not.toThrow();
+    expect(() => assertVocabularyOverrides({ activity: "" })).toThrow();
+    expect(() => assertVocabularyOverrides({ unsupported: "Hidden field" })).toThrow();
+    expect(() => assertVocabularyOverrides([])).toThrow();
+  });
+
   it("ships every supported Context Profile in its canonical order", () => {
     expect(COLLECTIVE_TEMPLATES.map(({ key }) => key)).toEqual(COLLECTIVE_TEMPLATE_KEYS);
     expectUnique(COLLECTIVE_TEMPLATES.map(({ key }) => key), "template keys");

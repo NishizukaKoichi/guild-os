@@ -7,10 +7,12 @@ import { useI18n } from "../i18n";
 export function InitializationCompletePage({
   bootstrap,
   templateKey,
+  customized,
   onContinue,
 }: {
   bootstrap: UiMemberBootstrapState;
   templateKey: CollectiveTemplateKey;
+  customized: boolean;
   onContinue(): void;
 }) {
   const { locale, t } = useI18n();
@@ -33,7 +35,7 @@ export function InitializationCompletePage({
           <div>
             <UserRound size={18} aria-hidden="true" />
             <dt>{t("initialization.completeProfile")}</dt>
-            <dd>{template.name}</dd>
+            <dd>{customized ? t("initialization.customProfileName") : template.name}</dd>
           </div>
           <div>
             <ShieldCheck size={18} aria-hidden="true" />

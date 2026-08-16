@@ -9,6 +9,7 @@ import {
   assertMemoryContent,
   assertMemoryLayer,
   assertMemoryType,
+  assertVocabularyOverrides,
   authorize,
   collectiveTemplate,
   isAuthorized,
@@ -101,14 +102,6 @@ function assertBoundary(input: {
     throw new Error("Explicit Actor access is valid only for restricted or private records.");
   }
   assertReferences(input.allowedActorIds, "Allowed Actor IDs");
-}
-
-function assertVocabularyOverrides(value: Partial<CollectiveTemplateLabels>): void {
-  for (const [key, label] of Object.entries(value)) {
-    if (typeof label !== "string" || label.trim().length < 1 || label.length > 200) {
-      throw new Error(`Vocabulary label ${key} must contain 1 to 200 characters.`);
-    }
-  }
 }
 
 function toSecuredResource(resource: ActorSecuredResource): SecuredResource {

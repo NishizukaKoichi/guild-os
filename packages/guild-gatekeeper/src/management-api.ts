@@ -13,6 +13,7 @@ import {
   assertNonBlank,
   assertNonNegativeInteger,
   assertPositiveInteger,
+  assertVocabularyOverrides,
   isAuthorized,
   validateConstitution,
   validateRolePermissions,
@@ -568,6 +569,8 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     assertNonBlank(input.memoryIntent, "Collective memory intent", 2_000);
     assertNonBlank(input.activityIntent, "Collective activity intent", 2_000);
     assertNonBlank(input.decisionStyle, "Collective decision style", 2_000);
+    const vocabularyOverrides = input.vocabularyOverrides ?? {};
+    assertVocabularyOverrides(vocabularyOverrides);
     if (input.rootOwnershipAccepted !== true) {
       throw new Error("Root ownership must be accepted explicitly before initialization.");
     }
@@ -585,6 +588,7 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         activityIntent: input.activityIntent.trim(),
         decisionStyle: input.decisionStyle.trim(),
       },
+      vocabularyOverrides,
     );
     return this.getBootstrap();
   }

@@ -4794,6 +4794,11 @@ textarea:focus-visible {
   text-align: left;
 }
 
+.template-option-wide {
+  grid-column: 1 / -1;
+  min-height: 118px;
+}
+
 .template-option:hover {
   border-color: var(--border-strong);
   box-shadow: 0 7px 20px rgba(23, 32, 28, 0.06);
@@ -5086,6 +5091,33 @@ textarea:focus-visible {
   margin-top: 0;
 }
 
+.initialization-custom-vocabulary,
+.initialization-context-required {
+  display: grid;
+  gap: 12px;
+  padding: 18px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.initialization-custom-vocabulary h2,
+.initialization-context-required h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.initialization-custom-vocabulary > p,
+.initialization-context-required > p {
+  margin: -5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.initialization-context-required {
+  padding-bottom: 20px;
+}
+
 .initialization-context-customization > p {
   margin: 0 2px 14px;
   color: var(--text-muted);
@@ -5101,6 +5133,10 @@ textarea:focus-visible {
   display: grid;
   gap: 6px;
   margin-top: 12px;
+}
+
+.initialization-context-required label {
+  margin-top: 0;
 }
 
 .initialization-form-actions {

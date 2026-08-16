@@ -127,6 +127,7 @@ export interface InitializeGuildRequest {
   memoryIntent: string;
   activityIntent: string;
   decisionStyle: string;
+  vocabularyOverrides?: Partial<CollectiveTemplateLabels>;
 }
 
 export type UiConstitution = Omit<Constitution, "guildId">;

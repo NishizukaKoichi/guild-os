@@ -13,6 +13,7 @@ import {
   Shapes,
   ShieldAlert,
   ShieldCheck,
+  SlidersHorizontal,
   UserRound,
   UsersRound,
   type LucideIcon,
@@ -22,7 +23,9 @@ import {
   COLLECTIVE_TEMPLATES,
   type AppLocale,
   type CollectiveOnboardingAnswers,
+  type CollectiveTemplate,
   type CollectiveTemplateKey,
+  type CollectiveTemplateLabels,
 } from "@guild-os/domain";
 import type {
   InitializeGuildRequest,
@@ -31,7 +34,33 @@ import type {
 import { localizeTemplate } from "../collective-language";
 import { ContextProfilePreview } from "../components/ContextProfilePreview";
 import { Notice } from "../components/Notice";
-import { useI18n } from "../i18n";
+import { useI18n, type TranslationKey } from "../i18n";
+
+type InitializationChoice = CollectiveTemplateKey | "custom";
+type CustomVocabularyKey = "members" | "memory" | "activity" | "decisions";
+
+const contextFields: readonly {
+  key: keyof CollectiveOnboardingAnswers;
+  label: TranslationKey;
+  placeholder: TranslationKey;
+}[] = [
+  { key: "purpose", label: "initialization.purpose", placeholder: "initialization.purposePlaceholder" },
+  { key: "participants", label: "initialization.participants", placeholder: "initialization.participantsPlaceholder" },
+  { key: "memoryIntent", label: "initialization.memoryIntent", placeholder: "initialization.memoryIntentPlaceholder" },
+  { key: "activityIntent", label: "initialization.activityIntent", placeholder: "initialization.activityIntentPlaceholder" },
+  { key: "decisionStyle", label: "initialization.decisionStyle", placeholder: "initialization.decisionStylePlaceholder" },
+];
+
+const customVocabularyFields: readonly {
+  key: CustomVocabularyKey;
+  label: TranslationKey;
+  placeholder: TranslationKey;
+}[] = [
+  { key: "members", label: "initialization.customMembers", placeholder: "initialization.customMembersPlaceholder" },
+  { key: "memory", label: "initialization.customMemory", placeholder: "initialization.customMemoryPlaceholder" },
+  { key: "activity", label: "initialization.customActivity", placeholder: "initialization.customActivityPlaceholder" },
+  { key: "decisions", label: "initialization.customDecisions", placeholder: "initialization.customDecisionsPlaceholder" },
+];
 
 const primaryTemplateKeys: readonly CollectiveTemplateKey[] = [
   "personal",
@@ -75,17 +104,55 @@ export function InitializationPage({
     [locale],
   );
   const [step, setStep] = useState<"template" | "details">("template");
-  const [templateKey, setTemplateKey] = useState<CollectiveTemplateKey>("personal");
+  const [choice, setChoice] = useState<InitializationChoice>("personal");
   const [displayName, setDisplayName] = useState("");
   const [answerOverrides, setAnswerOverrides] = useState<Partial<CollectiveOnboardingAnswers>>({});
+  const [customVocabulary, setCustomVocabulary] = useState<Partial<Record<CustomVocabularyKey, string>>>({});
   const [rootOwnershipAccepted, setRootOwnershipAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const selectedTemplate = templates.find((template) => template.key === templateKey) ?? templates[0]!;
   const templatesByKey = useMemo(
     () => new Map(templates.map((template) => [template.key, template])),
     [templates],
   );
+  const isCustom = choice === "custom";
+  const templateKey: CollectiveTemplateKey = isCustom ? "blank" : choice;
+  const defaultCustomVocabulary = useMemo<Record<CustomVocabularyKey, string>>(() => ({
+    members: t("initialization.customMembersDefault"),
+    memory: t("initialization.customMemoryDefault"),
+    activity: t("initialization.customActivityDefault"),
+    decisions: t("initialization.customDecisionsDefault"),
+  }), [t]);
+
+  function customVocabularyValue(key: CustomVocabularyKey): string {
+    return customVocabulary[key] ?? defaultCustomVocabulary[key];
+  }
+
+  const vocabularyOverrides = useMemo<Partial<CollectiveTemplateLabels>>(() => {
+    if (!isCustom) return {};
+    const members = (customVocabulary.members ?? defaultCustomVocabulary.members).trim();
+    const memory = (customVocabulary.memory ?? defaultCustomVocabulary.memory).trim();
+    const activity = (customVocabulary.activity ?? defaultCustomVocabulary.activity).trim();
+    const decisions = (customVocabulary.decisions ?? defaultCustomVocabulary.decisions).trim();
+    return {
+      members,
+      memory,
+      remember: t("initialization.customRemember", { memory }),
+      activity,
+      startActivity: t("initialization.customStartActivity", { activity }),
+      decisions,
+    };
+  }, [customVocabulary, defaultCustomVocabulary, isCustom, t]);
+  const selectedTemplate = useMemo<CollectiveTemplate>(() => {
+    const template = templatesByKey.get(templateKey) ?? templates[0]!;
+    if (!isCustom) return template;
+    return {
+      ...template,
+      name: t("initialization.customProfileName"),
+      description: t("initialization.customProfileDescription"),
+      labels: { ...template.labels, ...vocabularyOverrides },
+    };
+  }, [isCustom, templateKey, templates, templatesByKey, t, vocabularyOverrides]);
   const defaultAnswers = useMemo<CollectiveOnboardingAnswers>(() => ({
     purpose: bootstrap.guildPurpose.trim() || t("initialization.defaultPurpose", {
       profile: selectedTemplate.name,
@@ -107,18 +174,19 @@ export function InitializationPage({
   }), [bootstrap.guildPurpose, selectedTemplate, t]);
 
   function answer(key: keyof CollectiveOnboardingAnswers): string {
-    return answerOverrides[key] ?? defaultAnswers[key];
+    return answerOverrides[key] ?? (isCustom ? "" : defaultAnswers[key]);
   }
 
-  function selectTemplate(nextTemplateKey: CollectiveTemplateKey): void {
-    setTemplateKey(nextTemplateKey);
+  function selectChoice(nextChoice: InitializationChoice): void {
+    setChoice(nextChoice);
     setAnswerOverrides({});
+    if (nextChoice === "custom") setCustomVocabulary({});
   }
 
   function renderTemplateOption(key: CollectiveTemplateKey) {
     const template = templatesByKey.get(key);
     if (!template) return null;
-    const selected = template.key === templateKey;
+    const selected = template.key === choice;
     const Icon = templateIcons[template.key];
     return (
       <button
@@ -126,7 +194,7 @@ export function InitializationPage({
         type="button"
         key={template.key}
         aria-pressed={selected}
-        onClick={() => selectTemplate(template.key)}
+        onClick={() => selectChoice(template.key)}
       >
         <span className="template-icon" aria-hidden="true"><Icon size={20} /></span>
         <span className="template-check" aria-hidden="true">{selected ? <Check size={16} /> : null}</span>
@@ -136,6 +204,51 @@ export function InitializationPage({
       </button>
     );
   }
+
+  function renderCustomOption() {
+    const selected = choice === "custom";
+    return (
+      <button
+        className={selected
+          ? "template-option template-option-wide template-option-selected"
+          : "template-option template-option-wide"}
+        type="button"
+        key="custom"
+        aria-pressed={selected}
+        onClick={() => selectChoice("custom")}
+      >
+        <span className="template-icon" aria-hidden="true"><SlidersHorizontal size={20} /></span>
+        <span className="template-check" aria-hidden="true">{selected ? <Check size={16} /> : null}</span>
+        <strong>{t("initialization.customProfileName")}</strong>
+        <span>{t("initialization.customProfileDescription")}</span>
+        <small>{t("initialization.customProfileGuided")}</small>
+      </button>
+    );
+  }
+
+  function renderContextFields() {
+    return contextFields.map((field) => (
+      <label key={field.key}>
+        <span>{t(field.label)}</span>
+        <textarea
+          required
+          maxLength={2_000}
+          rows={2}
+          value={answer(field.key)}
+          placeholder={t(field.placeholder)}
+          onChange={(event) => setAnswerOverrides((current) => ({
+            ...current,
+            [field.key]: event.target.value,
+          }))}
+        />
+      </label>
+    ));
+  }
+
+  const contextComplete = contextFields.every((field) => answer(field.key).trim().length > 0);
+  const customVocabularyComplete = customVocabularyFields.every(
+    (field) => customVocabularyValue(field.key).trim().length > 0,
+  );
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -152,6 +265,7 @@ export function InitializationPage({
         memoryIntent: answer("memoryIntent").trim(),
         activityIntent: answer("activityIntent").trim(),
         decisionStyle: answer("decisionStyle").trim(),
+        vocabularyOverrides,
       });
     } catch (cause) {
       setError(messageFrom(cause, t("initialization.error")));
@@ -197,6 +311,7 @@ export function InitializationPage({
           </header>
           <div className="template-grid">
             {primaryTemplateKeys.map(renderTemplateOption)}
+            {renderCustomOption()}
           </div>
           <details className="initialization-advanced-profiles">
             <summary>{t("initialization.advancedProfilesTitle")}</summary>
@@ -252,30 +367,42 @@ export function InitializationPage({
                 <small>{t("initialization.rootAcceptanceHelp")}</small>
               </span>
             </label>
-            <details className="initialization-context-customization">
-              <summary>{t("initialization.advancedTitle")}</summary>
-              <p>{t("initialization.advancedDescription")}</p>
-              <label>
-                <span>{t("initialization.purpose")}</span>
-                <textarea required maxLength={2_000} rows={2} value={answer("purpose")} onChange={(event) => setAnswerOverrides((current) => ({ ...current, purpose: event.target.value }))} />
-              </label>
-              <label>
-                <span>{t("initialization.participants")}</span>
-                <textarea required maxLength={2_000} rows={2} value={answer("participants")} onChange={(event) => setAnswerOverrides((current) => ({ ...current, participants: event.target.value }))} />
-              </label>
-              <label>
-                <span>{t("initialization.memoryIntent")}</span>
-                <textarea required maxLength={2_000} rows={2} value={answer("memoryIntent")} onChange={(event) => setAnswerOverrides((current) => ({ ...current, memoryIntent: event.target.value }))} />
-              </label>
-              <label>
-                <span>{t("initialization.activityIntent")}</span>
-                <textarea required maxLength={2_000} rows={2} value={answer("activityIntent")} onChange={(event) => setAnswerOverrides((current) => ({ ...current, activityIntent: event.target.value }))} />
-              </label>
-              <label>
-                <span>{t("initialization.decisionStyle")}</span>
-                <textarea required maxLength={2_000} rows={2} value={answer("decisionStyle")} onChange={(event) => setAnswerOverrides((current) => ({ ...current, decisionStyle: event.target.value }))} />
-              </label>
-            </details>
+            {isCustom ? (
+              <>
+                <section className="initialization-custom-vocabulary" aria-labelledby="custom-vocabulary-title">
+                  <h2 id="custom-vocabulary-title">{t("initialization.customVocabularyTitle")}</h2>
+                  <p>{t("initialization.customVocabularyDescription")}</p>
+                  <div className="form-grid">
+                    {customVocabularyFields.map((field) => (
+                      <label key={field.key}>
+                        <span>{t(field.label)}</span>
+                        <input
+                          required
+                          maxLength={200}
+                          value={customVocabularyValue(field.key)}
+                          placeholder={t(field.placeholder)}
+                          onChange={(event) => setCustomVocabulary((current) => ({
+                            ...current,
+                            [field.key]: event.target.value,
+                          }))}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </section>
+                <section className="initialization-context-customization initialization-context-required" aria-labelledby="custom-context-title">
+                  <h2 id="custom-context-title">{t("initialization.customContextTitle")}</h2>
+                  <p>{t("initialization.customContextDescription")}</p>
+                  {renderContextFields()}
+                </section>
+              </>
+            ) : (
+              <details className="initialization-context-customization">
+                <summary>{t("initialization.advancedTitle")}</summary>
+                <p>{t("initialization.advancedDescription")}</p>
+                {renderContextFields()}
+              </details>
+            )}
             {error ? <Notice kind="error">{error}</Notice> : null}
             <footer className="dialog-actions initialization-form-actions">
               <button className="secondary-button" type="button" onClick={() => setStep("template")}>
@@ -284,7 +411,8 @@ export function InitializationPage({
               <button
                 className="primary-button"
                 type="submit"
-                disabled={submitting || !displayName.trim() || !rootOwnershipAccepted}
+                disabled={submitting || !displayName.trim() || !rootOwnershipAccepted ||
+                  !contextComplete || !customVocabularyComplete}
               >
                 {submitting ? <LoaderCircle className="spin" size={17} /> : <Crown size={17} />}
                 <span>{t("initialization.submit")}</span>

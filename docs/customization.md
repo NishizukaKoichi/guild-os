@@ -29,6 +29,12 @@ Actors, or data. This prevents an operating-context change from becoming an auth
 migration. Personal with AI is the guided initialization default; Blank is the advanced neutral
 Profile.
 
+For a purpose that does not match a preset, select **Other / Build your own** during first setup.
+The guided path uses Blank's neutral Role and Capability model, then applies four purchaser-defined
+navigation terms and five operating-context answers. It does not require source edits and does not
+let generated wording change authorization. Use **Settings > Roles** for an explicit, auditable
+permission change and **Settings > Context profiles** for later vocabulary changes.
+
 Built-in definitions live in `packages/guild-domain/src/templates.ts`; translated display copy
 lives in `packages/guild-gatekeeper/app/collective-language.ts`. To add a purchaser-owned Template:
 

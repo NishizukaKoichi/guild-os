@@ -84,6 +84,33 @@ describe("Context Profile localization", () => {
     expect(community?.labels.coordinator).toBe("版主");
   });
 
+  it("presents an active customized Blank context without renaming the raw Blank option", () => {
+    const blank = collectiveTemplate("blank");
+    const source: UiCollectiveContext = {
+      ...makeContext(),
+      template: blank,
+      labels: { ...blank.labels, members: "Contributors" },
+      vocabularyOverrides: { members: "Contributors" },
+      spaces: [{
+        id: "custom",
+        parentSpaceId: null,
+        name: "Custom",
+        vocabularyProfileKey: null,
+        labels: blank.labels,
+        canConfigure: true,
+      }],
+    };
+
+    const localized = localizeCollectiveContext(source, "en", {
+      name: "Other / Build your own",
+      description: "Guided custom context",
+    });
+
+    expect(localized.template.name).toBe("Other / Build your own");
+    expect(localized.labels.members).toBe("Contributors");
+    expect(localized.templates.find(({ key }) => key === "blank")?.name).toBe("Blank Guild");
+  });
+
   it("provides localized names, descriptions, and complete labels for every profile", () => {
     for (const locale of ["en", "ja", "zh-CN"] as const) {
       for (const template of COLLECTIVE_TEMPLATES) {

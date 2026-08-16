@@ -59,10 +59,14 @@ export function App({ api }: { api: GuildUiApi }) {
   const [initializationReceipt, setInitializationReceipt] = useState<{
     bootstrap: UiMemberBootstrapState;
     templateKey: CollectiveTemplateKey;
+    customized: boolean;
   } | null>(null);
   const collective = useMemo(() => collectiveSource
-    ? localizeCollectiveContext(collectiveSource, locale)
-    : null, [collectiveSource, locale]);
+    ? localizeCollectiveContext(collectiveSource, locale, {
+      name: t("initialization.customProfileName"),
+      description: t("initialization.customProfileDescription"),
+    })
+    : null, [collectiveSource, locale, t]);
   const [page, setPage] = useState<AppPage>("home");
   const [knowledgeTarget, setKnowledgeTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,6 +134,7 @@ export function App({ api }: { api: GuildUiApi }) {
         <InitializationCompletePage
           bootstrap={initializationReceipt.bootstrap}
           templateKey={initializationReceipt.templateKey}
+          customized={initializationReceipt.customized}
           onContinue={() => {
             setInitializationReceipt(null);
             setPage("home");
@@ -146,7 +151,12 @@ export function App({ api }: { api: GuildUiApi }) {
           if (state.screen !== "member") {
             throw new Error(t("initialization.error"));
           }
-          setInitializationReceipt({ bootstrap: state, templateKey: input.templateKey });
+          setInitializationReceipt({
+            bootstrap: state,
+            templateKey: input.templateKey,
+            customized: input.templateKey === "blank" &&
+              Object.keys(input.vocabularyOverrides ?? {}).length > 0,
+          });
         }}
       />
     );
