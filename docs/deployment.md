@@ -156,6 +156,17 @@ The root lockfile covers the exact Cloudflare OS packages used by the deployment
 Guild-owned packages. Never run a second install from `cloudflare-os/pnpm-lock.yaml` for this
 release; doing so creates a different, unaudited dependency graph.
 
+Generate the release-specific dependency license inventory from this same checkout and preserve it
+with the purchaser's release evidence outside the repository:
+
+```sh
+pnpm licenses list --json > /Volumes/EncryptedOps/guild-os/releases/dependency-licenses.json
+```
+
+Use a new destination for every release and never overwrite prior evidence. Follow
+[Licensing and distribution](licensing-and-distribution.md) and include the root/submodule license
+and required notices with every source or object bundle.
+
 `pnpm check` repeats dependency audit and peer checks, runs tests and type/lint checks, builds all
 Workers, and asks Wrangler for deployment dry runs. It does not need application secrets and does
 not create cloud resources.

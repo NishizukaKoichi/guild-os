@@ -10,6 +10,11 @@ This repository is self-hosted. Each purchaser deploys it to their own Cloudflar
 their own PostgreSQL database and model providers, and owns every stored object and credential.
 There is no seller-operated API, licensing server, or required subscription.
 
+This checkout is currently distributed under Apache License 2.0. Future commercial packaging is a
+separate product boundary; it does not relicense this source tree or add a runtime call-home
+dependency. Read [Licensing and distribution](docs/licensing-and-distribution.md) and
+[Third-Party Notices](THIRD_PARTY_NOTICES.md) before creating or selling a bundle.
+
 > [!IMPORTANT]
 > Cloudflare OS is early-access software. This repository pins a reviewed upstream commit and never
 > follows an unpinned branch in production.
@@ -153,6 +158,7 @@ Purchaser operations documentation:
 | [Data ownership and retention](docs/data-ownership-and-retention.md) | Custody classes, export scope, retention dry-runs, evidence, and purge boundaries |
 | [Backup and recovery](docs/backup-and-recovery.md) | Complete backup, isolated restore, disaster recovery, and migration |
 | [Administrator handover](docs/admin-handover.md) | Asset transfer, Root succession, offboarding, and acceptance record |
+| [Licensing and distribution](docs/licensing-and-distribution.md) | Apache core provenance, future commercial boundary, self-service updates, and release compliance |
 
 ## Prerequisites
 

@@ -9,6 +9,8 @@ operate, recover, export, restore, and revoke the system without a seller accoun
 At acceptance, the purchaser controls:
 
 - the canonical Git repository and release history;
+- the license, third-party notices, dependency inventory, and exact source/object manifest shipped
+  with the installed release;
 - the Cloudflare account, zone, DNS, Access application, Workers, Workflows, Hyperdrive, KV, R2,
   Durable Objects, AI Gateway, and service bindings used by the instance;
 - the PostgreSQL organization/project, application role, backups, and recovery process;
@@ -27,7 +29,7 @@ custodians, never credential values.
 
 | Asset | Record |
 | --- | --- |
-| Source | Repository URL, release commit, Cloudflare OS gitlink, branch protection owner |
+| Source | Repository URL, release commit, Cloudflare OS gitlink, root/submodule licenses, third-party and dependency inventory, branch protection owner |
 | Cloudflare | Account ID, account owners, zone, billing owner, support plan |
 | Access | Application ID, audience, hostname, policy owner, emergency deny procedure |
 | Workers | Worker names and active Version IDs for Workshop, Context, Guild Gatekeeper, receiver, and error reporter |
@@ -49,11 +51,12 @@ or backup manifests to the reusable template repository. They belong to the purc
 4. Complete an isolated restore rehearsal and record measured RPO/RTO.
 5. Generate release and production smoke evidence outside the repository.
 6. Inventory every Secret reference and service binding without retrieving values.
-7. Add at least two purchaser-controlled Cloudflare and PostgreSQL administrators.
-8. Add a purchaser-controlled Git organization owner and verify branch protection and release
+7. Generate and preserve the exact dependency license inventory for the reviewed lockfile.
+8. Add at least two purchaser-controlled Cloudflare and PostgreSQL administrators.
+9. Add a purchaser-controlled Git organization owner and verify branch protection and release
    access.
-9. Invite a second active Human into Guild OS with the intended recovery administration Role.
-10. Resolve or explicitly accept every item in the full-spec acceptance contract. Do not label an
+10. Invite a second active Human into Guild OS with the intended recovery administration Role.
+11. Resolve or explicitly accept every item in the full-spec acceptance contract. Do not label an
     unresolved item complete.
 
 Exact source and local gate record:
@@ -191,6 +194,8 @@ incomplete.
 - Do not commit Secrets, database URLs, Access service-token values, recovery codes, or private
   purchaser configuration.
 - Do not make the seller's account the sole owner of any runtime dependency.
+- Do not remove Apache or dependency notices, claim exclusive ownership of third-party code, or make
+  an update entitlement a runtime access check.
 - Do not assign Root to an Agent or Service, share a Root login, or use direct SQL to replace Root.
 - Do not edit an applied migration or delete migration history.
 - Do not restore into production in place or combine stores from different backup sets.
@@ -221,5 +226,6 @@ The purchaser approver signs only when all of the following are true:
 - local gates, database preflight, deployment evidence, smoke, backup verification, and restore
   rehearsal refer to the same reviewed release boundary;
 - all Secret values have purchaser custody and only reference names appear in documentation;
+- the installed source/object manifest, licenses, notices, and dependency inventory are preserved;
 - seller and outgoing access has been removed and verified;
 - known incomplete product boundaries are recorded, not described as complete.

@@ -28,6 +28,13 @@ not merely an application filter. A Guild may contain hierarchical Spaces. Cross
 uses explicit, revocable Federation grants, signed transport, and selected-resource publication;
 there is no ambient cross-Guild search or shared seller-controlled tenant.
 
+Runtime ownership is separate from product distribution. This repository is the Apache-2.0 core.
+Future commercial installation, release-catalog, Blueprint, education, and brand assets belong in a
+separate repository with a separately reviewed license and contributor policy. That layer may
+deliver a pinned core release but cannot become a runtime license check or seller-controlled data
+path. See [Licensing and distribution](licensing-and-distribution.md) and
+[ADR 0038](adr/0038-separate-commercial-distribution-from-apache-core.md).
+
 Opening the application is read-only. Before the Guild exists, the account-bound management API
 returns a minimal `initialize` state. Only a trusted Workshop administrator can submit the explicit
 initialization command, and PostgreSQL serializes contenders with a Guild-scoped advisory lock.

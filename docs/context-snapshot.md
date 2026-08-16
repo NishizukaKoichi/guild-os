@@ -1,6 +1,6 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-14
+Updated: 2026-08-16
 
 ## Current goal
 
@@ -33,6 +33,9 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Cloudflare OS Gatekeepers remain the only path from agents and Gadgets to Guild data or external
   side effects.
 - No central seller-operated API, licensing server, database, or mandatory subscription is allowed.
+- The current repository remains Apache-2.0. Future commercial distribution assets belong in a
+  separate, counsel-reviewed repository and may gate access to new downloads, never continued use,
+  export, or recovery of an installed release.
 - Company is one Template. Personal with AI is the guided first-run default, Other builds a
   reviewed Purpose-first Blueprint, and Blank remains an advanced neutral Profile. Guilds and
   Spaces may reuse built-in or purchaser-saved Profiles without forking the neutral core or
