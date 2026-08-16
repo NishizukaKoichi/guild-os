@@ -8,6 +8,7 @@ import {
   SUPPORTED_LOCALES,
   authorize,
   assertAgentLimits,
+  assertCollectiveBlueprintDraft,
   assertCanDelegatePermissions,
   collectiveTemplate,
   assertNonBlank,
@@ -36,7 +37,7 @@ import {
   withGuildTransaction,
 } from "@guild-os/postgres";
 import { makeChronicleEvent } from "./chronicle.js";
-import { initializeGuildAccount } from "./bootstrap.js";
+import { initializeGuildAccount, prepareGuildAccount } from "./bootstrap.js";
 import type { GuildEnv } from "./config.js";
 import { GuildKnowledgeService } from "./knowledge-service.js";
 import { GuildWorkService } from "./work-service.js";
@@ -53,6 +54,10 @@ import { GuildPortabilityService } from "./portability-service.js";
 import { GuildRetentionService } from "./retention-service.js";
 import { synchronizeLifecycleOnboardingInTransaction } from "./lifecycle-service.js";
 import { GuildIntentAdapter } from "./intent-adapter.js";
+import {
+  createWorkersAiBlueprintRunner,
+  generatePurposeBlueprint,
+} from "./blueprint-generator.js";
 import { drainAgentWorkflowOutbox } from "./agent-dispatch.js";
 import type {
   ActIntentRequest,
@@ -72,6 +77,7 @@ import type {
   ChangeActivityStatusRequest,
   CompleteActivityRequest,
   ConfigureCollectiveRequest,
+  GenerateCollectiveBlueprintRequest,
   CreateActivityRequest,
   CreateAgentRequest,
   CreateAgentWebhookRunRequest,
@@ -108,6 +114,7 @@ import type {
   ModerateConversationRequest,
   PostConversationMessageRequest,
   PostConversationMessageResponse,
+  SaveCollectiveBlueprintRequest,
   PostPrivateMessageRequest,
   PromotePrivateMessageRequest,
   PlanRetentionRequest,
@@ -560,6 +567,30 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     );
   }
 
+  async generateCollectiveBlueprint(input: GenerateCollectiveBlueprintRequest) {
+    const state = await prepareGuildAccount(this.#env, this.#accountId);
+    if (state.initialized) {
+      await new GuildCollectiveService(this.#env, this.#accountId).assertCanManageTemplates();
+    } else if (!this.#isWorkshopAdmin) {
+      throw new Error("Only a Cloudflare OS administrator can design the initial Blueprint.");
+    }
+    const rateLimit = await this.#env.ASK_RATE_LIMITER.limit({ key: this.#accountId });
+    if (!rateLimit.success) {
+      throw new Error("Blueprint generation limit reached. Try again shortly.");
+    }
+    return generatePurposeBlueprint(
+      input.locale,
+      {
+        purpose: input.purpose,
+        participants: input.participants,
+        memoryIntent: input.memoryIntent,
+        activityIntent: input.activityIntent,
+        decisionStyle: input.decisionStyle,
+      },
+      createWorkersAiBlueprintRunner(this.#env),
+    );
+  }
+
   async initializeGuild(input: InitializeGuildRequest): Promise<UiBootstrapState> {
     assertNonBlank(input.displayName, "Root Owner display name");
     assertLocale(input.preferredLocale);
@@ -571,6 +602,12 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     assertNonBlank(input.decisionStyle, "Collective decision style", 2_000);
     const vocabularyOverrides = input.vocabularyOverrides ?? {};
     assertVocabularyOverrides(vocabularyOverrides);
+    if (input.blueprint) {
+      assertCollectiveBlueprintDraft(input.blueprint);
+      if (input.templateKey !== "blank") {
+        throw new Error("A custom Blueprint must use the neutral Blank runtime Template.");
+      }
+    }
     if (input.rootOwnershipAccepted !== true) {
       throw new Error("Root ownership must be accepted explicitly before initialization.");
     }
@@ -589,12 +626,17 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         decisionStyle: input.decisionStyle.trim(),
       },
       vocabularyOverrides,
+      input.blueprint,
     );
     return this.getBootstrap();
   }
 
   getCollectiveContext(): Promise<UiCollectiveContext> {
     return new GuildCollectiveService(this.#env, this.#accountId).getContext();
+  }
+
+  saveCollectiveBlueprint(input: SaveCollectiveBlueprintRequest): Promise<UiCollectiveContext> {
+    return new GuildCollectiveService(this.#env, this.#accountId).saveBlueprint(input);
   }
 
   configureCollective(input: ConfigureCollectiveRequest): Promise<UiCollectiveContext> {

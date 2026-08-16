@@ -1,4 +1,9 @@
-import { COLLECTIVE_TEMPLATES, collectiveTemplate } from "@guild-os/domain";
+import {
+  COLLECTIVE_TEMPLATES,
+  blueprintToCollectiveTemplate,
+  collectiveTemplate,
+  createDeterministicCollectiveBlueprint,
+} from "@guild-os/domain";
 import { describe, expect, it } from "vitest";
 import type { UiCollectiveContext } from "../src/management-types";
 import { localizeCollectiveContext, localizeTemplate } from "./collective-language";
@@ -10,6 +15,8 @@ function makeContext(): UiCollectiveContext {
     templates: COLLECTIVE_TEMPLATES,
     labels: { ...template.labels, members: "Custom members" },
     vocabularyOverrides: { members: "Custom members" },
+    blueprint: null,
+    blueprints: [],
     onboardingAnswers: {},
     templateVersion: 1,
     spaces: [{
@@ -17,6 +24,7 @@ function makeContext(): UiCollectiveContext {
       parentSpaceId: null,
       name: "Operations",
       vocabularyProfileKey: null,
+      blueprintKey: null,
       labels: template.labels,
       canConfigure: true,
     }, {
@@ -24,6 +32,7 @@ function makeContext(): UiCollectiveContext {
       parentSpaceId: null,
       name: "Laboratory",
       vocabularyProfileKey: "research",
+      blueprintKey: null,
       labels: collectiveTemplate("research").labels,
       canConfigure: true,
     }, {
@@ -31,6 +40,7 @@ function makeContext(): UiCollectiveContext {
       parentSpaceId: null,
       name: "Community",
       vocabularyProfileKey: "community",
+      blueprintKey: null,
       labels: collectiveTemplate("community").labels,
       canConfigure: true,
     }],
@@ -96,6 +106,7 @@ describe("Context Profile localization", () => {
         parentSpaceId: null,
         name: "Custom",
         vocabularyProfileKey: null,
+        blueprintKey: null,
         labels: blank.labels,
         canConfigure: true,
       }],
@@ -109,6 +120,54 @@ describe("Context Profile localization", () => {
     expect(localized.template.name).toBe("Other / Build your own");
     expect(localized.labels.members).toBe("Contributors");
     expect(localized.templates.find(({ key }) => key === "blank")?.name).toBe("Blank Guild");
+  });
+
+  it("preserves purchaser-authored Blueprint content when the UI locale changes", () => {
+    const draft = createDeterministicCollectiveBlueprint({
+      locale: "ja",
+      answers: {
+        purpose: "家族で暮らしと子育ての知恵を共有する",
+        participants: "家族とAIアシスタント",
+        memoryIntent: "家族の知恵と予定を残す",
+        activityIntent: "家事、ケア、行事を進める",
+        decisionStyle: "家族で話し合い、責任者が確認する",
+      },
+    });
+    const timestamp = "2026-08-16T00:00:00.000Z";
+    const record = {
+      ...draft,
+      version: 1,
+      status: "active" as const,
+      system: false,
+      createdByActorId: "owner",
+      updatedByActorId: "owner",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const template = blueprintToCollectiveTemplate(record);
+    const source: UiCollectiveContext = {
+      ...makeContext(),
+      template,
+      labels: template.labels,
+      vocabularyOverrides: {},
+      blueprint: record,
+      blueprints: [record],
+      spaces: [{
+        id: "family-care",
+        parentSpaceId: null,
+        name: "ケア",
+        vocabularyProfileKey: null,
+        blueprintKey: record.key,
+        labels: record.definition.labels,
+        canConfigure: true,
+      }],
+    };
+
+    const localized = localizeCollectiveContext(source, "zh-CN");
+    expect(localized.template.name).toBe("家族の共有室");
+    expect(localized.labels.activity).toBe("共同生活");
+    expect(localized.spaces[0]?.labels.memory).toBe("家族の記憶");
+    expect(localized.templates.find(({ key }) => key === "blank")?.name).toBe("空白 Guild");
   });
 
   it("provides localized names, descriptions, and complete labels for every profile", () => {

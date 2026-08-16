@@ -1,6 +1,6 @@
 # Guild OS Full-Spec Acceptance
 
-Updated: 2026-08-14
+Updated: 2026-08-16
 
 This document is the release contract for the complete Guild OS specification. A feature is not
 complete because a type, table, route, or mock exists. `Complete` requires the production data
@@ -40,7 +40,7 @@ creates an implicit cross-Guild search index or shared seller-controlled tenant.
 | Connections | Multiple typed purchaser-owned Connections, including Cloudflare OS Gatekeepers/MCP and fixed HTTPS Webhooks, with scoped capabilities and revocation | Adapter contract tests, discovery filtering, Connections UI |
 | Automation | Scheduled runs, event triggers, durable approval waits, bounded retries, and executable Agent-to-Agent delegation | Workflow tests, trigger deduplication, Kill/offboarding races |
 | Federation | Another Guild can be an Actor; selected Memory, Activity, and Decisions can be shared through an explicit revocable federation grant | Cross-deployment contract, no-ambient-sharing tests, Federation UI |
-| Templates | Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and Blank configure vocabulary, Roles, choices, methods, workflows, onboarding, Home, and suggested Agents; Personal is the guided default, Other safely builds purchaser vocabulary and Context on Blank, and Spaces may override | All-profile and first-run unit/E2E at 1440/390/320 |
+| Templates and Purpose-first Builder | Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and Blank remain reusable presets. Other must turn five natural-language purpose answers into a reviewable Blueprint containing the collective name and purpose, vocabulary, Role and Capability proposals, Spaces, Memory types, Activity types and states, Decision methods, Home layout, Workflows, and a bounded suggested Agent. A purchaser can edit, save, version, reuse, and apply the Blueprint without code, and a Space can override the Guild Profile with a saved Blueprint. Generation is a proposal only: it must never silently mutate an existing Role, Capability, Constitution, approval rule, Connection, or Agent permission. Raw Blank remains an advanced fully manual path, not the fallback for an unknown collective. | Domain/schema/API tests; family, school, sports team, NPO, and DAO browser journeys; English/Japanese/Simplified Chinese at 1440/390/320; explicit tests that generation and Profile assignment do not alter existing authority |
 | Internationalization | English default with complete English, Japanese, and Simplified Chinese UI dictionaries; user content remains original unless explicitly translated | Missing-key test and three-locale E2E |
 | Operations | Purchaser-owned deploy, model/provider configuration, observability, export, backup, restore, rollback, and administrator handover | Clean-room setup, checksummed backup, isolated restore, release evidence |
 
@@ -58,3 +58,7 @@ The full specification is complete only when every row above is implemented, eve
 gate passes, a clean commit is pushed, CI passes, a verified pre-deploy backup exists, migrations
 and restore preparation pass, the exact commit is deployed, and authenticated production journeys
 pass without modifying unrelated live data.
+
+Fixed presets alone do not satisfy the Templates row. Guild OS may claim to be a general
+Collective OS only when a collective absent from those presets can explain its purpose and create
+its own structure and language without code.

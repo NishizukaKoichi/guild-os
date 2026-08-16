@@ -10,12 +10,15 @@ import {
   assertMemoryLayer,
   assertMemoryType,
   assertVocabularyOverrides,
+  assertCollectiveBlueprintDraft,
   authorize,
+  blueprintToCollectiveTemplate,
   collectiveTemplate,
   isAuthorized,
   type ActorSecuredResource,
   type AuthorizationSnapshot,
   type CollectiveTemplateLabels,
+  type CollectiveBlueprintRecord,
   type Permission,
   type SecuredResource,
 } from "@guild-os/domain";
@@ -41,6 +44,7 @@ import type {
   CreateActivityRequest,
   CreateMemoryRequest,
   SaveMemoryRequest,
+  SaveCollectiveBlueprintRequest,
   RemoveActivityDependencyRequest,
   SetSpaceVocabularyRequest,
   UiActivity,
@@ -49,6 +53,7 @@ import type {
   UiActivityPage,
   UiActivityPageRequest,
   UiCollectiveContext,
+  UiCollectiveBlueprint,
   UiCollectiveSpace,
   UiMemory,
   UiMemoryCapabilities,
@@ -251,6 +256,10 @@ export class GuildCollectiveService {
 
   async configure(input: ConfigureCollectiveRequest): Promise<UiCollectiveContext> {
     collectiveTemplate(input.templateKey);
+    const blueprintKey = input.blueprintKey ?? null;
+    if (blueprintKey !== null && input.templateKey !== "blank") {
+      throw new Error("A custom Blueprint must use the neutral Blank runtime Template.");
+    }
     assertVocabularyOverrides(input.vocabularyOverrides);
     for (const answer of Object.values(input.onboardingAnswers)) {
       if (typeof answer !== "string" || answer.length > 2_000) {
@@ -264,6 +273,7 @@ export class GuildCollectiveService {
         await this.#authorize(connection, null, "template.manage");
         await new GuildCollectiveRepository(connection, this.#env.GUILD_ID).configure({
           ...input,
+          blueprintKey,
           actorId: this.#accountId,
           chronicleEvent: makeChronicleEvent(
             this.#env.GUILD_ID,
@@ -271,7 +281,7 @@ export class GuildCollectiveService {
             "collective.configured",
             "collective",
             this.#env.GUILD_ID,
-            { templateKey: input.templateKey, source: "guild-ui" },
+            { templateKey: input.templateKey, blueprintKey, source: "guild-ui" },
           ),
         });
       },
@@ -279,8 +289,52 @@ export class GuildCollectiveService {
     return this.getContext();
   }
 
+  async saveBlueprint(input: SaveCollectiveBlueprintRequest): Promise<UiCollectiveContext> {
+    assertCollectiveBlueprintDraft(input.draft);
+    await withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => {
+        await this.#authorize(connection, null, "template.manage");
+        await new GuildCollectiveRepository(connection, this.#env.GUILD_ID).saveBlueprint({
+          draft: input.draft,
+          expectedVersion: input.expectedVersion,
+          ...(input.status ? { status: input.status } : {}),
+          actorId: this.#accountId,
+          chronicleEvent: makeChronicleEvent(
+            this.#env.GUILD_ID,
+            this.#accountId,
+            input.expectedVersion === null ? "collective.blueprint.created" : "collective.blueprint.updated",
+            "collective",
+            this.#env.GUILD_ID,
+            {
+              blueprintKey: input.draft.key,
+              generationMode: input.draft.generationMode,
+              expectedVersion: input.expectedVersion,
+              authorityChanged: false,
+              source: "guild-ui",
+            },
+          ),
+        });
+      },
+    );
+    return this.getContext();
+  }
+
+  async assertCanManageTemplates(): Promise<void> {
+    await withGuildTransaction(
+      this.#env.HYPERDRIVE.connectionString,
+      this.#env.GUILD_ID,
+      async (connection) => { await this.#authorize(connection, null, "template.manage"); },
+    );
+  }
+
   async setSpaceVocabulary(input: SetSpaceVocabularyRequest): Promise<UiCollectiveContext> {
     assertUuid(input.spaceId, "Space ID");
+    const blueprintKey = input.blueprintKey ?? null;
+    if (blueprintKey !== null && input.templateKey !== null) {
+      throw new Error("Choose either a saved Blueprint or a built-in Profile for a Space.");
+    }
     if (input.templateKey !== null) collectiveTemplate(input.templateKey);
     await withGuildTransaction(
       this.#env.HYPERDRIVE.connectionString,
@@ -295,19 +349,25 @@ export class GuildCollectiveService {
           classification: "public",
           allowedIdentityIds: [],
         }, "space.manage");
-        await new GuildCollectiveRepository(connection, this.#env.GUILD_ID).setSpaceVocabulary(
-          input.spaceId,
-          input.templateKey,
+        const repository = new GuildCollectiveRepository(connection, this.#env.GUILD_ID);
+        const event = makeChronicleEvent(
+          this.#env.GUILD_ID,
           this.#accountId,
-          makeChronicleEvent(
-            this.#env.GUILD_ID,
-            this.#accountId,
-            "space.vocabulary.changed",
-            "space",
-            input.spaceId,
-            { templateKey: input.templateKey ?? "inherit", source: "guild-ui" },
-          ),
+          "space.context_profile.changed",
+          "space",
+          input.spaceId,
+          {
+            templateKey: input.templateKey ?? "inherit",
+            blueprintKey,
+            authorityChanged: false,
+            source: "guild-ui",
+          },
         );
+        if (blueprintKey !== null || input.templateKey === null) {
+          await repository.setSpaceBlueprint(input.spaceId, blueprintKey, this.#accountId, event);
+        } else {
+          await repository.setSpaceVocabulary(input.spaceId, input.templateKey, this.#accountId, event);
+        }
       },
     );
     return this.getContext();
@@ -790,7 +850,16 @@ export class GuildCollectiveService {
     }
     const repository = new GuildCollectiveRepository(connection, this.#env.GUILD_ID);
     const settings = await repository.getSettings();
-    const template = collectiveTemplate(settings.templateKey);
+    const blueprintRecords = await repository.listBlueprints(true);
+    const activeBlueprint = settings.blueprintKey === null
+      ? null
+      : blueprintRecords.find((candidate) => candidate.key === settings.blueprintKey) ?? null;
+    if (settings.blueprintKey !== null && (!activeBlueprint || activeBlueprint.status !== "active")) {
+      throw new Error("The configured Collective Blueprint is unavailable.");
+    }
+    const template = activeBlueprint
+      ? blueprintToCollectiveTemplate(activeBlueprint)
+      : collectiveTemplate(settings.templateKey);
     const labels = { ...template.labels, ...settings.vocabularyOverrides };
     const readableSpaces = await listAuthorizedSpaces(
       connection,
@@ -811,6 +880,7 @@ export class GuildCollectiveService {
       parent_space_id: string | null;
       name: string;
       vocabulary_profile_key: string | null;
+      blueprint_key: `custom-${string}` | null;
       template_key: string | null;
       profile_labels: Partial<CollectiveTemplateLabels> | null;
     }>(
@@ -818,7 +888,7 @@ export class GuildCollectiveService {
               CASE WHEN space.parent_space_id = ANY($2::uuid[])
                 THEN space.parent_space_id::text ELSE NULL END AS parent_space_id,
               space.name,
-              space.vocabulary_profile_key, profile.template_key,
+              space.vocabulary_profile_key, space.blueprint_key, profile.template_key,
               profile.labels AS profile_labels
          FROM spaces space
          LEFT JOIN vocabulary_profiles profile
@@ -830,6 +900,9 @@ export class GuildCollectiveService {
       [this.#env.GUILD_ID, readableSpaceIds],
     )).rows;
     const spaces: UiCollectiveSpace[] = rows.map((row) => {
+      const spaceBlueprint = row.blueprint_key === null
+        ? null
+        : blueprintRecords.find((candidate) => candidate.key === row.blueprint_key && candidate.status === "active") ?? null;
       const profileTemplate = row.template_key &&
         COLLECTIVE_TEMPLATES.some((candidate) => candidate.key === row.template_key)
         ? collectiveTemplate(row.template_key as typeof template.key)
@@ -839,8 +912,9 @@ export class GuildCollectiveService {
         parentSpaceId: row.parent_space_id,
         name: row.name,
         vocabularyProfileKey: profileTemplate?.key ?? null,
+        blueprintKey: spaceBlueprint?.key ?? null,
         labels: {
-          ...(profileTemplate?.labels ?? labels),
+          ...(spaceBlueprint?.definition.labels ?? profileTemplate?.labels ?? labels),
           ...(row.profile_labels ?? {}),
         },
         canConfigure: configurableSpaceIds.has(row.id),
@@ -851,6 +925,8 @@ export class GuildCollectiveService {
       templates: COLLECTIVE_TEMPLATES,
       labels,
       vocabularyOverrides: settings.vocabularyOverrides,
+      blueprint: activeBlueprint ? this.#blueprintForUi(activeBlueprint) : null,
+      blueprints: blueprintRecords.map((record) => this.#blueprintForUi(record)),
       onboardingAnswers: settings.onboardingAnswers,
       templateVersion: settings.templateVersion,
       spaces,
@@ -860,6 +936,11 @@ export class GuildCollectiveService {
       }),
       canConfigureSpaces: configurableSpaces.length > 0,
     };
+  }
+
+  #blueprintForUi(record: CollectiveBlueprintRecord): UiCollectiveBlueprint {
+    const { guildId: _guildId, ...blueprint } = record;
+    return blueprint;
   }
 
   async #authorize(

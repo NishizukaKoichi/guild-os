@@ -16,6 +16,7 @@ import type {
   UiConversationMessage,
   UiConversationSubject,
   UiCollectiveContext,
+  UiCollectiveBlueprint,
   UiDirectory,
   UiDecisionDetail,
   UiActivity,
@@ -62,8 +63,11 @@ import {
   assertActivityTransition,
   assertMemoryContent,
   assertVocabularyOverrides,
+  assertCollectiveBlueprintDraft,
+  blueprintToCollectiveTemplate,
   collectiveTemplate,
   COLLECTIVE_TEMPLATES,
+  createDeterministicCollectiveBlueprint,
   validateConstitution,
 } from "@guild-os/domain";
 
@@ -400,6 +404,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     templates: COLLECTIVE_TEMPLATES,
     labels: initialTemplate.labels,
     vocabularyOverrides: {},
+    blueprint: null,
+    blueprints: [],
     onboardingAnswers: {
       purpose: "Preserve evidence and turn inquiry into shared, reviewable memory.",
       participants: "Researchers, research agents, and external research services.",
@@ -413,6 +419,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       parentSpaceId: space.parentSpaceId,
       name: space.name,
       vocabularyProfileKey: space.id === researchSpaceId ? "research" : null,
+      blueprintKey: null,
       labels: initialTemplate.labels,
       canConfigure: mode === "root",
     })),
@@ -1752,6 +1759,22 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     async getBootstrap() {
       return restrictedBootstrap ?? bootstrap;
     },
+    async generateCollectiveBlueprint(input) {
+      const generated = createDeterministicCollectiveBlueprint({
+        locale: input.locale,
+        answers: {
+          purpose: input.purpose,
+          participants: input.participants,
+          memoryIntent: input.memoryIntent,
+          activityIntent: input.activityIntent,
+          decisionStyle: input.decisionStyle,
+        },
+      });
+      return {
+        ...generated,
+        key: `custom-demo-${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`,
+      };
+    },
     async initializeGuild(input) {
       if (restrictedBootstrap?.screen !== "initialize" ||
           !restrictedBootstrap.canInitialize || input.rootOwnershipAccepted !== true ||
@@ -1765,10 +1788,13 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
       }
       const rootAccountId = restrictedBootstrap.accountId;
-      const template = collectiveTemplate(input.templateKey);
+      if (input.blueprint) assertCollectiveBlueprintDraft(input.blueprint);
+      const template = input.blueprint
+        ? blueprintToCollectiveTemplate(input.blueprint)
+        : collectiveTemplate(input.templateKey);
       const vocabularyOverrides = input.vocabularyOverrides ?? {};
       assertVocabularyOverrides(vocabularyOverrides);
-      const labels = { ...template.labels, ...vocabularyOverrides };
+      const labels = input.blueprint?.definition.labels ?? { ...template.labels, ...vocabularyOverrides };
       const initializedAgentId = template.suggestedAgent ? crypto.randomUUID() : null;
       const initializedAgentRoleId = template.suggestedAgent ? crypto.randomUUID() : null;
       bootstrap = {
@@ -1800,7 +1826,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         id: initializedAgentRoleId,
         name: `${template.suggestedAgent} role`,
         system: true,
-        permissions: [
+        permissions: input.blueprint?.definition.suggestedAgent?.permissions ?? [
           "memory.read",
           "activity.read",
           "activity.create",
@@ -1815,6 +1841,31 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           "event.read",
         ],
       }] : []);
+      const blueprintSpaceIds = new Map<string, string>();
+      const blueprintDirectorySpaces: UiDirectory["spaces"][number][] = [];
+      const pendingBlueprintSpaces = [...(input.blueprint?.definition.spaces ?? [])];
+      while (pendingBlueprintSpaces.length > 0) {
+        const before = pendingBlueprintSpaces.length;
+        for (let index = pendingBlueprintSpaces.length - 1; index >= 0; index -= 1) {
+          const space = pendingBlueprintSpaces[index]!;
+          const parentSpaceId = space.parentKey === null
+            ? rootSpaceId
+            : blueprintSpaceIds.get(space.parentKey);
+          if (!parentSpaceId) continue;
+          const id = crypto.randomUUID();
+          blueprintSpaceIds.set(space.key, id);
+          blueprintDirectorySpaces.push({
+            id,
+            parentSpaceId,
+            name: space.name,
+            status: "active",
+          });
+          pendingBlueprintSpaces.splice(index, 1);
+        }
+        if (pendingBlueprintSpaces.length === before) {
+          throw new Error("Blueprint Spaces contain an invalid hierarchy.");
+        }
+      }
       directory = {
         ...directory,
         identities: [{
@@ -1858,14 +1909,30 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           limits: bootstrap.agentDefaults,
           status: "active",
         }] : [],
-        spaces: [{ id: rootSpaceId, parentSpaceId: null, name: "Guild", status: "active" }],
+        spaces: [
+          { id: rootSpaceId, parentSpaceId: null, name: "Guild", status: "active" },
+          ...blueprintDirectorySpaces,
+        ],
         invitations: [],
       };
+      const timestamp = now();
+      const blueprintRecord: UiCollectiveBlueprint | null = input.blueprint ? {
+        ...input.blueprint,
+        version: 1,
+        status: "active",
+        system: false,
+        createdByActorId: rootAccountId,
+        updatedByActorId: rootAccountId,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      } : null;
       collective = {
         ...collective,
         template,
         labels,
         vocabularyOverrides,
+        blueprint: blueprintRecord,
+        blueprints: blueprintRecord ? [blueprintRecord] : [],
         onboardingAnswers: {
           purpose: input.purpose.trim(),
           participants: input.participants.trim(),
@@ -1879,6 +1946,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           parentSpaceId: space.parentSpaceId,
           name: space.name,
           vocabularyProfileKey: null,
+          blueprintKey: null,
           labels,
           canConfigure: true,
         })),
@@ -1891,20 +1959,75 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     async getCollectiveContext() {
       return collective;
     },
+    async saveCollectiveBlueprint(input) {
+      if (!collective.canConfigure) {
+        throw new Error("Only a Guild steward can save Collective Blueprints.");
+      }
+      assertCollectiveBlueprintDraft(input.draft);
+      const existing = collective.blueprints.find((candidate) => candidate.key === input.draft.key);
+      if (input.expectedVersion === null && existing ||
+          input.expectedVersion !== null && existing?.version !== input.expectedVersion) {
+        throw new Error("Collective Blueprint changed before this save. Reload and review it again.");
+      }
+      const timestamp = now();
+      const saved: UiCollectiveBlueprint = {
+        ...input.draft,
+        version: (existing?.version ?? 0) + 1,
+        status: input.status ?? existing?.status ?? "active",
+        system: false,
+        createdByActorId: existing?.createdByActorId ?? bootstrap.accountId,
+        updatedByActorId: bootstrap.accountId,
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      };
+      const updatesActiveBlueprint = collective.blueprint?.key === saved.key;
+      const template = updatesActiveBlueprint
+        ? blueprintToCollectiveTemplate(saved)
+        : collective.template;
+      const labels = updatesActiveBlueprint
+        ? { ...template.labels, ...collective.vocabularyOverrides }
+        : collective.labels;
+      collective = {
+        ...collective,
+        template,
+        labels,
+        blueprint: updatesActiveBlueprint ? saved : collective.blueprint,
+        blueprints: [saved, ...collective.blueprints.filter((candidate) => candidate.key !== saved.key)],
+        spaces: collective.spaces.map((space) => {
+          if (space.blueprintKey === saved.key) return { ...space, labels: saved.definition.labels };
+          if (updatesActiveBlueprint && !space.blueprintKey && !space.vocabularyProfileKey) {
+            return { ...space, labels };
+          }
+          return space;
+        }),
+      };
+      return collective;
+    },
     async configureCollective(input) {
       if (!collective.canConfigure) {
         throw new Error("Only a Guild steward can configure the collective template.");
       }
-      const template = collectiveTemplate(input.templateKey);
-      const labels = { ...template.labels, ...input.vocabularyOverrides };
+      const blueprint = input.blueprintKey
+        ? collective.blueprints.find((candidate) => candidate.key === input.blueprintKey && candidate.status === "active") ?? null
+        : null;
+      if (input.blueprintKey && !blueprint) throw new Error("Active Collective Blueprint was not found.");
+      const template = blueprint
+        ? blueprintToCollectiveTemplate(blueprint)
+        : collectiveTemplate(input.templateKey);
+      const labels = blueprint?.definition.labels ?? { ...template.labels, ...input.vocabularyOverrides };
       collective = {
         ...collective,
         template,
         labels,
         vocabularyOverrides: input.vocabularyOverrides,
+        blueprint,
         onboardingAnswers: input.onboardingAnswers,
         templateVersion: collective.templateVersion + 1,
         spaces: collective.spaces.map((space) => {
+          if (space.blueprintKey) {
+            const spaceBlueprint = collective.blueprints.find((candidate) => candidate.key === space.blueprintKey);
+            return { ...space, labels: spaceBlueprint?.definition.labels ?? labels };
+          }
           if (space.vocabularyProfileKey) {
             return { ...space, labels: collectiveTemplate(space.vocabularyProfileKey).labels };
           }
@@ -1920,15 +2043,20 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       if (!collective.spaces.some((space) => space.id === input.spaceId)) {
         throw new Error("Space was not found.");
       }
-      const labels = input.templateKey
+      const blueprint = input.blueprintKey
+        ? collective.blueprints.find((candidate) => candidate.key === input.blueprintKey && candidate.status === "active") ?? null
+        : null;
+      if (input.blueprintKey && !blueprint) throw new Error("Active Collective Blueprint was not found.");
+      const labels = blueprint?.definition.labels ?? (input.templateKey
         ? collectiveTemplate(input.templateKey).labels
-        : collective.labels;
+        : collective.labels);
       collective = {
         ...collective,
         templateVersion: collective.templateVersion + 1,
         spaces: collective.spaces.map((space) => space.id === input.spaceId ? {
           ...space,
           vocabularyProfileKey: input.templateKey,
+          blueprintKey: blueprint?.key ?? null,
           labels,
         } : space),
       };
@@ -2172,6 +2300,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           parentSpaceId: input.parentSpaceId,
           name: input.name,
           vocabularyProfileKey: null,
+          blueprintKey: null,
           labels: collective.labels,
           canConfigure: true,
         }],

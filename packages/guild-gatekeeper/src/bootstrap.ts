@@ -1,7 +1,10 @@
 import {
+  assertCollectiveBlueprintDraft,
+  blueprintToCollectiveTemplate,
   collectiveTemplate,
   type AppLocale,
   type CollectiveOnboardingAnswers,
+  type CollectiveBlueprintDraft,
   type CollectiveTemplateKey,
   type CollectiveTemplateLabels,
   type Constitution,
@@ -20,6 +23,7 @@ import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
 import {
   buildTemplateProvisioningPlan,
+  provisionBlueprintSpaces,
   provisionTemplateDefaults,
 } from "./template-provisioning.js";
 
@@ -184,6 +188,7 @@ export async function initializeGuildAccount(
   templateKey: CollectiveTemplateKey,
   onboardingAnswers: CollectiveOnboardingAnswers,
   vocabularyOverrides: Partial<CollectiveTemplateLabels> = {},
+  blueprint?: CollectiveBlueprintDraft,
 ): Promise<GuildSetupState> {
   if (!isAdmin) {
     throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
@@ -192,10 +197,27 @@ export async function initializeGuildAccount(
     const repository = new GuildPostgresRepository(connection, env.GUILD_ID);
     let state = await repository.getSetupState(accountId);
     if (!state.initialized) {
-      const template = collectiveTemplate(templateKey);
+      if (blueprint) {
+        assertCollectiveBlueprintDraft(blueprint);
+        if (templateKey !== "blank") {
+          throw new Error("A custom Blueprint must initialize on the neutral Blank Template.");
+        }
+        if ((Object.keys(onboardingAnswers) as (keyof CollectiveOnboardingAnswers)[])
+          .some((key) => blueprint.onboardingAnswers[key] !== onboardingAnswers[key])) {
+          throw new Error("Blueprint answers must match the reviewed initialization answers.");
+        }
+      }
+      const template = blueprint
+        ? blueprintToCollectiveTemplate(blueprint)
+        : collectiveTemplate(templateKey);
       const rootSpaceId = crypto.randomUUID();
       const constitution = defaultConstitution(env, accountId);
-      const provisioning = buildTemplateProvisioningPlan(template, onboardingAnswers);
+      const provisioning = buildTemplateProvisioningPlan(
+        template,
+        onboardingAnswers,
+        undefined,
+        blueprint?.definition.suggestedAgent?.permissions,
+      );
       const created = await repository.bootstrapGuild({
         guildId: env.GUILD_ID,
         name: env.GUILD_NAME,
@@ -217,8 +239,30 @@ export async function initializeGuildAccount(
         ),
       });
       if (created) {
-        await new GuildCollectiveRepository(connection, env.GUILD_ID).configure({
+        const collective = new GuildCollectiveRepository(connection, env.GUILD_ID);
+        if (blueprint) {
+          await collective.saveBlueprint({
+            draft: blueprint,
+            expectedVersion: null,
+            actorId: accountId,
+            chronicleEvent: makeChronicleEvent(
+              env.GUILD_ID,
+              accountId,
+              "collective.blueprint.created",
+              "collective",
+              env.GUILD_ID,
+              {
+                blueprintKey: blueprint.key,
+                generationMode: blueprint.generationMode,
+                authorityChanged: false,
+                source: "initialization",
+              },
+            ),
+          });
+        }
+        await collective.configure({
           templateKey,
+          blueprintKey: blueprint?.key ?? null,
           vocabularyOverrides,
           onboardingAnswers,
           actorId: accountId,
@@ -228,7 +272,7 @@ export async function initializeGuildAccount(
             "collective.configured",
             "collective",
             env.GUILD_ID,
-            { templateKey, source: "initialization" },
+            { templateKey, blueprintKey: blueprint?.key ?? null, source: "initialization" },
           ),
         });
         await provisionTemplateDefaults(connection, {
@@ -240,6 +284,15 @@ export async function initializeGuildAccount(
           agentLimits: constitution.agentDefaults,
           plan: provisioning,
         });
+        if (blueprint) {
+          await provisionBlueprintSpaces(connection, {
+            guildId: env.GUILD_ID,
+            rootActorId: accountId,
+            rootSpaceId,
+            blueprintKey: blueprint.key,
+            spaces: blueprint.definition.spaces,
+          });
+        }
       }
       state = await repository.getSetupState(accountId);
     }

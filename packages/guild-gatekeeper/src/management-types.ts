@@ -17,6 +17,8 @@ import type {
   CollectiveTemplate,
   CollectiveTemplateKey,
   CollectiveTemplateLabels,
+  CollectiveBlueprintDraft,
+  CollectiveBlueprintRecord,
   Decision,
   DecisionApproval,
   DecisionMethod,
@@ -128,7 +130,25 @@ export interface InitializeGuildRequest {
   activityIntent: string;
   decisionStyle: string;
   vocabularyOverrides?: Partial<CollectiveTemplateLabels>;
+  blueprint?: CollectiveBlueprintDraft;
 }
+
+export interface GenerateCollectiveBlueprintRequest {
+  locale: AppLocale;
+  purpose: string;
+  participants: string;
+  memoryIntent: string;
+  activityIntent: string;
+  decisionStyle: string;
+}
+
+export interface SaveCollectiveBlueprintRequest {
+  draft: CollectiveBlueprintDraft;
+  expectedVersion: number | null;
+  status?: "active" | "archived";
+}
+
+export type UiCollectiveBlueprint = Omit<CollectiveBlueprintRecord, "guildId">;
 
 export type UiConstitution = Omit<Constitution, "guildId">;
 
@@ -269,6 +289,7 @@ export interface UiCollectiveSpace {
   name: string;
   /** Compatibility wire name for the Space's complete Context Profile. */
   vocabularyProfileKey: CollectiveTemplateKey | null;
+  blueprintKey: `custom-${string}` | null;
   labels: CollectiveTemplateLabels;
   canConfigure: boolean;
 }
@@ -278,6 +299,8 @@ export interface UiCollectiveContext {
   templates: readonly CollectiveTemplate[];
   labels: CollectiveTemplateLabels;
   vocabularyOverrides: Partial<CollectiveTemplateLabels>;
+  blueprint: UiCollectiveBlueprint | null;
+  blueprints: readonly UiCollectiveBlueprint[];
   onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
   templateVersion: number;
   spaces: readonly UiCollectiveSpace[];
@@ -287,6 +310,7 @@ export interface UiCollectiveContext {
 
 export interface ConfigureCollectiveRequest {
   templateKey: CollectiveTemplateKey;
+  blueprintKey?: `custom-${string}` | null;
   vocabularyOverrides: Partial<CollectiveTemplateLabels>;
   onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
 }
@@ -294,6 +318,7 @@ export interface ConfigureCollectiveRequest {
 export interface SetSpaceVocabularyRequest {
   spaceId: string;
   templateKey: CollectiveTemplateKey | null;
+  blueprintKey?: `custom-${string}` | null;
 }
 
 export interface UiMemoryCapabilities {
@@ -1820,8 +1845,12 @@ export interface RetryDataExportRequest {
 
 export interface GuildUiApi {
   getBootstrap(): Promise<UiBootstrapState>;
+  generateCollectiveBlueprint(
+    input: GenerateCollectiveBlueprintRequest,
+  ): Promise<CollectiveBlueprintDraft>;
   initializeGuild(input: InitializeGuildRequest): Promise<UiBootstrapState>;
   getCollectiveContext(): Promise<UiCollectiveContext>;
+  saveCollectiveBlueprint(input: SaveCollectiveBlueprintRequest): Promise<UiCollectiveContext>;
   configureCollective(input: ConfigureCollectiveRequest): Promise<UiCollectiveContext>;
   setSpaceVocabulary(input: SetSpaceVocabularyRequest): Promise<UiCollectiveContext>;
   claimInvitation(input: ClaimInvitationInput): Promise<UiBootstrapState>;

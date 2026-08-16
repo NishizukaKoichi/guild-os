@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   UserRound,
   UsersRound,
   type LucideIcon,
@@ -21,23 +22,24 @@ import {
 import { useMemo, useState, type FormEvent } from "react";
 import {
   COLLECTIVE_TEMPLATES,
+  assertCollectiveBlueprintDraft,
   type AppLocale,
+  type CollectiveBlueprintDraft,
   type CollectiveOnboardingAnswers,
   type CollectiveTemplate,
   type CollectiveTemplateKey,
-  type CollectiveTemplateLabels,
 } from "@guild-os/domain";
 import type {
   InitializeGuildRequest,
   UiInitializationBootstrapState,
 } from "../../src/management-types";
 import { localizeTemplate } from "../collective-language";
+import { BlueprintEditor } from "../components/BlueprintEditor";
 import { ContextProfilePreview } from "../components/ContextProfilePreview";
 import { Notice } from "../components/Notice";
 import { useI18n, type TranslationKey } from "../i18n";
 
 type InitializationChoice = CollectiveTemplateKey | "custom";
-type CustomVocabularyKey = "members" | "memory" | "activity" | "decisions";
 
 const contextFields: readonly {
   key: keyof CollectiveOnboardingAnswers;
@@ -49,17 +51,6 @@ const contextFields: readonly {
   { key: "memoryIntent", label: "initialization.memoryIntent", placeholder: "initialization.memoryIntentPlaceholder" },
   { key: "activityIntent", label: "initialization.activityIntent", placeholder: "initialization.activityIntentPlaceholder" },
   { key: "decisionStyle", label: "initialization.decisionStyle", placeholder: "initialization.decisionStylePlaceholder" },
-];
-
-const customVocabularyFields: readonly {
-  key: CustomVocabularyKey;
-  label: TranslationKey;
-  placeholder: TranslationKey;
-}[] = [
-  { key: "members", label: "initialization.customMembers", placeholder: "initialization.customMembersPlaceholder" },
-  { key: "memory", label: "initialization.customMemory", placeholder: "initialization.customMemoryPlaceholder" },
-  { key: "activity", label: "initialization.customActivity", placeholder: "initialization.customActivityPlaceholder" },
-  { key: "decisions", label: "initialization.customDecisions", placeholder: "initialization.customDecisionsPlaceholder" },
 ];
 
 const primaryTemplateKeys: readonly CollectiveTemplateKey[] = [
@@ -93,9 +84,18 @@ function messageFrom(cause: unknown, fallback: string): string {
 
 export function InitializationPage({
   bootstrap,
+  onGenerateBlueprint,
   onInitialize,
 }: {
   bootstrap: UiInitializationBootstrapState;
+  onGenerateBlueprint(input: {
+    locale: AppLocale;
+    purpose: string;
+    participants: string;
+    memoryIntent: string;
+    activityIntent: string;
+    decisionStyle: string;
+  }): Promise<CollectiveBlueprintDraft>;
   onInitialize(input: InitializeGuildRequest): Promise<void>;
 }) {
   const { locale, setLocale, t } = useI18n();
@@ -103,12 +103,13 @@ export function InitializationPage({
     () => COLLECTIVE_TEMPLATES.map((template) => localizeTemplate(template, locale)),
     [locale],
   );
-  const [step, setStep] = useState<"template" | "details">("template");
+  const [step, setStep] = useState<"template" | "purpose" | "review" | "owner">("template");
   const [choice, setChoice] = useState<InitializationChoice>("personal");
   const [displayName, setDisplayName] = useState("");
   const [answerOverrides, setAnswerOverrides] = useState<Partial<CollectiveOnboardingAnswers>>({});
-  const [customVocabulary, setCustomVocabulary] = useState<Partial<Record<CustomVocabularyKey, string>>>({});
+  const [blueprint, setBlueprint] = useState<CollectiveBlueprintDraft | null>(null);
   const [rootOwnershipAccepted, setRootOwnershipAccepted] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const templatesByKey = useMemo(
@@ -117,32 +118,6 @@ export function InitializationPage({
   );
   const isCustom = choice === "custom";
   const templateKey: CollectiveTemplateKey = isCustom ? "blank" : choice;
-  const defaultCustomVocabulary = useMemo<Record<CustomVocabularyKey, string>>(() => ({
-    members: t("initialization.customMembersDefault"),
-    memory: t("initialization.customMemoryDefault"),
-    activity: t("initialization.customActivityDefault"),
-    decisions: t("initialization.customDecisionsDefault"),
-  }), [t]);
-
-  function customVocabularyValue(key: CustomVocabularyKey): string {
-    return customVocabulary[key] ?? defaultCustomVocabulary[key];
-  }
-
-  const vocabularyOverrides = useMemo<Partial<CollectiveTemplateLabels>>(() => {
-    if (!isCustom) return {};
-    const members = (customVocabulary.members ?? defaultCustomVocabulary.members).trim();
-    const memory = (customVocabulary.memory ?? defaultCustomVocabulary.memory).trim();
-    const activity = (customVocabulary.activity ?? defaultCustomVocabulary.activity).trim();
-    const decisions = (customVocabulary.decisions ?? defaultCustomVocabulary.decisions).trim();
-    return {
-      members,
-      memory,
-      remember: t("initialization.customRemember", { memory }),
-      activity,
-      startActivity: t("initialization.customStartActivity", { activity }),
-      decisions,
-    };
-  }, [customVocabulary, defaultCustomVocabulary, isCustom, t]);
   const selectedTemplate = useMemo<CollectiveTemplate>(() => {
     const template = templatesByKey.get(templateKey) ?? templates[0]!;
     if (!isCustom) return template;
@@ -150,9 +125,8 @@ export function InitializationPage({
       ...template,
       name: t("initialization.customProfileName"),
       description: t("initialization.customProfileDescription"),
-      labels: { ...template.labels, ...vocabularyOverrides },
     };
-  }, [isCustom, templateKey, templates, templatesByKey, t, vocabularyOverrides]);
+  }, [isCustom, templateKey, templates, templatesByKey, t]);
   const defaultAnswers = useMemo<CollectiveOnboardingAnswers>(() => ({
     purpose: bootstrap.guildPurpose.trim() || t("initialization.defaultPurpose", {
       profile: selectedTemplate.name,
@@ -180,7 +154,8 @@ export function InitializationPage({
   function selectChoice(nextChoice: InitializationChoice): void {
     setChoice(nextChoice);
     setAnswerOverrides({});
-    if (nextChoice === "custom") setCustomVocabulary({});
+    setBlueprint(null);
+    setError(null);
   }
 
   function renderTemplateOption(key: CollectiveTemplateKey) {
@@ -214,6 +189,7 @@ export function InitializationPage({
           : "template-option template-option-wide"}
         type="button"
         key="custom"
+        data-template-choice="custom"
         aria-pressed={selected}
         onClick={() => selectChoice("custom")}
       >
@@ -231,6 +207,7 @@ export function InitializationPage({
       <label key={field.key}>
         <span>{t(field.label)}</span>
         <textarea
+          data-onboarding-field={field.key}
           required
           maxLength={2_000}
           rows={2}
@@ -246,31 +223,64 @@ export function InitializationPage({
   }
 
   const contextComplete = contextFields.every((field) => answer(field.key).trim().length > 0);
-  const customVocabularyComplete = customVocabularyFields.every(
-    (field) => customVocabularyValue(field.key).trim().length > 0,
-  );
+
+  async function generateBlueprint(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setGenerating(true);
+    setError(null);
+    try {
+      const generated = await onGenerateBlueprint({
+        locale,
+        purpose: answer("purpose").trim(),
+        participants: answer("participants").trim(),
+        memoryIntent: answer("memoryIntent").trim(),
+        activityIntent: answer("activityIntent").trim(),
+        decisionStyle: answer("decisionStyle").trim(),
+      });
+      setBlueprint(generated);
+      setStep("review");
+    } catch (cause) {
+      setError(messageFrom(cause, t("initialization.blueprintError")));
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
+      const reviewedAnswers = blueprint?.onboardingAnswers;
       await onInitialize({
         displayName: displayName.trim(),
         preferredLocale: locale,
         rootOwnershipAccepted,
         templateKey,
-        purpose: answer("purpose").trim(),
-        participants: answer("participants").trim(),
-        memoryIntent: answer("memoryIntent").trim(),
-        activityIntent: answer("activityIntent").trim(),
-        decisionStyle: answer("decisionStyle").trim(),
-        vocabularyOverrides,
+        purpose: reviewedAnswers?.purpose ?? answer("purpose").trim(),
+        participants: reviewedAnswers?.participants ?? answer("participants").trim(),
+        memoryIntent: reviewedAnswers?.memoryIntent ?? answer("memoryIntent").trim(),
+        activityIntent: reviewedAnswers?.activityIntent ?? answer("activityIntent").trim(),
+        decisionStyle: reviewedAnswers?.decisionStyle ?? answer("decisionStyle").trim(),
+        vocabularyOverrides: {},
+        ...(blueprint ? { blueprint } : {}),
       });
     } catch (cause) {
       setError(messageFrom(cause, t("initialization.error")));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function acceptBlueprint(event: FormEvent): void {
+    event.preventDefault();
+    if (!blueprint) return;
+    setError(null);
+    try {
+      assertCollectiveBlueprintDraft(blueprint);
+      setStep("owner");
+    } catch (cause) {
+      setError(messageFrom(cause, t("initialization.blueprintError")));
     }
   }
 
@@ -305,7 +315,7 @@ export function InitializationPage({
       ) : step === "template" ? (
         <section className="collective-template-step" aria-labelledby="template-step-title">
           <header className="initialization-heading">
-            <span className="step-kicker">{t("initialization.profileStep")}</span>
+            <span className="step-kicker">{t(isCustom ? "initialization.builderProfileStep" : "initialization.profileStep")}</span>
             <h1 id="template-step-title">{t("initialization.templateTitle")}</h1>
             <p>{t("initialization.templateDescription")}</p>
           </header>
@@ -327,20 +337,56 @@ export function InitializationPage({
             <ContextProfilePreview template={selectedTemplate} />
           </details>
           <footer className="initialization-actions">
-            <button className="primary-button" type="button" onClick={() => setStep("details")}>
+            <button className="primary-button" type="button" onClick={() => setStep(isCustom ? "purpose" : "owner")}>
               <span>{t("common.continue")}</span><ArrowRight size={17} />
             </button>
           </footer>
         </section>
+      ) : step === "purpose" ? (
+        <section className="access-panel initialization-panel initialization-purpose-panel">
+          <div className="access-symbol"><Sparkles size={28} /></div>
+          <span className="step-kicker">{t("initialization.builderPurposeStep")}</span>
+          <h1>{t("initialization.builderPurposeTitle")}</h1>
+          <p>{t("initialization.builderPurposeDescription")}</p>
+          <form className="stack-form" onSubmit={generateBlueprint}>
+            {renderContextFields()}
+            {error ? <Notice kind="error">{error}</Notice> : null}
+            <footer className="dialog-actions initialization-form-actions">
+              <button className="secondary-button" type="button" onClick={() => setStep("template")}><ArrowLeft size={17} /><span>{t("common.back")}</span></button>
+              <button className="primary-button" data-blueprint-action="generate" type="submit" disabled={generating || !contextComplete}>
+                {generating ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}
+                <span>{t(generating ? "initialization.blueprintGenerating" : "initialization.blueprintGenerate")}</span>
+              </button>
+            </footer>
+          </form>
+        </section>
+      ) : step === "review" && blueprint ? (
+        <section className="collective-template-step blueprint-review-step" data-blueprint-review aria-labelledby="blueprint-review-title">
+          <header className="initialization-heading">
+            <span className="step-kicker">{t("initialization.builderReviewStep")}</span>
+            <h1 id="blueprint-review-title">{t("initialization.builderReviewTitle")}</h1>
+            <p>{t("initialization.builderReviewDescription")}</p>
+          </header>
+          {blueprint.generationWarnings.includes("model-fallback") ? <Notice kind="info">{t("initialization.blueprintFallback")}</Notice> : null}
+          <Notice>{t("initialization.blueprintAuthoritySafety")}</Notice>
+          <form noValidate onSubmit={acceptBlueprint}>
+            <BlueprintEditor draft={blueprint} onChange={setBlueprint} />
+            {error ? <Notice kind="error">{error}</Notice> : null}
+            <footer className="initialization-actions blueprint-review-actions">
+              <button className="secondary-button" type="button" onClick={() => setStep("purpose")}><ArrowLeft size={17} /><span>{t("initialization.changeAnswers")}</span></button>
+              <button className="primary-button" data-blueprint-action="accept" type="submit"><span>{t("initialization.acceptBlueprint")}</span><ArrowRight size={17} /></button>
+            </footer>
+          </form>
+        </section>
       ) : (
         <section className="access-panel initialization-panel initialization-details-panel">
           <div className="access-symbol"><Crown size={28} /></div>
-          <span className="step-kicker">{t("initialization.ownerStep")}</span>
+          <span className="step-kicker">{t(isCustom ? "initialization.builderOwnerStep" : "initialization.ownerStep")}</span>
           <h1>{t("initialization.detailsTitle")}</h1>
           <p>{t("initialization.detailsDescription")}</p>
-          {selectedTemplate.suggestedAgent ? (
+          {(blueprint?.definition.suggestedAgent ?? selectedTemplate.suggestedAgent) ? (
             <Notice kind="info">{t("initialization.includedAgent", {
-              agent: selectedTemplate.labels.agent,
+              agent: blueprint?.definition.labels.agent ?? selectedTemplate.labels.agent,
             })}</Notice>
           ) : null}
           <form className="stack-form" onSubmit={submit}>
@@ -352,7 +398,7 @@ export function InitializationPage({
               </label>
               <label>
                 <span>{t("initialization.displayName")}</span>
-                <input required autoFocus autoComplete="name" maxLength={200} value={displayName} placeholder={t("initialization.displayNamePlaceholder")} onChange={(event) => setDisplayName(event.target.value)} />
+                <input id="initialization-owner-display-name" required autoFocus autoComplete="name" maxLength={200} value={displayName} placeholder={t("initialization.displayNamePlaceholder")} onChange={(event) => setDisplayName(event.target.value)} />
               </label>
             </div>
             <label className="initialization-ownership-confirmation">
@@ -367,35 +413,16 @@ export function InitializationPage({
                 <small>{t("initialization.rootAcceptanceHelp")}</small>
               </span>
             </label>
-            {isCustom ? (
-              <>
-                <section className="initialization-custom-vocabulary" aria-labelledby="custom-vocabulary-title">
-                  <h2 id="custom-vocabulary-title">{t("initialization.customVocabularyTitle")}</h2>
-                  <p>{t("initialization.customVocabularyDescription")}</p>
-                  <div className="form-grid">
-                    {customVocabularyFields.map((field) => (
-                      <label key={field.key}>
-                        <span>{t(field.label)}</span>
-                        <input
-                          required
-                          maxLength={200}
-                          value={customVocabularyValue(field.key)}
-                          placeholder={t(field.placeholder)}
-                          onChange={(event) => setCustomVocabulary((current) => ({
-                            ...current,
-                            [field.key]: event.target.value,
-                          }))}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </section>
-                <section className="initialization-context-customization initialization-context-required" aria-labelledby="custom-context-title">
-                  <h2 id="custom-context-title">{t("initialization.customContextTitle")}</h2>
-                  <p>{t("initialization.customContextDescription")}</p>
-                  {renderContextFields()}
-                </section>
-              </>
+            {isCustom && blueprint ? (
+              <section className="initialization-blueprint-summary" aria-labelledby="initialization-blueprint-summary-title">
+                <div className="section-heading-row"><Sparkles size={18} /><div><h2 id="initialization-blueprint-summary-title">{blueprint.definition.name}</h2><p>{blueprint.definition.description}</p></div></div>
+                <dl>
+                  <div><dt>{t("blueprint.rolesTitle")}</dt><dd>{blueprint.definition.roles.length}</dd></div>
+                  <div><dt>{t("blueprint.spacesTitle")}</dt><dd>{blueprint.definition.spaces.length}</dd></div>
+                  <div><dt>{t("blueprint.memoryTypesTitle")}</dt><dd>{blueprint.definition.memoryTypes.length}</dd></div>
+                  <div><dt>{t("blueprint.workflowsTitle")}</dt><dd>{blueprint.definition.workflows.length}</dd></div>
+                </dl>
+              </section>
             ) : (
               <details className="initialization-context-customization">
                 <summary>{t("initialization.advancedTitle")}</summary>
@@ -405,14 +432,15 @@ export function InitializationPage({
             )}
             {error ? <Notice kind="error">{error}</Notice> : null}
             <footer className="dialog-actions initialization-form-actions">
-              <button className="secondary-button" type="button" onClick={() => setStep("template")}>
+              <button className="secondary-button" type="button" onClick={() => setStep(isCustom ? "review" : "template")}>
                 <ArrowLeft size={17} /><span>{t("common.back")}</span>
               </button>
               <button
                 className="primary-button"
+                data-initialization-action="create"
                 type="submit"
                 disabled={submitting || !displayName.trim() || !rootOwnershipAccepted ||
-                  !contextComplete || !customVocabularyComplete}
+                  (!isCustom && !contextComplete) || (isCustom && !blueprint)}
               >
                 {submitting ? <LoaderCircle className="spin" size={17} /> : <Crown size={17} />}
                 <span>{t("initialization.submit")}</span>

@@ -161,7 +161,9 @@ export function localizeCollectiveContext(
   const templates = context.templates.map((template) => localizeTemplate(template, locale));
   const localizedTemplate = templates.find((candidate) => candidate.key === context.template.key) ??
     context.template;
-  const template = context.template.key === "blank" &&
+  const template = context.blueprint
+    ? context.template
+    : context.template.key === "blank" &&
       Object.keys(context.vocabularyOverrides).length > 0 && customTemplateCopy
     ? { ...localizedTemplate, ...customTemplateCopy }
     : localizedTemplate;
@@ -172,10 +174,13 @@ export function localizeCollectiveContext(
     templates,
     labels,
     spaces: context.spaces.map((space) => {
+      const blueprint = space.blueprintKey
+        ? context.blueprints.find((candidate) => candidate.key === space.blueprintKey)
+        : null;
       const profile = space.vocabularyProfileKey
         ? templates.find((candidate) => candidate.key === space.vocabularyProfileKey)
         : null;
-      return { ...space, labels: profile?.labels ?? labels };
+      return { ...space, labels: blueprint?.definition.labels ?? profile?.labels ?? labels };
     }),
   };
 }
@@ -228,20 +233,20 @@ const decisionMethodLabels: Record<AppLocale, Record<DecisionMethod, string>> = 
   },
 };
 
-export function memoryTypeLabel(type: MemoryType, locale: AppLocale): string {
-  return memoryTypeLabels[locale][type] ?? type.replace(/^custom:/, "").replaceAll("_", " ");
+export function memoryTypeLabel(type: MemoryType, locale: AppLocale, customLabel?: string): string {
+  return customLabel?.trim() || (memoryTypeLabels[locale][type] ?? type.replace(/^custom:/, "").replaceAll("_", " "));
 }
 
-export function activityTypeLabel(type: ActivityType, locale: AppLocale): string {
-  return activityTypeLabels[locale][type] ?? type.replace(/^custom:/, "").replaceAll("_", " ");
+export function activityTypeLabel(type: ActivityType, locale: AppLocale, customLabel?: string): string {
+  return customLabel?.trim() || (activityTypeLabels[locale][type] ?? type.replace(/^custom:/, "").replaceAll("_", " "));
 }
 
 export function activityStatusLabel(status: ActivityStatus, locale: AppLocale): string {
   return activityStatusLabels[locale][status];
 }
 
-export function decisionMethodLabel(method: DecisionMethod, locale: AppLocale): string {
-  return decisionMethodLabels[locale][method];
+export function decisionMethodLabel(method: DecisionMethod, locale: AppLocale, customLabel?: string): string {
+  return customLabel?.trim() || decisionMethodLabels[locale][method];
 }
 
 const neutralMembershipLabels: Record<AppLocale, Record<MembershipState, string>> = {

@@ -1,6 +1,6 @@
 # Guild OS v1.0 Completion Matrix
 
-Updated: 2026-08-14
+Updated: 2026-08-16
 
 `Complete` means the behavior has executable unit, PostgreSQL/Gatekeeper integration, and browser
 acceptance coverage, with representative production verification through the real Access,
@@ -28,7 +28,7 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
 | Connections | Complete | Purchaser-owned MCP, Gatekeeper API, HTTPS Webhook, and Service Binding configuration, allowlists, health, discovery, invocation, and revocation | Test every enabled production adapter with synthetic data |
 | Automation | Complete | Cron and event triggers, durable waits, bounded retry, deduplication, Agent delegation, Kill, and offboarding cancellation | Trigger one schedule and one event in acceptance |
 | Federation | Complete | Guild Actor, explicit grant, signed transport, durable delivery, selected resource publication, and revocation | Exchange and revoke one synthetic resource grant |
-| Templates | Complete | Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and Blank configure Roles, vocabulary, choices, methods, workflows, onboarding, Home, and suggested Agents; Personal is the guided default, Other builds purchaser vocabulary and Context on Blank, and Spaces override | Browser acceptance at 1440, 390, and 320 pixels |
+| Templates and Purpose-first Builder | Local complete; release pending | Exact-schema model/fallback generation, full review editor, immutable PostgreSQL versions, Guild/Space reuse, and authority-preservation integration coverage. Browser acceptance initializes family, school, sports team, NPO, and DAO and verifies English/Japanese/Simplified Chinese at 320 pixels. | Push the reviewed commit, pass CI, deploy it, and repeat authenticated production smoke before marking Complete |
 | Internationalization | Complete | English default, complete English/Japanese/Simplified Chinese UI dictionaries, persisted choice, and original-language user content | Switch all three languages in browser acceptance |
 | Operations | Complete | Purchaser-owned deploy, model and Connection setup, observability, export, retention, backup, restore, rollback, and handover runbooks | Preserve exact-commit release, backup, smoke, and restore evidence externally |
 
@@ -36,8 +36,8 @@ authority cases are rehearsed in isolated acceptance environments instead of aga
 
 The compatibility layer preserves existing IDs and Company workflows while new code targets the
 neutral Actor, Membership, Memory, Activity, Decision, Connection, Run, and Event substrate.
-Personal with AI is the guided first-run default, Other is the guided custom path over the neutral
-substrate, Blank is the advanced empty Template, and Company is one editable preset. Compatibility removal remains governed by the migration runbook
+Personal with AI is the guided first-run default. Other is the Purpose-first Builder over the
+neutral substrate, Blank is the advanced empty Template, and Company is one editable preset. Compatibility removal remains governed by the migration runbook
 and is not a v1 release shortcut.
 
 ## Current verified slice
@@ -47,8 +47,9 @@ and is not a v1 release shortcut.
 - Page load cannot create a Guild. Explicit initialization requires trusted Workshop-admin context,
   a selected Context Profile, and affirmative Root-responsibility acceptance, while a Guild-scoped
   advisory lock permits one Root winner. Personal with AI supplies safe defaults and a bounded
-  assistant without requiring advanced context fields. Other requires five context answers and
-  stores bounded vocabulary overrides without generating authorization policy.
+  assistant without requiring advanced context fields. Other now converts five natural-language
+  answers into a complete editable Blueprint, requires Human review, stores immutable versions,
+  and supports Guild- or Space-level reuse without mutating existing authority.
   Nonmembers receive no Root, Constitution, ownership-transfer, or Agent-default bootstrap fields.
 - Forced Guild row-level security blocks cross-Guild reads and writes.
 - Root Owner cannot be disabled, suspended, departed, or replaced by an Agent.

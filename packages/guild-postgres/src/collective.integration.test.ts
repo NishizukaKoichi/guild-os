@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { ChronicleEvent, Constitution } from "@guild-os/domain";
+import {
+  createDeterministicCollectiveBlueprint,
+  type ChronicleEvent,
+  type Constitution,
+} from "@guild-os/domain";
 import { GuildCollectiveRepository } from "./collective.js";
 import { GuildKnowledgeRepository } from "./knowledge.js";
 import { GuildPostgresRepository } from "./repository.js";
@@ -15,6 +19,7 @@ function event(
   action: string,
   subjectType: string,
   subjectId: string,
+  details: Readonly<Record<string, string>> = {},
 ): ChronicleEvent {
   return {
     id: randomUUID(),
@@ -30,7 +35,7 @@ function event(
     subjectId,
     correlationId: randomUUID(),
     occurredAt: new Date().toISOString(),
-    details: { source: "collective-integration-test" },
+    details: { source: "collective-integration-test", ...details },
   };
 }
 
@@ -134,6 +139,138 @@ function memoryContent(revision: string) {
 }
 
 integration("Guild Collective repository", () => {
+  it("versions purchaser Blueprints and applies Profiles without changing existing authority", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const ids = await fixture();
+    const blueprint = createDeterministicCollectiveBlueprint({
+      locale: "en",
+      answers: {
+        purpose: "Coordinate a family household and preserve shared knowledge",
+        participants: "Family members and a governed AI assistant",
+        memoryIntent: "Care notes, household guides, and family history",
+        activityIntent: "Plan care, household tasks, and family events",
+        decisionStyle: "Family consent with responsible adult review",
+      },
+    });
+
+    const before = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query(
+        `SELECT role.id::text, role.name,
+                COALESCE(array_agg(permission.permission ORDER BY permission.permission)
+                  FILTER (WHERE permission.permission IS NOT NULL), '{}') AS permissions
+           FROM roles role
+           LEFT JOIN role_permissions permission
+             ON permission.guild_id = role.guild_id AND permission.role_id = role.id
+          WHERE role.guild_id = $1
+          GROUP BY role.id, role.name
+          ORDER BY role.id`,
+        [ids.guild],
+      ).then((result) => result.rows));
+
+    await withGuildTransaction(connectionString, ids.guild, async (connection) => {
+      const repository = new GuildCollectiveRepository(connection, ids.guild);
+      const saved = await repository.saveBlueprint({
+        draft: blueprint,
+        expectedVersion: null,
+        actorId: ids.root,
+        chronicleEvent: event(
+          ids.guild,
+          ids.root,
+          "collective.blueprint.created",
+          "collective",
+          ids.guild,
+          { blueprintKey: blueprint.key },
+        ),
+      });
+      expect(saved.version).toBe(1);
+      await repository.configure({
+        templateKey: "blank",
+        blueprintKey: blueprint.key,
+        vocabularyOverrides: {},
+        onboardingAnswers: {
+          purpose: "Stale previous purpose",
+          participants: "Stale previous participants",
+        },
+        actorId: ids.root,
+        chronicleEvent: event(ids.guild, ids.root, "collective.configured", "collective", ids.guild),
+      });
+      expect((await repository.getSettings()).onboardingAnswers).toEqual(blueprint.onboardingAnswers);
+      await repository.setSpaceBlueprint(
+        ids.teamSpace,
+        blueprint.key,
+        ids.root,
+        event(ids.guild, ids.root, "space.context_profile.changed", "space", ids.teamSpace),
+      );
+    });
+
+    const edited = structuredClone(blueprint);
+    edited.definition.name = "Family Commons";
+    edited.definition.description = "A reviewed household Blueprint.";
+    await withGuildTransaction(connectionString, ids.guild, async (connection) => {
+      const repository = new GuildCollectiveRepository(connection, ids.guild);
+      const saved = await repository.saveBlueprint({
+        draft: edited,
+        expectedVersion: 1,
+        actorId: ids.root,
+        chronicleEvent: event(
+          ids.guild,
+          ids.root,
+          "collective.blueprint.updated",
+          "collective",
+          ids.guild,
+          { blueprintKey: blueprint.key },
+        ),
+      });
+      expect(saved.version).toBe(2);
+      expect(saved.definition.name).toBe("Family Commons");
+      expect((await repository.getSettings()).blueprintKey).toBe(blueprint.key);
+      expect(await repository.listBlueprints()).toHaveLength(1);
+    });
+
+    const after = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query(
+        `SELECT role.id::text, role.name,
+                COALESCE(array_agg(permission.permission ORDER BY permission.permission)
+                  FILTER (WHERE permission.permission IS NOT NULL), '{}') AS permissions
+           FROM roles role
+           LEFT JOIN role_permissions permission
+             ON permission.guild_id = role.guild_id AND permission.role_id = role.id
+          WHERE role.guild_id = $1
+          GROUP BY role.id, role.name
+          ORDER BY role.id`,
+        [ids.guild],
+      ).then((result) => result.rows));
+    expect(after).toEqual(before);
+
+    const history = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query<{ version: number; name: string }>(
+        `SELECT version, name
+           FROM collective_template_versions
+          WHERE guild_id = $1 AND template_key = $2
+          ORDER BY version`,
+        [ids.guild, blueprint.key],
+      ).then((result) => result.rows));
+    expect(history).toEqual([
+      { version: 1, name: "Family Circle" },
+      { version: 2, name: "Family Commons" },
+    ]);
+
+    await expect(withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query(
+        `DELETE FROM collective_template_versions
+          WHERE guild_id = $1 AND template_key = $2 AND version = 1`,
+        [ids.guild, blueprint.key],
+      ))).rejects.toThrow("append-only");
+
+    await expect(withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      connection.query(
+        `UPDATE collective_templates
+            SET system = true
+          WHERE guild_id = $1 AND key = $2`,
+        [ids.guild, blueprint.key],
+      ))).rejects.toThrow("identity is immutable");
+  });
+
   it("keeps Actor, Memory, Activity, template, and legacy compatibility boundaries coherent", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
     const ids = await fixture();

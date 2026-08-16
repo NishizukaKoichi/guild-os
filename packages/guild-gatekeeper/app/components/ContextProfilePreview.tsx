@@ -40,19 +40,19 @@ export function ContextProfilePreview({
         <div>
           <dt><ListTodo size={16} />{t("collective.activityTypes")}</dt>
           <dd>{template.activityTypes.map((type) => (
-            <span key={type}>{activityTypeLabel(type, locale)}</span>
+            <span key={type}>{activityTypeLabel(type, locale, template.activityTypeLabels?.[type])}</span>
           ))}</dd>
         </div>
         <div>
           <dt><BookOpen size={16} />{t("collective.memoryTypes")}</dt>
           <dd>{template.memoryTypes.map((type) => (
-            <span key={type}>{memoryTypeLabel(type, locale)}</span>
+            <span key={type}>{memoryTypeLabel(type, locale, template.memoryTypeLabels?.[type])}</span>
           ))}</dd>
         </div>
         <div>
           <dt><Scale size={16} />{t("collective.decisionMethods")}</dt>
           <dd>{template.decisionMethods.map((method) => (
-            <span key={method}>{decisionMethodLabel(method, locale)}</span>
+            <span key={method}>{decisionMethodLabel(method, locale, template.decisionMethodLabels?.[method])}</span>
           ))}</dd>
         </div>
         <div>

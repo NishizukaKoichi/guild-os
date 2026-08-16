@@ -30,10 +30,10 @@ import type {
   UiMemoryPage,
 } from "../../src/management-types";
 import {
+  contextMemoryTypeLabel,
   contextProfileForSpace,
   visibleMemoryTypes,
 } from "../collective-context";
-import { memoryTypeLabel } from "../collective-language";
 import { EmptyState } from "../components/EmptyState";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
@@ -201,7 +201,7 @@ function MemoryEditor({
                 <label>
                   <span>{t("memory.type")}</span>
                   <select aria-label={t("memory.type")} value={type} onChange={(event) => setType(event.target.value as MemoryType)}>
-                    {activeProfile.memoryTypes.map((value) => <option key={value} value={value}>{memoryTypeLabel(value, locale)}</option>)}
+                    {activeProfile.memoryTypes.map((value) => <option key={value} value={value}>{contextMemoryTypeLabel(collective, value, locale, spaceId)}</option>)}
                   </select>
                 </label>
               </div>
@@ -355,7 +355,7 @@ export function MemoryPage({
       />
       <section className="collection-toolbar" aria-label={t("memory.title")}>
         <label className="search-field"><Search size={17} /><span className="sr-only">{t("common.search")}</span><input value={search} placeholder={t("memory.searchPlaceholder")} onChange={(event) => setSearch(event.target.value)} /></label>
-        <label><span className="sr-only">{t("memory.type")}</span><select value={type} onChange={(event) => setType(event.target.value as MemoryType | "")}><option value="">{t("memory.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{memoryTypeLabel(value, locale)}</option>)}</select></label>
+        <label><span className="sr-only">{t("memory.type")}</span><select value={type} onChange={(event) => setType(event.target.value as MemoryType | "")}><option value="">{t("memory.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{contextMemoryTypeLabel(collective, value, locale)}</option>)}</select></label>
       </section>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {loading && !page ? <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("common.loading")}</div> : null}
@@ -366,7 +366,7 @@ export function MemoryPage({
             <article className="memory-row" key={memory.id}>
               <div className="memory-row-main">
                 <div className="memory-row-meta">
-                  <span>{memoryTypeLabel(memory.type, locale)}</span>
+                  <span>{contextMemoryTypeLabel(collective, memory.type, locale, memory.spaceId)}</span>
                   {memory.capabilities.governed ? <span className="governed-badge"><ShieldCheck size={13} />{t("memory.governed")}</span> : null}
                 </div>
                 <h2>{localized(memory.title, locale)}</h2>

@@ -19,7 +19,7 @@ Choose **More > Settings > Context profiles** to apply Personal with AI, Company
 Research, Creator, Open Source, Agent Collective, or Blank. The Guild Profile controls labels,
 Home action order, Memory and Activity choices, Decision methods, workflow suggestions, and the
 suggested Agent. The four primary labels can be overridden, and every Space can inherit the Guild
-Profile or select a different built-in Profile. See the complete
+Profile or select a different built-in or purchaser-saved Blueprint. See the complete
 [Context Profile guide](context-profiles.md).
 
 The selected Template's built-in Role preset is created during initialization. Custom Roles remain
@@ -30,10 +30,21 @@ migration. Personal with AI is the guided initialization default; Blank is the a
 Profile.
 
 For a purpose that does not match a preset, select **Other / Build your own** during first setup.
-The guided path uses Blank's neutral Role and Capability model, then applies four purchaser-defined
-navigation terms and five operating-context answers. It does not require source edits and does not
-let generated wording change authorization. Use **Settings > Roles** for an explicit, auditable
-permission change and **Settings > Context profiles** for later vocabulary changes.
+Answer what the collective exists for, who or what participates, what it remembers, how it acts,
+and how it decides. Guild OS proposes a name and purpose, full vocabulary, bounded Role and
+Capability bundles, Spaces, Memory types, Activity types and states, Decision methods, Home
+priorities, Workflows, and an optional bounded Agent. Review and edit every proposal before save.
+
+Saved Blueprints are Guild-scoped, versioned data. Use **Settings > Context profiles** to create,
+edit, apply, or reuse them for the whole Guild or a single Space. Applying one after initialization
+changes operating context only; it never rewrites existing Roles, assignments, permissions,
+Constitution, approval rules, Connections, or Agent permissions. Use the dedicated governed
+Settings operations for authority changes.
+
+Workers AI may improve a proposal when available. Model output is untrusted: the server strips
+authority choices down to reviewed allowlisted bundles and validates the exact schema. A bounded
+deterministic proposal remains available if the model is unavailable, and the review screen marks
+that fallback. Raw Blank remains the expert path that makes no proposal.
 
 Built-in definitions live in `packages/guild-domain/src/templates.ts`; translated display copy
 lives in `packages/guild-gatekeeper/app/collective-language.ts`. To add a purchaser-owned Template:

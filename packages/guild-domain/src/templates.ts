@@ -140,6 +140,13 @@ function unique(capabilities: readonly Capability[]): readonly Capability[] {
   return [...new Set(capabilities)];
 }
 
+export const COLLECTIVE_ROLE_CAPABILITY_BUNDLES = {
+  observe: unique(READ_CAPABILITIES),
+  participate: unique(PARTICIPATE_CAPABILITIES),
+  coordinate: unique(COORDINATE_CAPABILITIES),
+  administer: unique(ADMINISTER_CAPABILITIES),
+} as const satisfies Readonly<Record<string, readonly Capability[]>>;
+
 const templates: Record<CollectiveTemplateKey, CollectiveTemplate> = {
   personal: {
     key: "personal",
@@ -167,9 +174,9 @@ const templates: Record<CollectiveTemplateKey, CollectiveTemplate> = {
       coordinator: "Owner",
     },
     roles: [
-      { name: "Personal administrator", capabilities: unique(ADMINISTER_CAPABILITIES) },
-      { name: "Collaborator", capabilities: unique(PARTICIPATE_CAPABILITIES) },
-      { name: "Observer", capabilities: unique(READ_CAPABILITIES) },
+      { name: "Personal administrator", capabilities: COLLECTIVE_ROLE_CAPABILITY_BUNDLES.administer },
+      { name: "Collaborator", capabilities: COLLECTIVE_ROLE_CAPABILITY_BUNDLES.participate },
+      { name: "Observer", capabilities: COLLECTIVE_ROLE_CAPABILITY_BUNDLES.observe },
     ],
     activityTypes: ["task", "project", "investigation", "creation", "maintenance"],
     memoryTypes: ["fact", "document", "experience", "decision", "learning", "agent_output"],
@@ -207,9 +214,9 @@ const templates: Record<CollectiveTemplateKey, CollectiveTemplate> = {
       coordinator: "Coordinator",
     },
     roles: [
-      { name: "Coordinator", capabilities: unique(ADMINISTER_CAPABILITIES) },
-      { name: "Participant", capabilities: unique(PARTICIPATE_CAPABILITIES) },
-      { name: "Observer", capabilities: unique(READ_CAPABILITIES) },
+      { name: "Coordinator", capabilities: COLLECTIVE_ROLE_CAPABILITY_BUNDLES.administer },
+      { name: "Participant", capabilities: COLLECTIVE_ROLE_CAPABILITY_BUNDLES.participate },
+      { name: "Observer", capabilities: COLLECTIVE_ROLE_CAPABILITY_BUNDLES.observe },
     ],
     activityTypes: ["task", "project", "event", "discussion", "creation", "investigation"],
     memoryTypes: ["fact", "document", "experience", "rule", "artifact", "learning"],

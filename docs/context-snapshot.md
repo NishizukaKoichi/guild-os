@@ -33,9 +33,10 @@ product requirement must be resolved explicitly rather than silently weakened.
 - Cloudflare OS Gatekeepers remain the only path from agents and Gadgets to Guild data or external
   side effects.
 - No central seller-operated API, licensing server, database, or mandatory subscription is allowed.
-- Company is one Template. Personal with AI is the guided first-run default, Blank remains an
-  advanced neutral Profile, and complete Space Context Profiles may mix Templates without forking
-  the neutral core or changing the schema or authorization engine.
+- Company is one Template. Personal with AI is the guided first-run default, Other builds a
+  reviewed Purpose-first Blueprint, and Blank remains an advanced neutral Profile. Guilds and
+  Spaces may reuse built-in or purchaser-saved Profiles without forking the neutral core or
+  changing the authorization engine.
 
 ## Security invariants
 

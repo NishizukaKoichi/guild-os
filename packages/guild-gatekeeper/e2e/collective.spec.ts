@@ -61,7 +61,7 @@ test("orders Home intents and Agent guidance from the active Guild profile", asy
   await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
 
   await navigateToMore(page, "Settings");
-  await page.locator("#collective-template").selectOption("company");
+  await page.locator("#collective-template").selectOption("template:company");
   await page.locator(".collective-settings").getByRole("button", { name: "Apply profile", exact: true }).click();
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await expect(page.locator(".home-action-copy strong")).toHaveText([
@@ -138,7 +138,7 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
     ["research", "Researchers", "Research memory", "Studies"],
   ] as const;
   for (const [value, members, memory, activity] of expected) {
-    await template.selectOption(value);
+    await template.selectOption(`template:${value}`);
     await settings.getByRole("button", { name: "Apply profile", exact: true }).click();
     await expect(page.locator(".sidebar").getByRole("button", { name: members, exact: true })).toBeVisible();
     await expect(page.locator(".sidebar").getByRole("button", { name: memory, exact: true })).toBeVisible();
@@ -146,8 +146,8 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
   }
 
   const researchSpace = settings.locator('select[data-space-name="Research"]');
-  await researchSpace.selectOption("creator");
-  await expect(researchSpace).toHaveValue("creator");
+  await researchSpace.selectOption("template:creator");
+  await expect(researchSpace).toHaveValue("template:creator");
 
   await page.getByRole("button", { name: "Studies", exact: true }).click();
   await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
@@ -193,6 +193,74 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
   expect(errors).toEqual([]);
 });
 
+test("creates, edits, reuses, and applies a Purpose Blueprint without changing Roles", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("?standalone=root");
+  await navigateToMore(page, "Settings");
+
+  const settings = page.locator(".collective-settings");
+  const roles = page.locator(".settings-section").filter({
+    has: page.getByRole("heading", { name: "Roles", exact: true }),
+  });
+  const rolesBefore = await roles.textContent();
+  await settings.getByRole("button", { name: "Create from purpose", exact: true }).click();
+  const answers = {
+    purpose: "Coordinate a community football team and its training",
+    participants: "Players, coaches, volunteers, and a team assistant",
+    memoryIntent: "Keep playbooks, training notes, and team history",
+    activityIntent: "Run training, matches, and team events",
+    decisionStyle: "Coach review with team consent for major changes",
+  };
+  for (const [key, value] of Object.entries(answers)) {
+    await settings.locator(`[data-onboarding-field="${key}"]`).fill(value);
+  }
+  await settings.locator('[data-blueprint-action="generate"]').click();
+  const review = settings.locator('[data-blueprint-builder="review"]');
+  await expect(review.locator(".blueprint-editor-overview input").first()).toHaveValue("Team Hub");
+  await review.locator(".blueprint-editor-overview input").first().fill("Harbor Football Club");
+  await review.locator("summary").filter({ hasText: "Roles and capabilities" }).click();
+  await review.locator(".blueprint-editor-item").nth(2)
+    .getByLabel("Capability level").selectOption("observe");
+  await review.locator("summary").filter({ hasText: "Recommended AI assistant" }).click();
+  await review.locator(".blueprint-permission-details summary").click();
+  await expect(review.locator(".blueprint-permission-details")).toContainText("memory.read");
+  await expect(review.locator(".blueprint-permission-details")).not.toContainText("activity.create");
+  await review.locator('[data-blueprint-action="save"]').click();
+  await expect(settings.getByText("Blueprint saved. It is now available for the Guild and its Spaces.", { exact: true })).toBeVisible();
+
+  const researchSpace = settings.locator('select[data-space-name="Research"]');
+  await researchSpace.selectOption({ label: "Harbor Football Club" });
+  await expect(researchSpace.locator("option:checked")).toHaveText("Harbor Football Club");
+
+  await page.getByRole("button", { name: "Studies", exact: true }).click();
+  await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "Space", exact: true }).selectOption({ label: "Research" });
+  await expect(dialog.getByText("Harbor Football Club", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
+    "Training session",
+    "Match",
+    "Team event",
+  ]);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+  await navigateToMore(page, "Settings");
+  await page.locator("#collective-template").selectOption({ label: "Harbor Football Club" });
+  await settings.getByRole("button", { name: "Apply profile", exact: true }).click();
+  await expect(page.locator(".topbar-context")).toContainText("Harbor Football Club");
+
+  await settings.getByRole("button", { name: "Edit Blueprint: Harbor Football Club", exact: true }).click();
+  const edit = settings.locator('[data-blueprint-builder="review"]');
+  await edit.locator(".blueprint-editor-overview input").first().fill("Harbor Football Operations");
+  await edit.locator('[data-blueprint-action="save"]').click();
+  await expect(page.locator(".topbar-context")).toContainText("Harbor Football Operations");
+
+  await expect(roles).toHaveText(rolesBefore ?? "");
+  await expect(roles).not.toContainText("Club administrator");
+  expect(errors).toEqual([]);
+});
+
 test("adapts activity, memory, membership, and Actor behavior to the selected purpose", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -200,7 +268,7 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
 
   async function applyTemplate(value: string) {
     await navigateToMore(page, "Settings");
-    await page.locator("#collective-template").selectOption(value);
+    await page.locator("#collective-template").selectOption(`template:${value}`);
     await page.locator(".collective-settings").getByRole("button", { name: "Apply profile", exact: true }).click();
   }
 
@@ -299,7 +367,7 @@ for (const width of [390, 320] as const) {
 
     for (const [value, members, memory, activity] of expected) {
       await navigateToMore(page, "Settings");
-      await page.locator("#collective-template").selectOption(value);
+      await page.locator("#collective-template").selectOption(`template:${value}`);
       await page.locator(".collective-settings")
         .getByRole("button", { name: "Apply profile", exact: true }).click();
       await page.getByRole("button", { name: "Open navigation", exact: true }).click();

@@ -192,6 +192,10 @@ const DYNAMIC_TRANSLATION_FAMILIES = {
   "agentRun.risk.${}": ["0", "1", "2", "3"],
   "ask.mode.${}": ["ask", "plan", "act"],
   "ask.source.${}": ["memory", "actor", "decision"],
+  "blueprint.bundle.${}": ["observe", "participate", "coordinate", "administer"],
+  "blueprint.decision.${}": ["custodian", "consent", "vote", "review", "editorial", "policy", "hybrid"],
+  "blueprint.home.${}": ["ask", "remember", "start", "review", "members"],
+  "blueprint.lifecycle.${}": ["simple", "planned", "ready"],
   "context.classification.${}": ["public", "internal", "confidential", "restricted"],
   "context.custody.${}": ["guild", "shared", "personal"],
   "context.node.type.${}": [

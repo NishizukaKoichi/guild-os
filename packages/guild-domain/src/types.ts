@@ -411,8 +411,11 @@ export interface CollectiveTemplate {
   labels: CollectiveTemplateLabels;
   roles: readonly CollectiveTemplateRole[];
   activityTypes: readonly ActivityType[];
+  activityTypeLabels?: Readonly<Partial<Record<ActivityType, string>>>;
   memoryTypes: readonly MemoryType[];
+  memoryTypeLabels?: Readonly<Partial<Record<MemoryType, string>>>;
   decisionMethods: readonly DecisionMethod[];
+  decisionMethodLabels?: Readonly<Partial<Record<DecisionMethod, string>>>;
   dashboardIntents: readonly ("ask" | "remember" | "start" | "review" | "members")[];
   workflows: readonly CollectiveWorkflowPreset[];
   suggestedAgent: string | null;
@@ -429,6 +432,7 @@ export interface CollectiveOnboardingAnswers {
 export interface CollectiveSettings {
   guildId: string;
   templateKey: CollectiveTemplateKey;
+  blueprintKey: `custom-${string}` | null;
   templateVersion: number;
   vocabularyOverrides: Partial<CollectiveTemplateLabels>;
   onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
@@ -439,6 +443,7 @@ export interface CollectiveSettings {
 export interface SpaceVocabularyAssignment {
   spaceId: string;
   vocabularyProfileKey: string | null;
+  blueprintKey?: `custom-${string}` | null;
 }
 
 export interface KnowledgeRecord extends SecuredResource {

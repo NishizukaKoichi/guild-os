@@ -35,10 +35,11 @@ import type {
   UiDirectory,
 } from "../../src/management-types";
 import {
+  contextActivityTypeLabel,
   contextProfileForSpace,
   visibleActivityTypes,
 } from "../collective-context";
-import { activityStatusLabel, activityTypeLabel } from "../collective-language";
+import { activityStatusLabel } from "../collective-language";
 import { EmptyState } from "../components/EmptyState";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
@@ -166,7 +167,7 @@ function ActivityEditor({
             </div>
           ) : null}
           <div className="form-grid">
-            <label><span>{t("activity.type")}</span><select aria-label={t("activity.type")} value={type} onChange={(event) => setType(event.target.value as ActivityType)}>{activeProfile.activityTypes.map((value) => <option key={value} value={value}>{activityTypeLabel(value, locale)}</option>)}</select></label>
+            <label><span>{t("activity.type")}</span><select aria-label={t("activity.type")} value={type} onChange={(event) => setType(event.target.value as ActivityType)}>{activeProfile.activityTypes.map((value) => <option key={value} value={value}>{contextActivityTypeLabel(collective, value, locale, spaceId)}</option>)}</select></label>
             <label><span>{t("activity.status")}</span><select aria-label={t("activity.status")} value={status} onChange={(event) => setStatus(event.target.value as ActivityStatus)}>{(["proposed", "planned", "ready"] as const).map((value) => <option key={value} value={value}>{activityStatusLabel(value, locale)}</option>)}</select></label>
           </div>
           <label><span>{t("activity.titleField")}</span><input required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
@@ -487,7 +488,7 @@ export function ActivityPage({
       <PageHeader title={collective.labels.activity} subtitle={t("activity.subtitle")} action={page?.creatableSpaceIds.length ? <button className="primary-button" type="button" onClick={() => setEditor("new")}><Plus size={17} /><span>{collective.labels.startActivity}</span></button> : undefined} />
       <section className="collection-toolbar" aria-label={t("activity.title")}>
         <label className="search-field"><Search size={17} /><span className="sr-only">{t("common.search")}</span><input value={search} placeholder={t("activity.searchPlaceholder")} onChange={(event) => setSearch(event.target.value)} /></label>
-        <label><span className="sr-only">{t("activity.type")}</span><select value={type} onChange={(event) => setType(event.target.value as ActivityType | "")}><option value="">{t("activity.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{activityTypeLabel(value, locale)}</option>)}</select></label>
+        <label><span className="sr-only">{t("activity.type")}</span><select value={type} onChange={(event) => setType(event.target.value as ActivityType | "")}><option value="">{t("activity.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{contextActivityTypeLabel(collective, value, locale)}</option>)}</select></label>
       </section>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {loading && !page ? <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("common.loading")}</div> : null}
@@ -506,7 +507,7 @@ export function ActivityPage({
               <article className="activity-row" key={activity.id} style={{ "--activity-depth": depth(activity) } as React.CSSProperties}>
                 <span className="activity-branch" aria-hidden="true"><Workflow size={16} /></span>
                 <div className="activity-row-main">
-                  <div className="activity-row-meta"><span>{activityTypeLabel(activity.type, locale)}</span><span className={`status-pill activity-status-${activity.status}`}>{activityStatusLabel(activity.status, locale)}</span>{activity.compatibilitySourceType ? <span className="compatibility-badge">{t("activity.compatibility")}</span> : null}</div>
+                  <div className="activity-row-meta"><span>{contextActivityTypeLabel(collective, activity.type, locale, activity.spaceId)}</span><span className={`status-pill activity-status-${activity.status}`}>{activityStatusLabel(activity.status, locale)}</span>{activity.compatibilitySourceType ? <span className="compatibility-badge">{t("activity.compatibility")}</span> : null}</div>
                   <h2>{activity.title}</h2>
                   {activity.description ? <p>{activity.description}</p> : null}
                   <small>{activity.assigneeActorId ? actors.get(activity.assigneeActorId) ?? t("common.unknown") : t("activity.unassigned")}{activity.dueAt ? <> · <CalendarClock size={13} /> {dates.format(new Date(activity.dueAt))}</> : null}</small>

@@ -7,12 +7,14 @@ import { useI18n } from "../i18n";
 export function InitializationCompletePage({
   bootstrap,
   templateKey,
-  customized,
+  blueprintName,
+  hasSuggestedAgent,
   onContinue,
 }: {
   bootstrap: UiMemberBootstrapState;
   templateKey: CollectiveTemplateKey;
-  customized: boolean;
+  blueprintName: string | null;
+  hasSuggestedAgent: boolean;
   onContinue(): void;
 }) {
   const { locale, t } = useI18n();
@@ -35,7 +37,7 @@ export function InitializationCompletePage({
           <div>
             <UserRound size={18} aria-hidden="true" />
             <dt>{t("initialization.completeProfile")}</dt>
-            <dd>{customized ? t("initialization.customProfileName") : template.name}</dd>
+            <dd>{blueprintName ?? template.name}</dd>
           </div>
           <div>
             <ShieldCheck size={18} aria-hidden="true" />
@@ -45,7 +47,7 @@ export function InitializationCompletePage({
           <div>
             <Bot size={18} aria-hidden="true" />
             <dt>{t("initialization.completeAgent")}</dt>
-            <dd>{template.suggestedAgent
+            <dd>{hasSuggestedAgent
               ? t("initialization.completeAgentReady")
               : t("initialization.completeAgentNone")}</dd>
           </div>

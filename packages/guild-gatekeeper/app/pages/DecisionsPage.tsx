@@ -22,7 +22,7 @@ import type {
   UiDecisionSummary,
   UiDirectory,
 } from "../../src/management-types";
-import { decisionMethodLabel } from "../collective-language";
+import { contextDecisionMethodLabel } from "../collective-context";
 import { CommentsPanel } from "../components/CommentsPanel";
 import { DecisionEditorDialog } from "../components/DecisionEditorDialog";
 import { DecisionReviewDialog } from "../components/DecisionReviewDialog";
@@ -208,7 +208,7 @@ export function DecisionsPage({
                 </span>
                 <strong>{decision.title}</strong>
                 <small>{spaceNames.get(decision.spaceId ?? "") ?? t("people.global")}</small>
-                <small>{decisionMethodLabel(decision.method, locale)}</small>
+                <small>{contextDecisionMethodLabel(collective, decision.method, locale, decision.spaceId)}</small>
                 <span>{decision.approvalCount}/{decision.requiredApprovals}</span>
               </button>
             ))}
@@ -260,7 +260,7 @@ export function DecisionsPage({
 
                 <dl className="decision-meta">
                   <div><UserRound size={16} /><dt>{t("decision.proposer")}</dt><dd>{identityNames.get(detail.decision.proposerIdentityId) ?? t("common.unknown")}</dd></div>
-                  <div><Scale size={16} /><dt>{t("decision.method")}</dt><dd>{decisionMethodLabel(detail.decision.method, locale)}</dd></div>
+                  <div><Scale size={16} /><dt>{t("decision.method")}</dt><dd>{contextDecisionMethodLabel(collective, detail.decision.method, locale, detail.decision.spaceId)}</dd></div>
                   <div><ShieldCheck size={16} /><dt>{t("decision.classification")}</dt><dd>{t(classificationTranslationKey(detail.decision.classification))}</dd></div>
                   <div><CalendarClock size={16} /><dt>{t("decision.reviewDate")}</dt><dd>{detail.decision.reviewAt ? dateFormatter.format(new Date(detail.decision.reviewAt)) : t("common.none")}</dd></div>
                   <div><FileCheck2 size={16} /><dt>{t("decision.version")}</dt><dd>v{detail.decision.version}</dd></div>

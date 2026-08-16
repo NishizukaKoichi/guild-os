@@ -3,6 +3,7 @@ import {
   type AgentLimits,
   type AppLocale,
   type CollectiveOnboardingAnswers,
+  type CollectiveBlueprintSpace,
   type CollectiveTemplate,
   type CollectiveTemplateKey,
   type OnboardingPath,
@@ -120,6 +121,14 @@ export interface ProvisionTemplateDefaultsInput {
   readonly plan: TemplateProvisioningPlan;
 }
 
+export interface ProvisionBlueprintSpacesInput {
+  readonly guildId: string;
+  readonly rootActorId: string;
+  readonly rootSpaceId: string;
+  readonly blueprintKey: `custom-${string}`;
+  readonly spaces: readonly CollectiveBlueprintSpace[];
+}
+
 function randomIds(template: CollectiveTemplate): TemplateProvisioningIds {
   return {
     roles: template.roles.map(() => crypto.randomUUID()),
@@ -157,6 +166,7 @@ export function buildTemplateProvisioningPlan(
   template: CollectiveTemplate,
   onboardingAnswers: CollectiveOnboardingAnswers,
   ids: TemplateProvisioningIds = randomIds(template),
+  agentPermissionOverride?: readonly Permission[],
 ): TemplateProvisioningPlan {
   if (ids.roles.length !== template.roles.length || ids.workflows.length !== template.workflows.length ||
       ids.onboardingRequirements.length !== 3 ||
@@ -168,10 +178,14 @@ export function buildTemplateProvisioningPlan(
   const memoryIntent = nonBlank(onboardingAnswers.memoryIntent, "Shared knowledge and decisions");
   const activityIntent = nonBlank(onboardingAnswers.activityIntent, "Purpose-aligned work");
   const decisionStyle = nonBlank(onboardingAnswers.decisionStyle, "Human-governed review");
+  const proposedAgentPermissions = agentPermissionOverride ?? agentPermissions(template);
+  if (agentPermissionOverride?.some((permission) => HUMAN_ONLY_PERMISSIONS.has(permission))) {
+    throw new Error("Blueprint Agent permissions cannot include Human-only authority.");
+  }
   const agentRole = template.suggestedAgent && ids.agentRole ? {
     id: ids.agentRole,
     name: `${template.suggestedAgent} role`,
-    permissions: agentPermissions(template),
+    permissions: proposedAgentPermissions,
   } satisfies BootstrapRole : null;
   const activityType = template.activityTypes[0] ?? "task";
   const templateToolIds = [...new Set(template.workflows.flatMap(() =>
@@ -492,4 +506,48 @@ export async function provisionTemplateDefaults(
       ),
     });
   }
+}
+
+export async function provisionBlueprintSpaces(
+  connection: GuildTransactionConnection,
+  input: ProvisionBlueprintSpacesInput,
+): Promise<ReadonlyMap<string, string>> {
+  const administration = new GuildAdministrationRepository(connection, input.guildId);
+  const created = new Map<string, string>();
+  const pending = [...input.spaces];
+  while (pending.length > 0) {
+    const before = pending.length;
+    for (let index = pending.length - 1; index >= 0; index -= 1) {
+      const space = pending[index]!;
+      const parentId = space.parentKey === null
+        ? input.rootSpaceId
+        : created.get(space.parentKey);
+      if (!parentId) continue;
+      const id = crypto.randomUUID();
+      await administration.createSpace({
+        id,
+        parentSpaceId: parentId,
+        name: space.name,
+        actorIdentityId: input.rootActorId,
+        chronicleEvent: makeChronicleEvent(
+          input.guildId,
+          input.rootActorId,
+          "space.created",
+          "space",
+          id,
+          {
+            blueprintKey: input.blueprintKey,
+            blueprintSpaceKey: space.key,
+            source: "blueprint-provisioning",
+          },
+        ),
+      });
+      created.set(space.key, id);
+      pending.splice(index, 1);
+    }
+    if (pending.length === before) {
+      throw new Error("Collective Blueprint Spaces could not be provisioned in parent order.");
+    }
+  }
+  return created;
 }

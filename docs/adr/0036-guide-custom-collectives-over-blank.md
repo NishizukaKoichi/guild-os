@@ -1,6 +1,6 @@
 # ADR 0036: Guide custom collectives over the neutral Blank substrate
 
-Status: Accepted
+Status: Superseded by ADR 0037
 
 Date: 2026-08-16
 
@@ -30,6 +30,10 @@ operation.
 - Validate every Vocabulary key and value server-side before the initialization transaction.
 - Treat custom vocabulary as purchaser-authored content rather than UI translation. Locale changes
   do not rewrite it.
+
+This decision described the first guided slice. ADR 0037 supersedes the restriction against
+generating a reviewable structure while retaining the non-negotiable rule that generated text
+cannot silently change authority.
 
 ## Alternatives considered
 

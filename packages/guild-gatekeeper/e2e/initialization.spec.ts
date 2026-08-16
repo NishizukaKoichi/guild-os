@@ -23,6 +23,34 @@ async function finishInitialization(app: Page | FrameLocator) {
   await app.getByRole("button", { name: "Open Guild OS", exact: true }).click();
 }
 
+interface BlueprintExample {
+  name: string;
+  locale: "en" | "ja" | "zh-CN";
+  expectedName: string;
+  answers: {
+    purpose: string;
+    participants: string;
+    memoryIntent: string;
+    activityIntent: string;
+    decisionStyle: string;
+  };
+}
+
+async function generateBlueprint(page: Page, example: BlueprintExample) {
+  await page.locator(".access-language select").selectOption(example.locale);
+  await page.locator('[data-template-choice="custom"]').click();
+  await page.locator(".initialization-actions .primary-button").click();
+  for (const [key, value] of Object.entries(example.answers)) {
+    await page.locator(`[data-onboarding-field="${key}"]`).fill(value);
+  }
+  await page.locator('[data-blueprint-action="generate"]').click();
+  const review = page.locator("[data-blueprint-review]");
+  await expect(review).toBeVisible();
+  await expect(review.locator(".blueprint-editor-overview input").first()).toHaveValue(example.expectedName);
+  await expect(review.locator(".blueprint-editor-item")).not.toHaveCount(0);
+  return review;
+}
+
 async function mountSandboxedStandaloneApp(
   page: Page,
   mode: "root" | "uninitialized-admin" | "uninitialized-member",
@@ -110,7 +138,7 @@ test("turns the selected purpose into a complete initial context and Role preset
   expect(errors).toEqual([]);
 });
 
-test("guides an Other collective without exposing raw Blank as the default", async ({ page }) => {
+test("keeps purpose-first creation primary and raw Blank in advanced options", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto("?standalone=uninitialized-admin");
@@ -120,52 +148,116 @@ test("guides an Other collective without exposing raw Blank as the default", asy
   await expect(page.getByRole("button", { name: /Blank Guild/ })).toBeHidden();
   await page.getByText("Advanced profiles", { exact: true }).click();
   await expect(page.getByRole("button", { name: /Blank Guild/ })).toBeVisible();
-
-  await customChoice.click();
-  await expect(customChoice).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-
-  await page.getByLabel("Root Owner display name", { exact: true }).fill("Avery Quinn");
-  await page.getByRole("checkbox", { name: /I accept responsibility/ }).check();
-  await expect(page.getByRole("button", { name: "Create Guild", exact: true })).toBeDisabled();
-
-  await page.getByLabel("What do you call the participants?", { exact: true }).fill("Contributors");
-  await page.getByLabel("What do you call shared memory?", { exact: true }).fill("Commons");
-  await page.getByLabel("What do you call shared activity?", { exact: true }).fill("Missions");
-  await page.getByLabel("What do you call decisions?", { exact: true }).fill("Agreements");
-  await page.getByLabel("Why does this collective exist?", { exact: true }).fill("Maintain a shared neighborhood garden.");
-  await page.getByLabel("Who or what participates?", { exact: true }).fill("Residents, volunteers, and a planning assistant.");
-  await page.getByLabel("What should it remember?", { exact: true }).fill("Planting plans, observations, and shared agreements.");
-  await page.getByLabel("What will it do together?", { exact: true }).fill("Coordinate planting, maintenance, and community events.");
-  await page.getByLabel("How will it decide?", { exact: true }).fill("Consent for routine work and a vote for major changes.");
-
-  await page.getByRole("button", { name: "Create Guild", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your Guild is ready", exact: true })).toBeVisible();
-  await expect(page.locator(".initialization-receipt")).toContainText("Other / Build your own");
-  await page.getByRole("button", { name: "Open Guild OS", exact: true }).click();
-
-  await expect(page.getByRole("button", { name: "Contributors", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Commons", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Missions", exact: true })).toBeVisible();
-  await expect(page.locator(".topbar-context")).toContainText("Other / Build your own");
-  await expect(page.getByText("Add to Commons", { exact: true })).toBeVisible();
-  await page.locator(".nav-group-toggle").filter({ hasText: /^More$/ }).click();
-  await expect(page.getByRole("button", { name: "Agreements", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-for (const width of [390, 320]) {
-  test(`keeps the guided Other setup usable at ${width}px`, async ({ page }) => {
+const purposeExamples: readonly BlueprintExample[] = [
+  {
+    name: "family",
+    locale: "ja",
+    expectedName: "家族の共有室",
+    answers: {
+      purpose: "家族で暮らしと子育ての知恵を共有する",
+      participants: "家族、親族、許可されたAIアシスタント",
+      memoryIntent: "家族の予定、ケア、レシピ、約束、歴史を残す",
+      activityIntent: "家事、ケア、予定、家族行事を一緒に進める",
+      decisionStyle: "日常は家族の合意、重要事項は責任者が確認する",
+    },
+  },
+  {
+    name: "school",
+    locale: "zh-CN",
+    expectedName: "学习共同体",
+    answers: {
+      purpose: "为学校的学生、教师和课程保留共同知识",
+      participants: "学生、教师、监护人和学习助手",
+      memoryIntent: "保存课程、学习证据和学校指南",
+      activityIntent: "开展课程、学习支持和评估",
+      decisionStyle: "由教育者审核，重要事项交由教学委员会决定",
+    },
+  },
+  {
+    name: "sports team",
+    locale: "en",
+    expectedName: "Team Hub",
+    answers: {
+      purpose: "Coordinate a community football team and its training",
+      participants: "Players, coaches, volunteers, and a team assistant",
+      memoryIntent: "Keep playbooks, training notes, and team history",
+      activityIntent: "Run training, matches, and team events",
+      decisionStyle: "Coach review with team consent for major changes",
+    },
+  },
+  {
+    name: "NPO",
+    locale: "ja",
+    expectedName: "ミッション共同体",
+    answers: {
+      purpose: "非営利NPOのボランティアと公益事業を進める",
+      participants: "スタッフ、ボランティア、受益者、支援Agent",
+      memoryIntent: "事業ガイド、成果の証拠、方針を残す",
+      activityIntent: "公益事業、キャンペーン、ボランティア活動を進める",
+      decisionStyle: "共同体の合意を取り、重要事項は理事会が確認する",
+    },
+  },
+  {
+    name: "DAO",
+    locale: "en",
+    expectedName: "Decentralized Collective",
+    answers: {
+      purpose: "Run a DAO with transparent proposals and token voting",
+      participants: "Human stewards, contributors, services, and governed Agents",
+      memoryIntent: "Keep governance rules, proposals, votes, and collective history",
+      activityIntent: "Run proposals, missions, and working-group sessions",
+      decisionStyle: "Token voting with Human steward review for high-risk actions",
+    },
+  },
+];
+
+for (const example of purposeExamples) {
+  test(`builds, reviews, and initializes an unknown ${example.name} without code`, async ({ page }) => {
     const errors = collectBrowserErrors(page);
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width: 1440, height: 1100 });
     await page.goto("?standalone=uninitialized-admin");
+    await generateBlueprint(page, example);
+    await page.locator('[data-blueprint-action="accept"]').click();
+    await page.locator("#initialization-owner-display-name").fill("Blueprint Owner");
+    await page.locator(".initialization-ownership-confirmation input").check();
+    await page.locator('[data-initialization-action="create"]').click();
+    await expect(page.locator(".initialization-complete-panel")).toContainText(example.expectedName);
+    await page.locator(".initialization-complete-action").click();
+    await expect(page.locator(".topbar-context")).toContainText(example.expectedName);
+    expect(errors).toEqual([]);
+  });
+}
 
-    await page.getByRole("button", { name: /Other \/ Build your own/ }).click();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Name the shared concepts", exact: true }))
-      .toBeVisible();
-    await expect(page.getByLabel("How will it decide?", { exact: true })).toBeVisible();
-
+for (const [locale, expectedName] of [
+  ["en", "Family Circle"],
+  ["ja", "家族の共有室"],
+  ["zh-CN", "家庭共享空间"],
+] as const) {
+  test(`keeps the ${locale} Purpose-first Builder usable at 320px`, async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto("?standalone=uninitialized-admin");
+    await generateBlueprint(page, {
+      name: `family-${locale}`,
+      locale,
+      expectedName,
+      answers: locale === "ja" ? purposeExamples[0]!.answers : locale === "zh-CN" ? {
+        purpose: "让家庭共同管理生活、照护和家庭决定",
+        participants: "家庭成员与获授权的AI助手",
+        memoryIntent: "保存照护记录、计划、知识和家庭历史",
+        activityIntent: "共同处理家务、照护与家庭活动",
+        decisionStyle: "日常事项采用家庭共识，重要事项由责任人审核",
+      } : {
+        purpose: "Help a family share care, plans, knowledge, and decisions",
+        participants: "Family members and an authorized AI assistant",
+        memoryIntent: "Keep care notes, plans, practical knowledge, and family history",
+        activityIntent: "Coordinate household tasks, care, and family events",
+        decisionStyle: "Family consent with responsible adult review for major changes",
+      },
+    });
     const viewport = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,

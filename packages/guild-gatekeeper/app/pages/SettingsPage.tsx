@@ -1,16 +1,18 @@
 import { Database, KeyRound, Languages, LockKeyhole, ShieldCheck } from "lucide-react";
-import type { AppLocale } from "@guild-os/domain";
+import type { AppLocale, CollectiveBlueprintDraft } from "@guild-os/domain";
 import { useState } from "react";
 import type {
   CreateRoleRequest,
   CreateSpaceRequest,
   ConfigureCollectiveRequest,
+  GenerateCollectiveBlueprintRequest,
   ProposeRootOwnershipTransferRequest,
   RecoverRootOwnershipRequest,
   RevokeBreakGlassCodesRequest,
   ResolveRootOwnershipTransferRequest,
   RotateBreakGlassCodesRequest,
   RotatedBreakGlassCodes,
+  SaveCollectiveBlueprintRequest,
   UiMemberBootstrapState,
   UiCollectiveContext,
   UiDirectory,
@@ -48,6 +50,8 @@ export function SettingsPage({
   onCreateSpace,
   onRenameSpace,
   onArchiveSpace,
+  onGenerateCollectiveBlueprint,
+  onSaveCollectiveBlueprint,
   onConfigureCollective,
   onSetSpaceVocabulary,
 }: {
@@ -69,6 +73,8 @@ export function SettingsPage({
   onCreateSpace(input: CreateSpaceRequest): Promise<void>;
   onRenameSpace(spaceId: string, name: string): Promise<void>;
   onArchiveSpace(spaceId: string): Promise<void>;
+  onGenerateCollectiveBlueprint(input: GenerateCollectiveBlueprintRequest): Promise<CollectiveBlueprintDraft>;
+  onSaveCollectiveBlueprint(input: SaveCollectiveBlueprintRequest): Promise<void>;
   onConfigureCollective(input: ConfigureCollectiveRequest): Promise<void>;
   onSetSpaceVocabulary(input: SetSpaceVocabularyRequest): Promise<void>;
 }) {
@@ -91,7 +97,13 @@ export function SettingsPage({
   return (
     <>
       <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
-      <CollectiveSettings collective={collective} onConfigure={onConfigureCollective} onSetSpaceVocabulary={onSetSpaceVocabulary} />
+      <CollectiveSettings
+        collective={collective}
+        onGenerateBlueprint={onGenerateCollectiveBlueprint}
+        onSaveBlueprint={onSaveCollectiveBlueprint}
+        onConfigure={onConfigureCollective}
+        onSetSpaceVocabulary={onSetSpaceVocabulary}
+      />
       <section className="content-section settings-section">
         <div className="section-heading-row">
           <Languages size={19} />

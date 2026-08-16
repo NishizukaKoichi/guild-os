@@ -1,6 +1,6 @@
 import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppLocale, CollectiveTemplateKey } from "@guild-os/domain";
+import { collectiveTemplate, type AppLocale, type CollectiveTemplateKey } from "@guild-os/domain";
 import type {
   AssignRoleRequest,
   CreateAgentRequest,
@@ -59,7 +59,8 @@ export function App({ api }: { api: GuildUiApi }) {
   const [initializationReceipt, setInitializationReceipt] = useState<{
     bootstrap: UiMemberBootstrapState;
     templateKey: CollectiveTemplateKey;
-    customized: boolean;
+    blueprintName: string | null;
+    hasSuggestedAgent: boolean;
   } | null>(null);
   const collective = useMemo(() => collectiveSource
     ? localizeCollectiveContext(collectiveSource, locale, {
@@ -134,7 +135,8 @@ export function App({ api }: { api: GuildUiApi }) {
         <InitializationCompletePage
           bootstrap={initializationReceipt.bootstrap}
           templateKey={initializationReceipt.templateKey}
-          customized={initializationReceipt.customized}
+          blueprintName={initializationReceipt.blueprintName}
+          hasSuggestedAgent={initializationReceipt.hasSuggestedAgent}
           onContinue={() => {
             setInitializationReceipt(null);
             setPage("home");
@@ -146,6 +148,7 @@ export function App({ api }: { api: GuildUiApi }) {
     return (
       <InitializationPage
         bootstrap={bootstrap}
+        onGenerateBlueprint={(input) => api.generateCollectiveBlueprint(input)}
         onInitialize={async (input: InitializeGuildRequest) => {
           const state = await api.initializeGuild(input);
           if (state.screen !== "member") {
@@ -154,8 +157,10 @@ export function App({ api }: { api: GuildUiApi }) {
           setInitializationReceipt({
             bootstrap: state,
             templateKey: input.templateKey,
-            customized: input.templateKey === "blank" &&
-              Object.keys(input.vocabularyOverrides ?? {}).length > 0,
+            blueprintName: input.blueprint?.definition.name ?? null,
+            hasSuggestedAgent: Boolean(
+              input.blueprint?.definition.suggestedAgent ?? collectiveTemplate(input.templateKey).suggestedAgent,
+            ),
           });
         }}
       />
@@ -411,6 +416,10 @@ export function App({ api }: { api: GuildUiApi }) {
           onArchiveSpace={async (spaceId) => {
             await api.archiveSpace(spaceId);
             await refreshDirectory();
+          }}
+          onGenerateCollectiveBlueprint={(input) => api.generateCollectiveBlueprint(input)}
+          onSaveCollectiveBlueprint={async (input) => {
+            setCollectiveSource(await api.saveCollectiveBlueprint(input));
           }}
           onConfigureCollective={async (input) => {
             setCollectiveSource(await api.configureCollective(input));

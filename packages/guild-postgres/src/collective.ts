@@ -7,6 +7,7 @@ import {
   assertActivityType,
   assertMemoryContent,
   assertMemoryType,
+  assertCollectiveBlueprintDraft,
   assertNonBlank,
   collectiveTemplate,
   type Activity,
@@ -20,6 +21,8 @@ import {
   type ChronicleEvent,
   type Classification,
   type CollectiveOnboardingAnswers,
+  type CollectiveBlueprintDraft,
+  type CollectiveBlueprintRecord,
   type CollectiveSettings,
   type CollectiveTemplateKey,
   type CollectiveTemplateLabels,
@@ -218,8 +221,17 @@ export interface ActivityCompletionResult {
 
 export interface ConfigureCollectiveInput {
   templateKey: CollectiveTemplateKey;
+  blueprintKey?: `custom-${string}` | null;
   vocabularyOverrides: Partial<CollectiveTemplateLabels>;
   onboardingAnswers: Partial<CollectiveOnboardingAnswers>;
+  actorId: string;
+  chronicleEvent: ChronicleEvent;
+}
+
+export interface SaveCollectiveBlueprintInput {
+  draft: CollectiveBlueprintDraft;
+  expectedVersion: number | null;
+  status?: "active" | "archived";
   actorId: string;
   chronicleEvent: ChronicleEvent;
 }
@@ -342,10 +354,30 @@ type ActivityOutcomeRow = QueryResultRow & {
 type SettingsRow = QueryResultRow & {
   guild_id: string;
   template_key: CollectiveTemplateKey;
+  blueprint_key: `custom-${string}` | null;
   template_version: number;
   vocabulary_overrides: Partial<CollectiveTemplateLabels>;
   onboarding_answers: Partial<CollectiveOnboardingAnswers>;
   updated_by_actor_id: string | null;
+  updated_at: string;
+};
+
+type BlueprintRow = QueryResultRow & {
+  guild_id: string;
+  key: `custom-${string}`;
+  name: string;
+  description: string;
+  definition: unknown;
+  system: boolean;
+  version: number;
+  status: "active" | "archived";
+  locale: AppLocale;
+  onboarding_answers: CollectiveOnboardingAnswers;
+  generation_mode: CollectiveBlueprintDraft["generationMode"];
+  generation_warnings: string[];
+  created_by_actor_id: string | null;
+  updated_by_actor_id: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -487,6 +519,29 @@ function activityOutcomeFromRow(row: ActivityOutcomeRow): ActivityOutcome {
   };
 }
 
+function blueprintFromRow(row: BlueprintRow): CollectiveBlueprintRecord {
+  const draft = {
+    key: row.key,
+    locale: row.locale,
+    generationMode: row.generation_mode,
+    generationWarnings: row.generation_warnings,
+    onboardingAnswers: row.onboarding_answers,
+    definition: row.definition,
+  };
+  assertCollectiveBlueprintDraft(draft);
+  return {
+    ...draft,
+    guildId: row.guild_id,
+    version: row.version,
+    status: row.status,
+    system: row.system,
+    createdByActorId: row.created_by_actor_id,
+    updatedByActorId: row.updated_by_actor_id,
+    createdAt: isoTimestamp(row.created_at),
+    updatedAt: isoTimestamp(row.updated_at),
+  };
+}
+
 export class GuildCollectiveRepository {
   readonly #connection: GuildTransactionConnection;
   readonly #guildId: string;
@@ -500,7 +555,7 @@ export class GuildCollectiveRepository {
 
   async getSettings(): Promise<CollectiveSettings> {
     const row = (await this.#connection.query<SettingsRow>(
-      `SELECT guild_id::text, template_key, template_version,
+      `SELECT guild_id::text, template_key, blueprint_key, template_version,
               vocabulary_overrides, onboarding_answers,
               updated_by_actor_id::text, updated_at::text
          FROM guild_collective_settings
@@ -512,6 +567,7 @@ export class GuildCollectiveRepository {
     return {
       guildId: row.guild_id,
       templateKey: row.template_key,
+      blueprintKey: row.blueprint_key,
       templateVersion: row.template_version,
       vocabularyOverrides: row.vocabulary_overrides,
       onboardingAnswers: row.onboarding_answers,
@@ -523,30 +579,138 @@ export class GuildCollectiveRepository {
   async configure(input: ConfigureCollectiveInput): Promise<CollectiveSettings> {
     this.#assertEvent(input.chronicleEvent, input.actorId, "collective", this.#guildId);
     collectiveTemplate(input.templateKey);
+    const blueprintKey = input.blueprintKey ?? null;
+    const blueprint = blueprintKey === null ? null : await this.getBlueprint(blueprintKey);
+    if (blueprint !== null && blueprint.status !== "active") {
+      throw new Error("Active Collective Blueprint was not found.");
+    }
+    const onboardingAnswers = blueprint?.onboardingAnswers ?? input.onboardingAnswers;
     this.#assertPlainStringMap(input.vocabularyOverrides, "Vocabulary overrides", 200);
-    this.#assertPlainStringMap(input.onboardingAnswers, "Onboarding answers", 2_000);
+    this.#assertPlainStringMap(onboardingAnswers, "Onboarding answers", 2_000);
     const row = (await this.#connection.query<SettingsRow>(
       `UPDATE guild_collective_settings
           SET template_key = $2,
+              blueprint_key = $3,
               template_version = template_version + 1,
-              vocabulary_overrides = $3::jsonb,
-              onboarding_answers = $4::jsonb,
-              updated_by_actor_id = $5
+              vocabulary_overrides = $4::jsonb,
+              onboarding_answers = $5::jsonb,
+              updated_by_actor_id = $6
         WHERE guild_id = $1
-      RETURNING guild_id::text, template_key, template_version,
+      RETURNING guild_id::text, template_key, blueprint_key, template_version,
                 vocabulary_overrides, onboarding_answers,
                 updated_by_actor_id::text, updated_at::text`,
       [
         this.#guildId,
         input.templateKey,
+        blueprintKey,
         JSON.stringify(input.vocabularyOverrides),
-        JSON.stringify(input.onboardingAnswers),
+        JSON.stringify(onboardingAnswers),
         input.actorId,
       ],
     )).rows[0];
     if (!row) throw new Error("Collective settings are unavailable.");
     await this.#chronicle.appendChronicle(input.chronicleEvent);
     return this.getSettings();
+  }
+
+  async listBlueprints(includeArchived = false): Promise<readonly CollectiveBlueprintRecord[]> {
+    const rows = (await this.#connection.query<BlueprintRow>(
+      `SELECT guild_id::text, key, name, description, definition, system, version, status,
+              locale, onboarding_answers, generation_mode, generation_warnings,
+              created_by_actor_id::text, updated_by_actor_id::text,
+              created_at::text, updated_at::text
+         FROM collective_templates
+        WHERE guild_id = $1 AND NOT system
+          AND ($2::boolean OR status = 'active')
+        ORDER BY updated_at DESC, key`,
+      [this.#guildId, includeArchived],
+    )).rows;
+    return rows.map(blueprintFromRow);
+  }
+
+  async getBlueprint(key: `custom-${string}`): Promise<CollectiveBlueprintRecord> {
+    const row = (await this.#connection.query<BlueprintRow>(
+      `SELECT guild_id::text, key, name, description, definition, system, version, status,
+              locale, onboarding_answers, generation_mode, generation_warnings,
+              created_by_actor_id::text, updated_by_actor_id::text,
+              created_at::text, updated_at::text
+         FROM collective_templates
+        WHERE guild_id = $1 AND key = $2 AND NOT system`,
+      [this.#guildId, key],
+    )).rows[0];
+    if (!row) throw new Error("Collective Blueprint was not found.");
+    return blueprintFromRow(row);
+  }
+
+  async saveBlueprint(input: SaveCollectiveBlueprintInput): Promise<CollectiveBlueprintRecord> {
+    this.#assertEvent(input.chronicleEvent, input.actorId, "collective", this.#guildId);
+    assertCollectiveBlueprintDraft(input.draft);
+    const definition = input.draft.definition;
+    const status = input.status ?? "active";
+    if (input.expectedVersion === null) {
+      await this.#connection.query(
+        `INSERT INTO collective_templates (
+           guild_id, key, name, description, definition, system, version, status, locale,
+           onboarding_answers, generation_mode, generation_warnings,
+           created_by_actor_id, updated_by_actor_id
+         ) VALUES ($1, $2, $3, $4, $5::jsonb, false, 1, $6, $7, $8::jsonb, $9, $10::jsonb, $11, $11)`,
+        [
+          this.#guildId,
+          input.draft.key,
+          definition.name,
+          definition.description,
+          JSON.stringify(definition),
+          status,
+          input.draft.locale,
+          JSON.stringify(input.draft.onboardingAnswers),
+          input.draft.generationMode,
+          JSON.stringify(input.draft.generationWarnings),
+          input.actorId,
+        ],
+      );
+      await this.#connection.query(
+        `INSERT INTO vocabulary_profiles (guild_id, key, name, labels, template_key, system)
+         VALUES ($1, $2, $3, $4::jsonb, $2, false)`,
+        [this.#guildId, input.draft.key, definition.name, JSON.stringify(definition.labels)],
+      );
+    } else {
+      if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+        throw new Error("Expected Blueprint version must be a positive integer.");
+      }
+      const updated = await this.#connection.query(
+        `UPDATE collective_templates
+            SET name = $4, description = $5, definition = $6::jsonb,
+                version = version + 1, status = $7, locale = $8,
+                onboarding_answers = $9::jsonb, generation_mode = $10,
+                generation_warnings = $11::jsonb, updated_by_actor_id = $12
+          WHERE guild_id = $1 AND key = $2 AND version = $3 AND NOT system`,
+        [
+          this.#guildId,
+          input.draft.key,
+          input.expectedVersion,
+          definition.name,
+          definition.description,
+          JSON.stringify(definition),
+          status,
+          input.draft.locale,
+          JSON.stringify(input.draft.onboardingAnswers),
+          input.draft.generationMode,
+          JSON.stringify(input.draft.generationWarnings),
+          input.actorId,
+        ],
+      );
+      if (updated.rowCount !== 1) {
+        throw new Error("Collective Blueprint changed before this save. Reload and review it again.");
+      }
+      await this.#connection.query(
+        `UPDATE vocabulary_profiles
+            SET name = $3, labels = $4::jsonb
+          WHERE guild_id = $1 AND key = $2 AND NOT system`,
+        [this.#guildId, input.draft.key, definition.name, JSON.stringify(definition.labels)],
+      );
+    }
+    await this.#chronicle.appendChronicle(input.chronicleEvent);
+    return this.getBlueprint(input.draft.key);
   }
 
   async setSpaceVocabulary(
@@ -557,9 +721,30 @@ export class GuildCollectiveRepository {
   ): Promise<void> {
     this.#assertEvent(chronicleEvent, actorId, "space", spaceId);
     const result = await this.#connection.query(
-      `UPDATE spaces SET vocabulary_profile_key = $3
+      `UPDATE spaces
+          SET vocabulary_profile_key = $3,
+              blueprint_key = NULL
         WHERE guild_id = $1 AND id = $2`,
       [this.#guildId, spaceId, profileKey],
+    );
+    if (result.rowCount !== 1) throw new Error("Space was not found.");
+    await this.#chronicle.appendChronicle(chronicleEvent);
+  }
+
+  async setSpaceBlueprint(
+    spaceId: string,
+    blueprintKey: `custom-${string}` | null,
+    actorId: string,
+    chronicleEvent: ChronicleEvent,
+  ): Promise<void> {
+    this.#assertEvent(chronicleEvent, actorId, "space", spaceId);
+    if (blueprintKey !== null) await this.#assertActiveBlueprint(blueprintKey);
+    const result = await this.#connection.query(
+      `UPDATE spaces
+          SET blueprint_key = $3,
+              vocabulary_profile_key = $3
+        WHERE guild_id = $1 AND id = $2`,
+      [this.#guildId, spaceId, blueprintKey],
     );
     if (result.rowCount !== 1) throw new Error("Space was not found.");
     await this.#chronicle.appendChronicle(chronicleEvent);
@@ -1482,6 +1667,16 @@ export class GuildCollectiveRepository {
         `${label} may only contain strings up to ${maxLength} characters.`,
       );
     }
+  }
+
+  async #assertActiveBlueprint(key: `custom-${string}`): Promise<void> {
+    const row = await this.#connection.query(
+      `SELECT 1
+         FROM collective_templates
+        WHERE guild_id = $1 AND key = $2 AND NOT system AND status = 'active'`,
+      [this.#guildId, key],
+    );
+    if (row.rows.length !== 1) throw new Error("Active Collective Blueprint was not found.");
   }
 
   #assertEvent(

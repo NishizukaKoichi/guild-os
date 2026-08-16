@@ -15,8 +15,10 @@ import type {
   UiCollectiveContext,
   UiDirectory,
 } from "../../src/management-types";
-import { contextProfileForSpace } from "../collective-context";
-import { decisionMethodLabel } from "../collective-language";
+import {
+  contextDecisionMethodLabel,
+  contextProfileForSpace,
+} from "../collective-context";
 import {
   classificationTranslationKey,
   useI18n,
@@ -207,7 +209,7 @@ export function DecisionEditorDialog({
               <span>{t("decision.method")}</span>
               <select value={method} onChange={(event) => setMethod(event.target.value as DecisionMethod)}>
                 {methodOptions.map((value) => (
-                  <option key={value} value={value}>{decisionMethodLabel(value, locale)}</option>
+                  <option key={value} value={value}>{contextDecisionMethodLabel(collective, value, locale, spaceId)}</option>
                 ))}
               </select>
             </label>
