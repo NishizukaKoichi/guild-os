@@ -65,11 +65,11 @@ when one required behavior is absent, even if most of the area exists.
 | 34 | Explicit non-goals | Implemented and verified | Exclusions are documented and absent from the Core product surface. |
 | 35 | Current-state audit | Implemented and verified | This matrix records Git, remote, submodule, production annotation, migration inventory, licensing, and Distribution state. |
 | 36 | Gap Matrix and authoritative acceptance | Implemented and verified | The 42-section specification is the authority; this matrix and Full-Spec Acceptance include Core, Distribution, external validation, and legal gates without shrinking completion. |
-| 37 | Safe implementation sequence | In progress | Core and Distribution implementation are present; final local gates, commits, and credential-bound external stages remain. |
+| 37 | Safe implementation sequence | In progress | Core and Distribution implementation, local gates, and separate commits are complete; credential-bound cloud installation, staging, and release stages remain. |
 | 38 | Required test coverage | Implemented but unverified | Builder, Personal, profiles, Space context, Ask/Plan/Act, permissions, Distribution, expiry, rollback, restore preparation, i18n, mobile, and accessibility tests exist. PostgreSQL integration and real cloud clean-room remain unavailable without safe external resources. |
 | 39 | Technical completion | Missing | Multiple required rows are partial/missing/unverified and staging evidence is absent. |
 | 40 | Sale readiness | Blocked by legal review | Professional legal, privacy, tax, pricing, refund, and support review cannot be replaced by implementation. |
-| 41 | Final evidence report | In progress | Local evidence is being produced; exact committed Core pin, CI, purchaser-owned staging, and authenticated smoke are not yet available. |
+| 41 | Final evidence report | Implemented but unverified | Exact local Core and Distribution commits, test evidence, and the pinned Core release are recorded; push/CI, purchaser-owned staging, and authenticated smoke evidence are not available. |
 | 42 | Final product promise | Implemented but unverified | The Core adapts to purpose and language and the Distribution owns the lifecycle without seller runtime custody; the complete promise still needs a real independent installation rehearsal. |
 
 ## Completion rule
