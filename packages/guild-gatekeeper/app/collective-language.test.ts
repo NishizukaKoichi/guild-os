@@ -131,6 +131,9 @@ describe("Context Profile localization", () => {
         memoryIntent: "家族の知恵と予定を残す",
         activityIntent: "家事、ケア、行事を進める",
         decisionStyle: "家族で話し合い、責任者が確認する",
+        languageAndStyle: "温かく分かりやすい",
+        agentIntent: "家族内の予定案と下書きを作る",
+        humanApprovalIntent: "外部送信と重要なケアの変更",
       },
     });
     const timestamp = "2026-08-16T00:00:00.000Z";

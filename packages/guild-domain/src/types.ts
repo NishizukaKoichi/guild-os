@@ -427,6 +427,9 @@ export interface CollectiveOnboardingAnswers {
   memoryIntent: string;
   activityIntent: string;
   decisionStyle: string;
+  languageAndStyle: string;
+  agentIntent: string;
+  humanApprovalIntent: string;
 }
 
 export interface CollectiveSettings {

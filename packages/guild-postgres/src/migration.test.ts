@@ -32,6 +32,9 @@ const actorCollectiveMigrationUrl = new URL("../migrations/0026_actor_collective
 const memoryActivityMigrationUrl = new URL("../migrations/0027_memory_activity_core.sql", import.meta.url);
 const collectiveCompatibilityMigrationUrl = new URL("../migrations/0028_collective_compatibility.sql", import.meta.url);
 const agentTokenLimitsMigrationUrl = new URL("../migrations/0029_agent_token_limits.sql", import.meta.url);
+const extendedDecisionMethodsMigrationUrl = new URL("../migrations/0048_extended_decision_methods.sql", import.meta.url);
+const purchaserConnectionProfilesMigrationUrl = new URL("../migrations/0049_purchaser_connection_profiles.sql", import.meta.url);
+const memoryActivityTypeCompletionMigrationUrl = new URL("../migrations/0050_memory_activity_type_completion.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("keeps the runtime schema marker pinned to the latest migration", async () => {
@@ -46,6 +49,49 @@ describe("Guild PostgreSQL migration", () => {
     expect(CURRENT_GUILD_SCHEMA_CHECKSUM).toBe(
       createHash("sha256").update(currentSql).digest("hex"),
     );
+  });
+
+  it("adds every authoritative Decision method with fail-closed database semantics", async () => {
+    const sql = await readFile(fileURLToPath(extendedDecisionMethodsMigrationUrl), "utf8");
+    for (const method of [
+      "quorum_vote",
+      "council",
+      "agent_proposal_human_approval",
+      "custom",
+    ]) {
+      expect(sql).toContain(`'${method}'`);
+    }
+    expect(sql).toContain("WHEN 'quorum_vote' THEN 'vote'");
+    expect(sql).toContain("WHEN 'council' THEN 'review'");
+    expect(sql).toContain("WHEN 'agent_proposal_human_approval' THEN 'policy'");
+    expect(sql).toContain("WHEN 'custom' THEN 'hybrid'");
+    expect(sql).toContain("Decision evidence policy gate has not passed");
+    expect(sql).toContain("Decision quorum is below the Constitution requirement");
+  });
+
+  it("adds every purchaser-owned Connection profile without weakening the existing boundary", async () => {
+    const sql = await readFile(fileURLToPath(purchaserConnectionProfilesMigrationUrl), "utf8");
+    for (const kind of [
+      "cloudflare_gatekeeper",
+      "email",
+      "calendar",
+      "file_storage",
+      "git_repository",
+      "external_api",
+      "model_provider",
+    ]) {
+      expect(sql).toContain(`'${kind}'`);
+    }
+    expect(sql).toContain("DROP CONSTRAINT connectors_kind_known");
+    expect(sql).not.toContain("NO FORCE ROW LEVEL SECURITY");
+  });
+
+  it("promotes the remaining neutral Memory and Activity aliases without removing custom types", async () => {
+    const sql = await readFile(fileURLToPath(memoryActivityTypeCompletionMigrationUrl), "utf8");
+    expect(sql).toContain("'external_source'");
+    expect(sql).toContain("'mission'");
+    expect(sql.match(/\^custom:/g)).toHaveLength(2);
+    expect(sql).not.toContain("NO FORCE ROW LEVEL SECURITY");
   });
 
   it("adds the Actor-neutral substrate with ID-preserving compatibility", async () => {

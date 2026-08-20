@@ -8,6 +8,9 @@ const answers: CollectiveOnboardingAnswers = {
   memoryIntent: "Seed provenance, growing notes, and seasonal history",
   activityIntent: "Exchange seeds, run workshops, and maintain the collection",
   decisionStyle: "Member consent with steward review for safety",
+  languageAndStyle: "Warm, practical, and welcoming",
+  agentIntent: "Prepare workshop drafts and propose calendar updates",
+  humanApprovalIntent: "External messages, deletion, and member authority changes",
 };
 
 function modelCandidate() {

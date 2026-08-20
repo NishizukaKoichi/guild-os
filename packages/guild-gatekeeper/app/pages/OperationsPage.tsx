@@ -79,10 +79,26 @@ const CONNECTION_KINDS = [
   "https_webhook",
   "mcp",
   "oauth",
-  "webhook",
-  "api",
+  "cloudflare_gatekeeper",
   "cloudflare_service",
+  "email",
+  "calendar",
+  "file_storage",
+  "git_repository",
+  "external_api",
+  "model_provider",
 ] as const satisfies readonly CreateConnectionRequest["kind"][];
+
+const ACTION_ENDPOINT_CONNECTION_KINDS: readonly CreateConnectionRequest["kind"][] = [
+  "api",
+  "cloudflare_gatekeeper",
+  "email",
+  "calendar",
+  "file_storage",
+  "git_repository",
+  "external_api",
+  "model_provider",
+];
 
 const AUTH_KINDS = [
   "none",
@@ -513,10 +529,12 @@ function ConnectionsTab({
   const endpointRequired = kind !== "cloudflare_service";
   const secretRequired = !["none", "service_binding"].includes(authKind);
   const capabilityIds = useMemo(() => uniqueLines(allowedCapabilitiesText), [allowedCapabilitiesText]);
-  const capabilityAllowlistRequired = ["mcp", "api", "cloudflare_service"].includes(kind);
+  const actionEndpoint = ACTION_ENDPOINT_CONNECTION_KINDS.includes(kind);
+  const capabilityAllowlistRequired = kind === "mcp" || kind === "cloudflare_service" ||
+    actionEndpoint;
   const capabilitiesValid = capabilityIds.length <= 200 && capabilityIds.every((id) =>
     id.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(id));
-  const routesReady = !["api", "cloudflare_service"].includes(kind) ||
+  const routesReady = !(actionEndpoint || kind === "cloudflare_service") ||
     Boolean(healthRoute.trim() && discoveryRoute.trim() && invokeRoute.trim());
   const formReady = Boolean(name.trim() && provider.trim() && description.trim() &&
     (!endpointRequired || endpointUrl.trim()) && (!secretRequired || secretReference.trim()) &&
@@ -566,7 +584,7 @@ function ConnectionsTab({
         allowedCapabilities: capabilityIds.map((id) => ({ id })),
         ...(kind === "mcp" ? { adapterKind: mcpAdapterKind } : {}),
         ...(kind === "cloudflare_service" ? { bindingReference: bindingReference.trim() } : {}),
-        ...(["api", "cloudflare_service"].includes(kind) ? {
+        ...(actionEndpoint || kind === "cloudflare_service" ? {
           routes: {
             health: healthRoute.trim(),
             discovery: discoveryRoute.trim(),
@@ -716,7 +734,7 @@ function ConnectionsTab({
                 <small className="field-help">{t("operations.connections.bindingReferenceHelp")}</small>
               </label>
             ) : null}
-            {["api", "cloudflare_service"].includes(kind) ? (
+            {actionEndpoint || kind === "cloudflare_service" ? (
               <div className="form-grid three-column-form-grid">
                 <label><span>{t("operations.connections.route.health")}</span><input required maxLength={200} value={healthRoute} onChange={(event) => setHealthRoute(event.target.value)} /></label>
                 <label><span>{t("operations.connections.route.discovery")}</span><input required maxLength={200} value={discoveryRoute} onChange={(event) => setDiscoveryRoute(event.target.value)} /></label>

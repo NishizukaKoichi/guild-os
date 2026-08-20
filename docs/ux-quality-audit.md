@@ -4,6 +4,7 @@
 
 - Audited commit: `0e63675fd58f9ffd5248a53073368dbee527e2ca`
 - Date: 2026-08-20
+- Final verification date: 2026-08-21
 - Runtime: Node.js 24.12.0, pnpm 11.9.0, Chromium through Playwright 1.62.1
 - Modes reviewed: `root`, `member`, `uninitialized-admin`, `uninitialized-member`,
   `uninvited`, `suspended`, and `departed`
@@ -61,10 +62,11 @@ close safely with Escape, and return focus to their trigger. Motion is brief and
   test named “four-item” asserts five buttons.
 - **Cause:** The implementation evolved without updating the accepted information architecture.
 - **Severity:** High
-- **Fix:** Make Home, Ask, and Inbox the stable daily destinations; use Home, Ask, Inbox, More on
-  mobile; group work and administration inside the disclosed navigation; update ADR and tests.
-- **Done when:** Code, ADR, acceptance contract, and E2E assert the same labels, grouping, and four
-  mobile destinations in all three languages.
+- **Fix:** Use the product contract's stable Home, Ask, Members, Memory, Activity, and More model on
+  desktop and mobile; keep Decisions, Inbox, governance, and administration inside More; update ADR
+  and tests.
+- **Done when:** Code, ADR, acceptance contract, and E2E assert the same contextual labels, grouping,
+  and six mobile destinations in all three languages without horizontal overflow.
 - **Automated test:** Updated `usability.spec.ts` and `experience-quality.spec.ts` role/mobile cases.
 
 ### UX-03: There is no global find-or-act entry
@@ -211,7 +213,7 @@ close safely with Escape, and return focus to their trigger. Motion is brief and
 - **Target user:** Maintainers and future development agents
 - **Screen:** Release process
 - **Goal:** Trust a green test run as evidence of the promised UX
-- **Observed confusion:** The “four-item” mobile test expects five items; there are no assertions for
+- **Observed confusion:** The earlier “four-item” mobile test expected five items; there were no assertions for
   history, direct links, global action entry, dialog focus, partial failure, or accessibility scans.
 - **Cause:** Acceptance language and executable checks drifted apart.
 - **Severity:** Critical
@@ -240,7 +242,7 @@ Cloudflare OS bridge, or sandbox boundary was weakened.
 | Finding | Implemented result | Executable evidence |
 | --- | --- | --- |
 | UX-01 | Added validated hash navigation for permitted pages, with Back, Forward, reload, direct link, and safe Home fallback | `experience-quality.spec.ts`: linkable destinations and predictable browser history |
-| UX-02 | Made Home, Ask, and Inbox primary; Workspace and More progressively disclose the remaining surfaces; mobile has exactly Home, Ask, Inbox, More | Updated `usability.spec.ts`, `navigation.ts`, and role/mobile experience cases |
+| UX-02 | Made Home, Ask, contextual Members, Memory, and Activity primary; More progressively discloses Decisions, Inbox, governance, and administration; mobile exposes the same six destinations | Updated ADR 0028, `usability.spec.ts`, `navigation.ts`, and role/mobile experience cases |
 | UX-03 | Added a visible permission-filtered Search or create entry with `Command/Control + K` | Global action filtering, invocation, Escape, and focus-return cases |
 | UX-04 | Added one shared dialog focus manager and mobile drawer focus boundary | Dialog and drawer keyboard cases plus axe scans |
 | UX-05 | Preserved successful Home regions, named failed sources, and added bounded retry | Deterministic `partial-failure` fixture and recovery case |
@@ -250,7 +252,7 @@ Cloudflare OS bridge, or sandbox boundary was weakened.
 | UX-09 | Shared Notice semantics announce state; primary create operations validate inline, focus errors, lock synchronously against double submit, confirm success, and preserve recoverable input | Validation, single-flight, success, empty, and partial-failure cases |
 | UX-10 | Shared controls use a 44px minimum, mobile navigation respects safe areas, and dialogs remain bounded at 320px | Target-size and five-viewport overflow cases |
 | UX-11 | Added `@axe-core/playwright`; critical and serious violations are release failures on primary, access, initialization, and dialog surfaces | Two automated axe cases in `experience-quality.spec.ts` |
-| UX-12 | Added an objective experience suite without removing existing workflows; CI already runs the full gatekeeper E2E suite | 71 browser tests after implementation, including existing governance and sandbox regressions |
+| UX-12 | Added an objective experience suite without removing existing workflows; CI already runs the full gatekeeper E2E suite | 73 browser tests after implementation, including existing governance and sandbox regressions |
 
 ### Browser evidence
 
@@ -264,6 +266,10 @@ Cloudflare OS bridge, or sandbox boundary was weakened.
 - The final evidence also includes `command-menu-1440x1000.png`,
   `memory-dialog-390x844.png`, `initialization-review-390x844.png`, and
   `mobile-navigation-390x844.png` for the open interaction states.
+- Requirement-specific final captures are stored in `packages/guild-gatekeeper/.ux-review/current/`:
+  Home and inspectable Ask/Plan/Act at 1440 x 1000, plus Purpose-first Blueprint review and
+  purchaser-owned Connection setup at 390 x 844. Its `audit.json` reports matching client and
+  scroll widths and no console or page errors for all four captures.
 
 The final browser journeys additionally cover Ask with citations, citation navigation, Ask to Plan,
 one-at-a-time Act, Memory and Activity creation, Inbox handling, invitation acceptance, Root setup,
@@ -273,22 +279,22 @@ comparisons.
 
 ## Final local validation
 
-Validation was repeated against the final working tree on 2026-08-20:
+Validation was repeated against the final working tree on 2026-08-21:
 
 | Gate | Result |
 | --- | --- |
 | `pnpm install --frozen-lockfile` | Passed; lockfile and supply-chain policy accepted |
 | Gatekeeper `types:check` | Passed, including the single-file application build |
-| Gatekeeper `test` | 171 passed |
-| Gatekeeper `test:e2e` | 71 passed in Chromium |
+| Gatekeeper `test` | 178 passed |
+| Gatekeeper `test:e2e` | 73 passed in Chromium |
 | Repository `types:check` | Passed |
-| Repository `test` | Passed; 311 executed tests passed, 71 PostgreSQL integration tests skipped because no local integration database was configured and this change does not alter the backend contract |
-| Repository `build` | Passed; final single-file application is 1,183.46 kB, 280.13 kB gzip |
+| Repository `test` | Passed; 321 executed tests passed, 72 PostgreSQL integration tests skipped because no safe integration database was configured |
+| Repository `build` | Passed; final single-file application is 1,226.37 kB, 290.95 kB gzip |
 | Repository `lint` | Passed |
-| `audit:dependencies` | Passed; no known high-or-higher vulnerability |
+| `audit:dependencies` | Passed; no known vulnerability |
 | `peers:check` | Passed; no peer dependency issue |
 | `test:cloudflare-os` | Passed; 491 executed tests passed, four database-backed integration tests skipped |
-| Browser capture audit | 35 final captures; zero horizontal-overflow, console-error, or page-error findings |
+| Browser capture audit | 35 full matrix captures plus four current requirement-specific captures; zero horizontal-overflow, console-error, or page-error findings |
 
 No production deployment or production data operation was performed. This audit certifies the local
 UX implementation and regression evidence only; the repository production release gate still

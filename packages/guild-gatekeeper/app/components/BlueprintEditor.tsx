@@ -6,14 +6,18 @@ import {
   CheckSquare,
   GitBranch,
   Home,
+  Link2,
+  Palette,
   Plus,
   ShieldCheck,
   Trash2,
   UsersRound,
+  UserRoundCheck,
   Workflow,
 } from "lucide-react";
 import {
   COLLECTIVE_TEMPLATE_LABEL_KEYS,
+  DECISION_METHODS,
   blueprintCapabilities,
   type ActivityStatus,
   type BlueprintCapabilityBundle,
@@ -94,7 +98,13 @@ export function BlueprintEditor({
   const definition = draft.definition;
 
   function changeDefinition(next: Partial<CollectiveBlueprintDraft["definition"]>): void {
-    const nextDefinition = { ...definition, ...next };
+    const synchronized = { ...next };
+    if ("suggestedAgent" in next && !("recommendedAgents" in next)) {
+      synchronized.recommendedAgents = next.suggestedAgent ? [next.suggestedAgent] : [];
+    } else if ("recommendedAgents" in next && !("suggestedAgent" in next)) {
+      synchronized.suggestedAgent = next.recommendedAgents?.[0] ?? null;
+    }
+    const nextDefinition = { ...definition, ...synchronized };
     onChange({
       ...draft,
       onboardingAnswers: next.purpose === undefined
@@ -222,6 +232,15 @@ export function BlueprintEditor({
       </section>
 
       <details className="blueprint-editor-section" open={!compact}>
+        <summary><Palette size={18} /><span><strong>{t("blueprint.themeTitle")}</strong><small>{t("blueprint.themeDescription")}</small></span></summary>
+        <div className="form-grid">
+          <label><span>{t("blueprint.themePreset")}</span><select value={definition.visualTheme.preset} onChange={(event) => changeDefinition({ visualTheme: { ...definition.visualTheme, preset: event.target.value as typeof definition.visualTheme.preset } })}>{["system", "quiet", "warm", "formal", "playful"].map((preset) => <option value={preset} key={preset}>{t(`blueprint.theme.${preset}` as TranslationKey)}</option>)}</select></label>
+          <label><span>{t("blueprint.themeAccent")}</span><select value={definition.visualTheme.accent} onChange={(event) => changeDefinition({ visualTheme: { ...definition.visualTheme, accent: event.target.value as typeof definition.visualTheme.accent } })}>{["blue", "green", "amber", "rose", "violet"].map((accent) => <option value={accent} key={accent}>{t(`blueprint.accent.${accent}` as TranslationKey)}</option>)}</select></label>
+        </div>
+        <label><span>{t("blueprint.itemDescription")}</span><textarea required rows={2} maxLength={500} value={definition.visualTheme.description} onChange={(event) => changeDefinition({ visualTheme: { ...definition.visualTheme, description: event.target.value } })} /></label>
+      </details>
+
+      <details className="blueprint-editor-section" open={!compact}>
         <summary><Brain size={18} /><span><strong>{t("blueprint.vocabularyTitle")}</strong><small>{t("blueprint.vocabularyDescription")}</small></span></summary>
         <div className="form-grid blueprint-vocabulary-grid">
           {COLLECTIVE_TEMPLATE_LABEL_KEYS.map((key) => (
@@ -298,7 +317,7 @@ export function BlueprintEditor({
         <div className="blueprint-editor-list blueprint-editor-list-compact">
           {definition.decisionMethods.map((decision) => {
             const referenced = definition.workflows.some((workflow) => workflow.decisionMethodKey === decision.key);
-            return <article className="blueprint-editor-item" key={decision.key}><div className="blueprint-editor-item-heading"><strong>{decision.label}</strong><button className="icon-button" type="button" title={t("blueprint.removeDecisionMethod")} aria-label={t("blueprint.removeDecisionMethod")} disabled={definition.decisionMethods.length <= 1 || referenced} onClick={() => changeDefinition({ decisionMethods: definition.decisionMethods.filter((item) => item.key !== decision.key) })}><Trash2 size={16} /></button></div><div className="form-grid"><label><span>{t("blueprint.itemName")}</span><input required maxLength={100} value={decision.label} onChange={(event) => changeDefinition({ decisionMethods: definition.decisionMethods.map((item) => item.key === decision.key ? { ...item, label: event.target.value } : item) })} /></label><label><span>{t("blueprint.decisionEngine")}</span><select value={decision.method} onChange={(event) => changeDefinition({ decisionMethods: definition.decisionMethods.map((item) => item.key === decision.key ? { ...item, method: event.target.value as typeof item.method } : item) })}>{["custodian", "consent", "vote", "review", "editorial", "policy", "hybrid"].map((method) => <option value={method} key={method}>{t(`blueprint.decision.${method}` as TranslationKey)}</option>)}</select></label></div><label><span>{t("blueprint.itemDescription")}</span><textarea required rows={2} maxLength={500} value={decision.description} onChange={(event) => changeDefinition({ decisionMethods: definition.decisionMethods.map((item) => item.key === decision.key ? { ...item, description: event.target.value } : item) })} /></label></article>;
+            return <article className="blueprint-editor-item" key={decision.key}><div className="blueprint-editor-item-heading"><strong>{decision.label}</strong><button className="icon-button" type="button" title={t("blueprint.removeDecisionMethod")} aria-label={t("blueprint.removeDecisionMethod")} disabled={definition.decisionMethods.length <= 1 || referenced} onClick={() => changeDefinition({ decisionMethods: definition.decisionMethods.filter((item) => item.key !== decision.key) })}><Trash2 size={16} /></button></div><div className="form-grid"><label><span>{t("blueprint.itemName")}</span><input required maxLength={100} value={decision.label} onChange={(event) => changeDefinition({ decisionMethods: definition.decisionMethods.map((item) => item.key === decision.key ? { ...item, label: event.target.value } : item) })} /></label><label><span>{t("blueprint.decisionEngine")}</span><select value={decision.method} onChange={(event) => changeDefinition({ decisionMethods: definition.decisionMethods.map((item) => item.key === decision.key ? { ...item, method: event.target.value as typeof item.method } : item) })}>{DECISION_METHODS.map((method) => <option value={method} key={method}>{t(`blueprint.decision.${method}` as TranslationKey)}</option>)}</select></label></div><label><span>{t("blueprint.itemDescription")}</span><textarea required rows={2} maxLength={500} value={decision.description} onChange={(event) => changeDefinition({ decisionMethods: definition.decisionMethods.map((item) => item.key === decision.key ? { ...item, description: event.target.value } : item) })} /></label></article>;
           })}
         </div>
         <button className="secondary-button" type="button" disabled={definition.decisionMethods.length >= 8} onClick={addDecisionMethod}><Plus size={16} />{t("blueprint.addDecisionMethod")}</button>
@@ -331,13 +350,44 @@ export function BlueprintEditor({
       </details>
 
       <details className="blueprint-editor-section">
+        <summary><ShieldCheck size={18} /><span><strong>{t("blueprint.approvalTitle")}</strong><small>{t("blueprint.approvalDescription")}</small></span></summary>
+        <div className="blueprint-editor-list blueprint-editor-list-compact">
+          {definition.approvalPolicies.map((policy) => <article className="blueprint-editor-item" key={policy.key}>
+            <strong>{policy.name}</strong>
+            <label><span>{t("blueprint.itemDescription")}</span><textarea required rows={2} maxLength={500} value={policy.description} onChange={(event) => changeDefinition({ approvalPolicies: definition.approvalPolicies.map((item) => item.key === policy.key ? { ...item, description: event.target.value } : item) })} /></label>
+            <div className="form-grid">
+              <label><span>{t("blueprint.riskLevel")}</span><input readOnly value={policy.riskLevel} /></label>
+              <label><span>{t("blueprint.minimumApprovals")}</span><input type="number" min={policy.riskLevel >= 2 ? 1 : 0} max={20} value={policy.minimumApprovals} onChange={(event) => changeDefinition({ approvalPolicies: definition.approvalPolicies.map((item) => item.key === policy.key ? { ...item, minimumApprovals: Number(event.target.value), humanRequired: item.riskLevel >= 2 ? true : item.humanRequired } : item) })} /></label>
+            </div>
+            <label className="checkbox-row"><input type="checkbox" checked={policy.humanRequired} disabled={policy.riskLevel >= 2} onChange={(event) => changeDefinition({ approvalPolicies: definition.approvalPolicies.map((item) => item.key === policy.key ? { ...item, humanRequired: event.target.checked } : item) })} /><span>{t("blueprint.humanRequired")}</span></label>
+          </article>)}
+        </div>
+      </details>
+
+      <details className="blueprint-editor-section">
+        <summary><Link2 size={18} /><span><strong>{t("blueprint.connectionsTitle")}</strong><small>{t("blueprint.connectionsDescription")}</small></span></summary>
+        {definition.connectionSuggestions.length ? <div className="blueprint-editor-list blueprint-editor-list-compact">{definition.connectionSuggestions.map((connection) => <article className="blueprint-editor-item" key={connection.key}><strong>{connection.name}</strong><small>{connection.kind}</small><label><span>{t("blueprint.itemDescription")}</span><textarea required rows={2} maxLength={500} value={connection.description} onChange={(event) => changeDefinition({ connectionSuggestions: definition.connectionSuggestions.map((item) => item.key === connection.key ? { ...item, description: event.target.value } : item) })} /></label>{connection.humanApprovalRequired ? <Notice>{t("blueprint.connectionHumanApproval")}</Notice> : null}</article>)}</div> : <Notice>{t("blueprint.noConnections")}</Notice>}
+      </details>
+
+      <details className="blueprint-editor-section">
+        <summary><UserRoundCheck size={18} /><span><strong>{t("blueprint.lifecyclePolicyTitle")}</strong><small>{t("blueprint.lifecyclePolicyDescription")}</small></span></summary>
+        <div className="form-grid">
+          <label><span>{t("blueprint.onboarding")}</span><input required maxLength={100} value={definition.onboarding.name} onChange={(event) => changeDefinition({ onboarding: { ...definition.onboarding, name: event.target.value } })} /></label>
+          <label><span>{t("blueprint.offboarding")}</span><input required maxLength={100} value={definition.offboarding.name} onChange={(event) => changeDefinition({ offboarding: { ...definition.offboarding, name: event.target.value } })} /></label>
+          <label><span>{t("blueprint.retentionDays")}</span><input type="number" min={1} max={36500} value={definition.retentionPolicy.defaultDays} onChange={(event) => changeDefinition({ retentionPolicy: { ...definition.retentionPolicy, defaultDays: Number(event.target.value) } })} /></label>
+          <label><span>{t("blueprint.exportFormats")}</span><input readOnly value={definition.exportPolicy.formats.join(", ")} /></label>
+        </div>
+        <Notice>{t("blueprint.lifecycleSafety")}</Notice>
+      </details>
+
+      <details className="blueprint-editor-section">
         <summary><Bot size={18} /><span><strong>{t("blueprint.agentTitle")}</strong><small>{t("blueprint.agentDescription")}</small></span></summary>
         <label className="checkbox-row"><input type="checkbox" checked={definition.suggestedAgent !== null} onChange={(event) => {
           if (!event.target.checked) return changeDefinition({ suggestedAgent: null });
           const role = definition.roles.find((item) => item.capabilityBundle === "participate") ?? definition.roles[0]!;
-          changeDefinition({ suggestedAgent: { name: t("blueprint.newAgent"), purpose: t("blueprint.newAgentPurpose"), roleKey: role.key, permissions: agentPermissionsForRole(role), toolIds: ["memory_search", "activity_draft"] } });
+          changeDefinition({ suggestedAgent: { name: t("blueprint.newAgent"), purpose: t("blueprint.newAgentPurpose"), roleKey: role.key, permissions: agentPermissionsForRole(role), toolIds: ["memory_search", "activity_draft"], limits: { maximumBudgetUsdCents: 0, maximumTokens: 32000, maximumDurationSeconds: 300, maximumSteps: 12, maximumRetries: 1, maximumDelegations: 0 }, approvalPolicyKey: definition.approvalPolicies.find((policy) => policy.riskLevel >= 2)?.key ?? definition.approvalPolicies[0]!.key } });
         }} /><span>{t("blueprint.includeAgent")}</span></label>
-        {definition.suggestedAgent ? <div className="blueprint-agent-fields"><div className="form-grid"><label><span>{t("blueprint.itemName")}</span><input required maxLength={100} value={definition.suggestedAgent.name} onChange={(event) => changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, name: event.target.value } })} /></label><label><span>{t("blueprint.agentRole")}</span><select value={definition.suggestedAgent.roleKey} onChange={(event) => { const role = definition.roles.find((item) => item.key === event.target.value)!; changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, roleKey: role.key, permissions: agentPermissionsForRole(role) } }); }}>{definition.roles.map((role) => <option value={role.key} key={role.key}>{role.name}</option>)}</select></label></div><label><span>{t("blueprint.agentPurpose")}</span><textarea required rows={3} maxLength={1_000} value={definition.suggestedAgent.purpose} onChange={(event) => changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, purpose: event.target.value } })} /></label><Notice>{t("blueprint.agentSafety", { count: definition.suggestedAgent.permissions.length })}</Notice><details className="blueprint-permission-details"><summary>{t("settings.permissions")} ({definition.suggestedAgent.permissions.length})</summary><div className="permission-grid">{definition.suggestedAgent.permissions.map((permission) => <code key={permission}>{permission}</code>)}</div></details></div> : null}
+        {definition.suggestedAgent ? <div className="blueprint-agent-fields"><div className="form-grid"><label><span>{t("blueprint.itemName")}</span><input required maxLength={100} value={definition.suggestedAgent.name} onChange={(event) => changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, name: event.target.value } })} /></label><label><span>{t("blueprint.agentRole")}</span><select value={definition.suggestedAgent.roleKey} onChange={(event) => { const role = definition.roles.find((item) => item.key === event.target.value)!; changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, roleKey: role.key, permissions: agentPermissionsForRole(role) } }); }}>{definition.roles.map((role) => <option value={role.key} key={role.key}>{role.name}</option>)}</select></label></div><label><span>{t("blueprint.agentPurpose")}</span><textarea required rows={3} maxLength={1_000} value={definition.suggestedAgent.purpose} onChange={(event) => changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, purpose: event.target.value } })} /></label><div className="form-grid"><label><span>{t("blueprint.agentSteps")}</span><input type="number" min={1} max={1000} value={definition.suggestedAgent.limits.maximumSteps} onChange={(event) => changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, limits: { ...definition.suggestedAgent!.limits, maximumSteps: Number(event.target.value) } } })} /></label><label><span>{t("blueprint.agentMinutes")}</span><input type="number" min={1} max={1440} value={Math.ceil(definition.suggestedAgent.limits.maximumDurationSeconds / 60)} onChange={(event) => changeDefinition({ suggestedAgent: { ...definition.suggestedAgent!, limits: { ...definition.suggestedAgent!.limits, maximumDurationSeconds: Number(event.target.value) * 60 } } })} /></label></div><Notice>{t("blueprint.agentSafety", { count: definition.suggestedAgent.permissions.length })}</Notice><details className="blueprint-permission-details"><summary>{t("settings.permissions")} ({definition.suggestedAgent.permissions.length})</summary><div className="permission-grid">{definition.suggestedAgent.permissions.map((permission) => <code key={permission}>{permission}</code>)}</div></details></div> : null}
       </details>
     </div>
   );

@@ -47,7 +47,7 @@ and is not a v1 release shortcut.
 - Page load cannot create a Guild. Explicit initialization requires trusted Workshop-admin context,
   a selected Context Profile, and affirmative Root-responsibility acceptance, while a Guild-scoped
   advisory lock permits one Root winner. Personal with AI supplies safe defaults and a bounded
-  assistant without requiring advanced context fields. Other now converts five natural-language
+  assistant without requiring advanced context fields. Other now converts eight natural-language
   answers into a complete editable Blueprint, requires Human review, stores immutable versions,
   and supports Guild- or Space-level reuse without mutating existing authority.
   Nonmembers receive no Root, Constitution, ownership-transfer, or Agent-default bootstrap fields.

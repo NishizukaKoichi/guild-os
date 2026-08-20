@@ -99,6 +99,7 @@ export function SettingsPage({
       <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
       <CollectiveSettings
         collective={collective}
+        currentRoles={directory?.roles ?? []}
         onGenerateBlueprint={onGenerateCollectiveBlueprint}
         onSaveBlueprint={onSaveCollectiveBlueprint}
         onConfigure={onConfigureCollective}

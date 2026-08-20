@@ -415,6 +415,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       memoryIntent: "Research notes, data, decisions, failures, and reusable methods.",
       activityIntent: "Studies, experiments, investigations, and peer review.",
       decisionStyle: "Evidence review followed by accountable human approval.",
+      languageAndStyle: "Formal, calm, and evidence-led.",
+      agentIntent: "Search authorized research context and prepare internal drafts.",
+      humanApprovalIntent: "Publication, external sharing, deletion, and authority changes.",
     },
     templateVersion: 1,
     spaces: directory.spaces.map((space) => ({
@@ -1771,6 +1774,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           memoryIntent: input.memoryIntent,
           activityIntent: input.activityIntent,
           decisionStyle: input.decisionStyle,
+          languageAndStyle: input.languageAndStyle,
+          agentIntent: input.agentIntent,
+          humanApprovalIntent: input.humanApprovalIntent,
         },
       });
       return {
@@ -1787,6 +1793,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
             input.memoryIntent,
             input.activityIntent,
             input.decisionStyle,
+            input.languageAndStyle,
+            input.agentIntent,
+            input.humanApprovalIntent,
           ].some((answer) => !answer.trim())) {
         throw new Error("Only a Cloudflare OS administrator can initialize this Guild.");
       }
@@ -1942,6 +1951,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           memoryIntent: input.memoryIntent.trim(),
           activityIntent: input.activityIntent.trim(),
           decisionStyle: input.decisionStyle.trim(),
+          languageAndStyle: input.languageAndStyle.trim(),
+          agentIntent: input.agentIntent.trim(),
+          humanApprovalIntent: input.humanApprovalIntent.trim(),
         },
         templateVersion: collective.templateVersion + 1,
         spaces: directory.spaces.map((space) => ({
@@ -4166,6 +4178,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       const activityResourceId = crypto.randomUUID();
       const runResourceId = crypto.randomUUID();
       const ask = demoAsk(input.locale);
+      const requesterName = directory.identities.find((identity) => identity.id === bootstrap.accountId)
+        ?.displayName ?? bootstrap.accountId;
       const proposal: UiIntentProposal = {
         id: input.requestId,
         objective: input.objective.trim(),
@@ -4199,6 +4213,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           resourceLabel: input.objective.trim(),
           agentActorId: null,
           agentName: null,
+          executingActorId: bootstrap.accountId,
+          executingActorName: requesterName,
+          connectionId: null,
+          estimatedCostMinor: 0,
+          estimatedCostCurrency: null,
+          estimatedDurationSeconds: null,
+          effectScope: "guild",
+          rollbackKind: "compensating_action",
           result: null,
           errorSummary: null,
           startedAt: null,
@@ -4219,6 +4241,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
             input.locale === "zh-CN" ? "核实依据" : "Verify the evidence",
           agentActorId: null,
           agentName: null,
+          executingActorId: bootstrap.accountId,
+          executingActorName: requesterName,
+          connectionId: null,
+          estimatedCostMinor: 0,
+          estimatedCostCurrency: null,
+          estimatedDurationSeconds: null,
+          effectScope: "guild",
+          rollbackKind: "compensating_action",
           result: null,
           errorSummary: null,
           startedAt: null,
@@ -4240,6 +4270,14 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
               "Send the verified result to the external integration",
           agentActorId: agentId,
           agentName: "Research Synthesizer",
+          executingActorId: agentId,
+          executingActorName: "Research Synthesizer",
+          connectionId: connectorId,
+          estimatedCostMinor: 25,
+          estimatedCostCurrency: bootstrap.agentDefaults.currency,
+          estimatedDurationSeconds: 45,
+          effectScope: "external",
+          rollbackKind: "not_automatic",
           result: null,
           errorSummary: null,
           startedAt: null,

@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   assertDecisionContent,
+  assertDecisionMethod,
   assertDecisionOptions,
   assertDecisionReview,
   assertDecisionTransition,
 } from "./decision.js";
 
 describe("Decision governance", () => {
+  it("supports the complete authoritative method set", () => {
+    for (const method of [
+      "custodian", "consent", "vote", "review", "editorial", "policy", "hybrid",
+      "quorum_vote", "council", "agent_proposal_human_approval", "custom",
+    ]) {
+      expect(() => assertDecisionMethod(method)).not.toThrow();
+    }
+    expect(() => assertDecisionMethod("automatic_root")).toThrow(/invalid/);
+  });
+
   it("accepts only explicit lifecycle transitions", () => {
     expect(() => assertDecisionTransition("draft", "proposed")).not.toThrow();
     expect(() => assertDecisionTransition("proposed", "approved")).not.toThrow();

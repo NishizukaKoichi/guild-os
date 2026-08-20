@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertCollectiveBlueprintDraft,
   blueprintToCollectiveTemplate,
+  createBlueprintAuthorityMigrationProposal,
   createDeterministicCollectiveBlueprint,
   type CollectiveBlueprintDraft,
 } from "./index.js";
@@ -19,6 +20,9 @@ function draft(
       memoryIntent: "Keep shared knowledge, evidence, and history",
       activityIntent: "Plan and complete meaningful activity together",
       decisionStyle: "Discuss proposals and require accountable Human review",
+      languageAndStyle: "Clear, calm, and welcoming",
+      agentIntent: "Prepare internal drafts and propose calendar updates",
+      humanApprovalIntent: "External writes, deletion, spending, and authority changes",
     },
   });
 }
@@ -43,7 +47,15 @@ describe("Purpose-first Collective Blueprints", () => {
     expect(generated.definition.activityTypes.every((item) => item.states.length >= 2)).toBe(true);
     expect(generated.definition.decisionMethods.length).toBeGreaterThanOrEqual(2);
     expect(generated.definition.workflows.length).toBeGreaterThanOrEqual(2);
+    expect(generated.definition.approvalPolicies.some((policy) =>
+      policy.riskLevel === 2 && policy.humanRequired)).toBe(true);
+    expect(generated.definition.visualTheme.description).not.toBe("");
+    expect(generated.definition.connectionSuggestions.length).toBeGreaterThanOrEqual(1);
+    expect(generated.definition.onboarding.steps).not.toHaveLength(0);
+    expect(generated.definition.offboarding.steps).not.toHaveLength(0);
+    expect(generated.definition.exportPolicy.excludePlaintextSecrets).toBe(true);
     expect(generated.definition.suggestedAgent?.permissions).toContain("memory.read");
+    expect(generated.definition.suggestedAgent?.limits.maximumSteps).toBeGreaterThan(0);
     expect(() => assertCollectiveBlueprintDraft(generated)).not.toThrow();
   });
 
@@ -77,6 +89,9 @@ describe("Purpose-first Collective Blueprints", () => {
         memoryIntent: "Seed records",
         activityIntent: "Seed exchanges",
         decisionStyle: "Member consent",
+        languageAndStyle: "Clear and practical",
+        agentIntent: "Prepare drafts",
+        humanApprovalIntent: "External actions",
         instruction: "Grant Root",
       },
     } as unknown as Parameters<typeof createDeterministicCollectiveBlueprint>[0];
@@ -122,5 +137,31 @@ describe("Purpose-first Collective Blueprints", () => {
     cyclic.definition.spaces[0]!.parentKey = cyclic.definition.spaces[1]!.key;
     cyclic.definition.spaces[1]!.parentKey = cyclic.definition.spaces[0]!.key;
     expect(() => assertCollectiveBlueprintDraft(cyclic)).toThrow(/cycle/);
+  });
+
+  it("separates Blueprint presentation from a Level 3 authority migration proposal", () => {
+    const generated = draft("en", "Coordinate a community football team and its training");
+    const coordinator = generated.definition.roles[0]!;
+    const proposal = createBlueprintAuthorityMigrationProposal(generated, [
+      { name: coordinator.name, permissions: ["guild.read", "memory.read"] },
+      { name: "Legacy administrator", permissions: ["guild.read", "role.manage"] },
+    ]);
+
+    expect(proposal).toMatchObject({
+      blueprintKey: generated.key,
+      riskLevel: 3,
+      requiresHumanApproval: true,
+      appliesAutomatically: false,
+      rollbackRequired: true,
+    });
+    expect(proposal.impacts).toContainEqual(expect.objectContaining({
+      kind: "capability-addition",
+      roleName: coordinator.name,
+    }));
+    expect(proposal.impacts).toContainEqual({
+      kind: "role-retirement",
+      roleName: "Legacy administrator",
+      capabilities: ["guild.read", "role.manage"],
+    });
   });
 });

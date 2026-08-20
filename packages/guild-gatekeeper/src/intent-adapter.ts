@@ -1176,6 +1176,58 @@ function targetForAction(
   }
 }
 
+function actionExecutionDetails(
+  action: StoredIntentAction,
+  proposal: IntentProposalDetail,
+  context: IntentProposalUiContext,
+): Pick<UiIntentAction,
+  | "executingActorId"
+  | "executingActorName"
+  | "connectionId"
+  | "estimatedCostMinor"
+  | "estimatedCostCurrency"
+  | "estimatedDurationSeconds"
+  | "effectScope"
+  | "rollbackKind"
+> {
+  if (action.kind !== "agent.run") {
+    return {
+      executingActorId: proposal.createdByActorId,
+      executingActorName: context.actorNames.get(proposal.createdByActorId) ?? proposal.createdByActorId,
+      connectionId: null,
+      estimatedCostMinor: 0,
+      estimatedCostCurrency: null,
+      estimatedDurationSeconds: null,
+      effectScope: "guild",
+      rollbackKind: action.kind === "activity.assign" ? "reversible" : "compensating_action",
+    };
+  }
+  const plan = isRecord(action.action.request.plan) ? action.action.request.plan : null;
+  const usage = plan && isRecord(plan.estimatedUsage) ? plan.estimatedUsage : null;
+  const plannedAction = plan && isRecord(plan.action) ? plan.action : null;
+  const plannedKind = plannedAction && typeof plannedAction.kind === "string" ? plannedAction.kind : null;
+  const external = plannedKind === "connection_invoke" ||
+    plannedKind === "https_webhook" || plannedKind === "federation_publish";
+  const estimatedCostMinor = usage && Number.isSafeInteger(usage.budgetMinor) &&
+    (usage.budgetMinor as number) >= 0 ? usage.budgetMinor as number : null;
+  const estimatedDurationSeconds = usage && Number.isSafeInteger(usage.durationSeconds) &&
+    (usage.durationSeconds as number) >= 0 ? usage.durationSeconds as number : null;
+  return {
+    executingActorId: action.action.agentActorId,
+    executingActorName: context.actorNames.get(action.action.agentActorId) ?? action.action.agentActorId,
+    connectionId: plan && typeof plan.connectorId === "string" ? plan.connectorId : null,
+    estimatedCostMinor,
+    estimatedCostCurrency: estimatedCostMinor === null ? null : context.constitution.agentDefaults.currency,
+    estimatedDurationSeconds,
+    effectScope: external ? "external" : "guild",
+    rollbackKind: plannedKind === "memory_search"
+      ? "not_applicable"
+      : external
+        ? "not_automatic"
+        : "compensating_action",
+  };
+}
+
 export function intentProposalForUi(
   proposal: IntentProposalDetail,
   context: IntentProposalUiContext,
@@ -1197,6 +1249,7 @@ export function intentProposalForUi(
       durableHumanApprovals: requirement.approvals,
       reauthenticationRequired: requirement.reauthenticationRequired,
       ...targetForAction(action, proposal, context),
+      ...actionExecutionDetails(action, proposal, context),
       result: action.result,
       errorSummary: action.errorSummary,
       startedAt: action.startedAt,
@@ -1402,13 +1455,13 @@ export class GuildIntentAdapter {
           this.#actorId,
           proposal.spaceId,
         );
-        const actorIds = [...new Set(proposal.actions.flatMap((action) => {
+        const actorIds = [...new Set([proposal.createdByActorId, ...proposal.actions.flatMap((action) => {
           if (action.kind === "agent.run") return [action.action.agentActorId];
           if (action.kind === "activity.assign" && action.action.assigneeActorId !== null) {
             return [action.action.assigneeActorId];
           }
           return [];
-        }))];
+        })])];
         const activityIds = [...new Set(proposal.actions
           .filter((action): action is Extract<StoredIntentAction, { kind: "activity.assign" }> =>
             action.kind === "activity.assign")

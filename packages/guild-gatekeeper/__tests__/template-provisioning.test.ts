@@ -15,6 +15,9 @@ const answers: CollectiveOnboardingAnswers = {
   memoryIntent: "Evidence and operating knowledge",
   activityIntent: "Reviewable work",
   decisionStyle: "Human approval",
+  languageAndStyle: "Clear and practical",
+  agentIntent: "Prepare internal drafts",
+  humanApprovalIntent: "External and irreversible actions",
 };
 
 function uuid(index: number): string {

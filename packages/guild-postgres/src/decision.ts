@@ -537,7 +537,8 @@ export class GuildDecisionRepository {
     if (!constitution) throw new Error("Guild Constitution was not found.");
 
     const requiresEvidence = decision.method === "editorial" ||
-      decision.method === "policy" || decision.method === "hybrid";
+      decision.method === "policy" || decision.method === "hybrid" ||
+      decision.method === "agent_proposal_human_approval" || decision.method === "custom";
     const policyGatePassed = !requiresEvidence ||
       decision.sourceIds.length > 0 && decision.rationale.trim().length > 0;
     if (!policyGatePassed) {
@@ -550,9 +551,11 @@ export class GuildDecisionRepository {
       ? constitution.level3_approval_quorum
       : constitution.level2_approval_quorum;
     const requiredParticipation = decision.method === "custodian" ||
-      decision.method === "editorial" || decision.method === "policy"
+      decision.method === "editorial" || decision.method === "policy" ||
+      decision.method === "agent_proposal_human_approval"
       ? 1
-      : decision.method === "hybrid"
+      : decision.method === "hybrid" || decision.method === "quorum_vote" ||
+          decision.method === "council" || decision.method === "custom"
         ? Math.max(requestedApprovals, constitutionQuorum)
         : requestedApprovals;
 

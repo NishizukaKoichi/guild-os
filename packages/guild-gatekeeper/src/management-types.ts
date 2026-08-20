@@ -129,6 +129,9 @@ export interface InitializeGuildRequest {
   memoryIntent: string;
   activityIntent: string;
   decisionStyle: string;
+  languageAndStyle: string;
+  agentIntent: string;
+  humanApprovalIntent: string;
   vocabularyOverrides?: Partial<CollectiveTemplateLabels>;
   blueprint?: CollectiveBlueprintDraft;
 }
@@ -140,6 +143,9 @@ export interface GenerateCollectiveBlueprintRequest {
   memoryIntent: string;
   activityIntent: string;
   decisionStyle: string;
+  languageAndStyle: string;
+  agentIntent: string;
+  humanApprovalIntent: string;
 }
 
 export interface SaveCollectiveBlueprintRequest {
@@ -815,6 +821,14 @@ export interface UiIntentAction {
   resourceLabel: string;
   agentActorId: string | null;
   agentName: string | null;
+  executingActorId: string;
+  executingActorName: string;
+  connectionId: string | null;
+  estimatedCostMinor: number | null;
+  estimatedCostCurrency: string | null;
+  estimatedDurationSeconds: number | null;
+  effectScope: "guild" | "external";
+  rollbackKind: "reversible" | "compensating_action" | "not_applicable" | "not_automatic";
   result: JsonObject | null;
   errorSummary: string | null;
   startedAt: string | null;

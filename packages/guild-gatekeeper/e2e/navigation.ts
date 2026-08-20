@@ -1,16 +1,11 @@
 import type { Page } from "playwright/test";
 import type { AppPage } from "../app/navigation";
 
-const WORKSPACE_PAGES: ReadonlySet<AppPage> = new Set([
-  "memory",
-  "activity",
+const MORE_PAGES: ReadonlySet<AppPage> = new Set([
   "decisions",
   "knowledge",
   "work",
-]);
-
-const MORE_PAGES: ReadonlySet<AppPage> = new Set([
-  "members",
+  "inbox",
   "messages",
   "lifecycle",
   "contributions",
@@ -29,11 +24,7 @@ export async function navigateTo(page: Page, destination: AppPage): Promise<void
     await sidebar.waitFor({ state: "visible" });
   }
 
-  if (WORKSPACE_PAGES.has(destination)) {
-    const workspace = sidebar.locator(".nav-section-workspace > .nav-group-toggle");
-    await workspace.waitFor({ state: "visible" });
-    if (await workspace.getAttribute("aria-expanded") !== "true") await workspace.click();
-  } else if (MORE_PAGES.has(destination)) {
+  if (MORE_PAGES.has(destination)) {
     const more = sidebar.locator(".nav-section-more > .nav-group-toggle");
     await more.waitFor({ state: "visible" });
     if (await more.getAttribute("aria-expanded") !== "true") await more.click();

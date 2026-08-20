@@ -31,6 +31,9 @@ const collectiveSetup = {
   memoryIntent: "Facts, experiences, decisions, and artifacts.",
   activityIntent: "Any shared activity chosen by the participants.",
   decisionStyle: "Consent with explicit review for high-impact actions.",
+  languageAndStyle: "Clear, neutral, and adaptable.",
+  agentIntent: "Prepare reversible internal drafts from authorized context.",
+  humanApprovalIntent: "External writes, deletion, and authority changes.",
 };
 
 integration("Guild bootstrap boundary", () => {

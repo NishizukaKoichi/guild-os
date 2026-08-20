@@ -13,12 +13,14 @@ Company, Research, and Community are the other preset choices. **Other / Build y
 fifth primary choice for a collective that does not fit one preset. Creator, Open Source, Agent
 Collective, and the raw Blank Profile remain available under advanced Profiles.
 
-Other is guided rather than an instruction to edit code. It asks what the collective calls its
-participants, shared memory, activity, and decisions, then requires five short answers about its
-purpose, participants, memory, activity, and decision style. Guild OS persists those terms as
-Vocabulary overrides and the answers as starting Context on the neutral Blank substrate. It does
-not generate new Capabilities or silently invent an authorization policy; the neutral Coordinator,
-Participant, and Observer Role preset remains reviewable after setup.
+Other is guided rather than an instruction to edit code. It asks eight short questions about the
+collective's purpose, participants, Memory, Activity, decisions, language and atmosphere, outward
+Agent actions, and mandatory Human confirmation. Guild OS turns those answers into a complete,
+schema-validated Blueprint proposal with vocabulary, visual theme, Roles, Spaces, workflows,
+approval policies, bounded Agents, Connections, lifecycle, retention, and export defaults. The
+administrator reviews and edits the proposal before saving or applying it. Assignment to an
+existing Guild or Space changes Context only; any proposed Role, Capability, Connection, or Agent
+authority change becomes a separate Level 3 migration proposal and is never applied silently.
 
 The deployment-defined Guild name is read-only during setup. The administrator enters the human
 Root display name and accepts Root responsibility explicitly. Starting-context answers are

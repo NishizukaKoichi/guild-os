@@ -26,13 +26,15 @@ authorization boundary or remove evidence from sensitive operations.
   to it.
 - First-owner setup appears only while required foundations remain incomplete. Its steps link to
   shared Knowledge, a Human invitation, an Agent, and offline recovery codes.
-- Navigation has three levels. Home, Ask, and Inbox are always primary. Template-specific Memory,
-  Activity, Decisions, Canonical Memory, and Structured Work are disclosed under Workspace.
-  Members, Messages, Lifecycle, Contributions, Context, Chronicle, and Settings are disclosed under
-  More. Operations appears there only when the current membership has a management capability.
+- Navigation has two stable levels. Home, Ask, template-specific Members, Memory, and Activity are
+  always primary because they are the everyday collective loop. Decisions, Canonical Memory,
+  Structured Work, Inbox, Messages, Lifecycle, Contributions, Context, Chronicle, and Settings are
+  disclosed under More. Operations appears there only when the current membership has a management
+  capability.
   Settings remains readable by active members so Constitution and governance are transparent, while
   editing remains protected by API permissions and PostgreSQL RLS.
-- The mobile interface keeps Home, Ask, Inbox, and More in a stable four-item bottom bar. The full
+- The mobile interface keeps Home, Ask, Members, Memory, Activity, and More in a stable six-item
+  bottom bar. Labels are template-specific and constrained without horizontal scrolling. The full
   sidebar becomes inaccessible while closed so keyboard and assistive-technology users do not
   encounter duplicate controls.
 - Every permitted page has a non-sensitive hash route. Browser Back, Forward, reload, and direct

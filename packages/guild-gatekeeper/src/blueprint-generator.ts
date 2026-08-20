@@ -121,6 +121,15 @@ function modelAgent(
     roleKey,
     permissions,
     toolIds: tools as ("memory_search" | "activity_draft")[],
+    limits: {
+      maximumBudgetUsdCents: 0,
+      maximumTokens: 32_000,
+      maximumDurationSeconds: 300,
+      maximumSteps: 12,
+      maximumRetries: 1,
+      maximumDelegations: 0,
+    },
+    approvalPolicyKey: "external-action",
   };
 }
 
@@ -129,26 +138,47 @@ export function parseModelBlueprint(
   value: unknown,
   key: `custom-${string}`,
 ): CollectiveBlueprintDraft {
+  const baseline = createDeterministicCollectiveBlueprint(input);
   const candidate = record(unwrap(value), "Blueprint response");
   exactKeys(candidate, [
     "name", "description", "labels", "roles", "spaces", "memoryTypes", "activityTypes",
     "decisionMethods", "dashboardIntents", "workflows", "suggestedAgent",
   ], "Blueprint response");
   const roles = modelRoles(candidate.roles);
+  const suggestedAgent = modelAgent(candidate.suggestedAgent, roles);
+  const decisionMethods = list(candidate.decisionMethods, "Blueprint Decision methods", 1, 5);
+  const primaryDecisionMethod = record(decisionMethods[0], "Primary Blueprint Decision method");
+  const primaryDecisionMethodKey = string(
+    primaryDecisionMethod.key,
+    "Primary Blueprint Decision method key",
+    63,
+  );
+  const approvalPolicies = baseline.definition.approvalPolicies.map((policy) => ({
+    ...policy,
+    decisionMethodKey: primaryDecisionMethodKey,
+  }));
   const definition = parseCollectiveBlueprintDefinition({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: candidate.name,
     purpose: input.answers.purpose,
     description: candidate.description,
+    visualTheme: baseline.definition.visualTheme,
     labels: candidate.labels,
     roles,
     spaces: candidate.spaces,
     memoryTypes: candidate.memoryTypes,
     activityTypes: candidate.activityTypes,
-    decisionMethods: candidate.decisionMethods,
+    decisionMethods,
     dashboardIntents: candidate.dashboardIntents,
     workflows: candidate.workflows,
-    suggestedAgent: modelAgent(candidate.suggestedAgent, roles),
+    approvalPolicies,
+    connectionSuggestions: baseline.definition.connectionSuggestions,
+    onboarding: baseline.definition.onboarding,
+    offboarding: baseline.definition.offboarding,
+    retentionPolicy: baseline.definition.retentionPolicy,
+    exportPolicy: baseline.definition.exportPolicy,
+    recommendedAgents: suggestedAgent ? [suggestedAgent] : [],
+    suggestedAgent,
   });
   const draft: CollectiveBlueprintDraft = {
     key,
@@ -186,6 +216,7 @@ export function blueprintModelPrompt(
           "Activity states must follow a valid forward sequence from the baseline status vocabulary.",
           "Decision method must use one baseline engine method while its label may fit the collective.",
           "The optional Agent has only name, purpose, roleKey, toolIds; tools are memory_search and activity_draft.",
+          "The eight answers also define visual tone, external-action suggestions, and mandatory Human confirmation; the server adds those safety fields from the reviewed baseline.",
           "Use 2-6 Roles, 1-8 Spaces, 1-8 Memory types, 1-8 Activity types, 1-5 Decision methods, and 1-8 Workflows.",
         ].join(" "),
       },

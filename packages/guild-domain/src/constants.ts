@@ -42,7 +42,14 @@ export const CONNECTION_KINDS = [
   "oauth",
   "webhook",
   "api",
+  "cloudflare_gatekeeper",
   "cloudflare_service",
+  "email",
+  "calendar",
+  "file_storage",
+  "git_repository",
+  "external_api",
+  "model_provider",
   "database",
   "storage",
 ] as const;
@@ -63,6 +70,7 @@ export const MEMORY_TYPES = [
   "failure",
   "learning",
   "external",
+  "external_source",
   "agent_output",
   "knowledge",
 ] as const;
@@ -98,6 +106,7 @@ export const ACTIVITY_TYPES = [
   "creation",
   "maintenance",
   "investigation",
+  "mission",
   "goal",
   "step",
 ] as const;
@@ -120,6 +129,10 @@ export const DECISION_METHODS = [
   "editorial",
   "policy",
   "hybrid",
+  "quorum_vote",
+  "council",
+  "agent_proposal_human_approval",
+  "custom",
 ] as const;
 export const ANNOUNCEMENT_STATUSES = ["draft", "published", "archived"] as const;
 export const AGENT_RUN_STATUSES = [

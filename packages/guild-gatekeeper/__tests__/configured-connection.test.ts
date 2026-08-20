@@ -95,6 +95,27 @@ describe("configured purchaser Connection", () => {
   });
 
   it.each([
+    "cloudflare_gatekeeper",
+    "email",
+    "calendar",
+    "file_storage",
+    "git_repository",
+    "external_api",
+    "model_provider",
+  ] as const)("routes the %s profile through the bounded purchaser Gatekeeper", (kind) => {
+    const adapter = createConfiguredConnectionAdapter(env(), connection({
+      kind,
+      secretReference: null,
+      authKind: "none",
+      configuration: {
+        allowedCapabilities: [{ id: `${kind}.execute` }],
+      },
+    }));
+
+    expect(adapter.kind).toBe("cloudflare_gatekeeper_https");
+  });
+
+  it.each([
     { status: "revoked" as const, kind: "https_webhook" as const, code: "capability_not_allowed" },
     { status: "active" as const, kind: "database" as const, code: "unsupported_operation" },
   ])("fails closed for $status $kind Connections", ({ status, kind, code }) => {

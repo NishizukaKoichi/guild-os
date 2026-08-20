@@ -21,11 +21,15 @@ dependency. Read [Licensing and distribution](docs/licensing-and-distribution.md
 
 ## Release status
 
-This checkout implements the Guild OS v1.0 full-spec product surface. A purchaser release is
-acceptable only when the
-[full-spec acceptance contract](docs/full-spec-acceptance.md), the local gates, the target database
-preflight, deployment evidence, restore rehearsal, and production smoke all pass for the same
-reviewed commit.
+This checkout implements a substantial Guild OS Core surface, but the complete product contract now
+also includes the separate Owned Distribution, its Installer and Updater, signed release and SBOM
+gates, complete Purpose-first Blueprint, and clean-room customer-owned evidence. Guild OS is not
+complete until every row in the [product completion matrix](docs/product-completion-matrix.md) is
+`Implemented and verified` against the authoritative
+[product specification](docs/product-specification.md). A purchaser release must also pass the
+[full-spec acceptance contract](docs/full-spec-acceptance.md), local gates, target database
+preflight, deployment evidence, restore rehearsal, and authenticated smoke for the same reviewed
+commit.
 
 Capability areas present in the codebase include:
 
@@ -34,7 +38,7 @@ Capability areas present in the codebase include:
 - Neutral Membership lifecycle and Role/Capability engine with hierarchical Space scopes
 - Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and
   Blank Templates
-- Purpose-first **Other / Build your own** setup that turns five natural-language answers into a
+- Purpose-first **Other / Build your own** setup that turns eight natural-language answers into a
   complete, editable Blueprint for vocabulary, Roles, Spaces, Memory, Activity, Decisions, Home,
   Workflows, and a bounded Agent proposal
 - Guild-scoped, immutable Blueprint versions with code-free editing and reuse at Guild or Space
@@ -312,7 +316,7 @@ Opening **Guild** never initializes the database as a page-load side effect. On 
 deployment, a Workshop administrator chooses how the Guild will be used, enters the human Root
 display name, explicitly accepts Root responsibility, and submits **Create Guild**. Personal with
 AI is the recommended default and provisions a bounded Personal assistant. **Other / Build your
-own** asks five plain-language questions, generates a schema-validated operating Blueprint, and
+own** asks eight plain-language questions, generates a schema-validated operating Blueprint, and
 requires the administrator to review and edit the complete proposal before initialization. Raw
 Blank remains the advanced fully manual choice. PostgreSQL serializes
 competing attempts, so only one human account can become Root Owner. Keep the Access policy and

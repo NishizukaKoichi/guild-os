@@ -30,6 +30,9 @@ const collectiveSetup = {
   memoryIntent: "Only deliberately shared knowledge enters Guild Memory.",
   activityIntent: "Governed work created from explicit proposals.",
   decisionStyle: "Human consent with auditable evidence.",
+  languageAndStyle: "Clear, neutral, and evidence-led.",
+  agentIntent: "Prepare reversible internal drafts.",
+  humanApprovalIntent: "External writes, deletion, and authority changes.",
 };
 
 integration("private promotion and contribution management API", () => {

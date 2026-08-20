@@ -586,6 +586,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         memoryIntent: input.memoryIntent,
         activityIntent: input.activityIntent,
         decisionStyle: input.decisionStyle,
+        languageAndStyle: input.languageAndStyle,
+        agentIntent: input.agentIntent,
+        humanApprovalIntent: input.humanApprovalIntent,
       },
       createWorkersAiBlueprintRunner(this.#env),
     );
@@ -600,6 +603,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
     assertNonBlank(input.memoryIntent, "Collective memory intent", 2_000);
     assertNonBlank(input.activityIntent, "Collective activity intent", 2_000);
     assertNonBlank(input.decisionStyle, "Collective decision style", 2_000);
+    assertNonBlank(input.languageAndStyle, "Collective language and style", 2_000);
+    assertNonBlank(input.agentIntent, "Collective Agent intent", 2_000);
+    assertNonBlank(input.humanApprovalIntent, "Collective Human approval intent", 2_000);
     const vocabularyOverrides = input.vocabularyOverrides ?? {};
     assertVocabularyOverrides(vocabularyOverrides);
     if (input.blueprint) {
@@ -624,6 +630,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
         memoryIntent: input.memoryIntent.trim(),
         activityIntent: input.activityIntent.trim(),
         decisionStyle: input.decisionStyle.trim(),
+        languageAndStyle: input.languageAndStyle.trim(),
+        agentIntent: input.agentIntent.trim(),
+        humanApprovalIntent: input.humanApprovalIntent.trim(),
       },
       vocabularyOverrides,
       input.blueprint,

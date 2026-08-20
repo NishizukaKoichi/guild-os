@@ -80,7 +80,6 @@ export function AppShell({
   const { locale, setLocale, t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileViewport, setMobileViewport] = useState(false);
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [globalActionOpen, setGlobalActionOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -93,17 +92,16 @@ export function AppShell({
   const primaryItems = compact([
     item("home", t("nav.home"), Home),
     item("ask", t("nav.ask"), MessageCircleQuestion),
-    item("inbox", t("nav.inbox"), InboxIcon),
-  ]);
-  const workspaceItems = compact([
+    item("members", collective.labels.members, Users),
     item("memory", collective.labels.memory, BookOpen),
     item("activity", collective.labels.activity, ListTodo),
+  ]);
+  const workspaceItems: readonly NavItem[] = [];
+  const collaborationItems = compact([
     item("decisions", collective.labels.decisions, Scale),
     item("knowledge", t("nav.canonicalMemory"), BookCheck),
     item("work", t("nav.structuredWork"), ListTodo),
-  ]);
-  const collaborationItems = compact([
-    item("members", collective.labels.members, Users),
+    item("inbox", t("nav.inbox"), InboxIcon),
     item("messages", t("nav.messages"), MessagesSquare),
     item("lifecycle", t("nav.lifecycle"), UserRoundCheck),
     item("contributions", t("nav.contributions"), Waypoints),
@@ -116,11 +114,11 @@ export function AppShell({
   ]);
   const workspacePage = workspaceItems.some((entry) => entry.id === page);
   const morePage = [...collaborationItems, ...managementItems].some((entry) => entry.id === page);
+  const visualTheme = collective.blueprint?.definition.visualTheme;
 
   useEffect(() => {
-    if (workspacePage) setWorkspaceOpen(true);
     if (morePage) setMoreOpen(true);
-  }, [morePage, workspacePage]);
+  }, [morePage]);
 
   useEffect(() => {
     const media = matchMedia("(max-width: 760px)");
@@ -244,7 +242,11 @@ export function AppShell({
   })), [collaborationItems, managementItems, primaryItems, t, workspaceItems]);
 
   return (
-    <div className="app-layout">
+    <div
+      className="app-layout"
+      data-collective-theme={visualTheme?.preset ?? "system"}
+      data-collective-accent={visualTheme?.accent ?? "green"}
+    >
       <a className="skip-link" href="#main-content">{t("nav.skipToContent")}</a>
       <aside
         ref={sidebarRef}
@@ -265,15 +267,6 @@ export function AppShell({
         </div>
         <nav className="primary-nav" aria-label={t("app.name")}>
           <div className="nav-section">{renderItems(primaryItems)}</div>
-          {workspaceItems.length ? (
-            <div className="nav-section nav-section-workspace">
-              <button className={workspacePage ? "nav-group-toggle nav-group-toggle-active" : "nav-group-toggle"} type="button" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen((open) => !open)}>
-                <span>{t("nav.workspace")}</span>
-                <ChevronDown className={workspaceOpen ? "nav-chevron nav-chevron-open" : "nav-chevron"} size={16} />
-              </button>
-              {workspaceOpen ? <div className="nav-group-items">{renderItems(workspaceItems)}</div> : null}
-            </div>
-          ) : null}
           {[...collaborationItems, ...managementItems].length ? (
             <div className="nav-section nav-section-more">
               <button className={morePage ? "nav-group-toggle nav-group-toggle-active" : "nav-group-toggle"} type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
@@ -326,7 +319,7 @@ export function AppShell({
       </div>
 
       <nav
-        className="mobile-tabbar"
+        className="mobile-tabbar mobile-tabbar-six"
         aria-label={t("nav.mobilePrimary")}
         aria-hidden={mobileOpen ? true : undefined}
         inert={mobileOpen ? true : undefined}

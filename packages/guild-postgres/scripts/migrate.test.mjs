@@ -57,6 +57,9 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0045_private_promotion_request_fingerprint.sql",
     "0046_personal_context_profile.sql",
     "0047_purpose_blueprint_builder.sql",
+    "0048_extended_decision_methods.sql",
+    "0049_purchaser_connection_profiles.sql",
+    "0050_memory_activity_type_completion.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -122,4 +125,6 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[45].sql, /Personal with AI Context Profile/);
   assert.match(migrations[46].sql, /CREATE TABLE collective_template_versions/);
   assert.match(migrations[46].sql, /Collective Blueprint version history is append-only/);
+  assert.match(migrations[47].sql, /WHEN 'custom' THEN 'hybrid'/);
+  assert.match(migrations[47].sql, /Decision quorum is below the Constitution requirement/);
 });

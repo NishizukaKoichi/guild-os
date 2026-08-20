@@ -71,6 +71,36 @@ function riskKey(risk: UiIntentAction["riskLevel"]) {
   }
 }
 
+function formatEstimatedCost(locale: string, action: UiIntentAction, t: ReturnType<typeof useI18n>["t"]): string {
+  if (action.estimatedCostMinor === 0) return t("ask.intent.noProviderCost");
+  if (action.estimatedCostMinor === null || action.estimatedCostCurrency === null) {
+    return t("ask.intent.estimateUnknown");
+  }
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: action.estimatedCostCurrency,
+    currencyDisplay: "code",
+  }).format(action.estimatedCostMinor / 100);
+}
+
+function formatEstimatedDuration(action: UiIntentAction, t: ReturnType<typeof useI18n>["t"]): string {
+  if (action.estimatedDurationSeconds === null) return t("ask.intent.estimateUnknown");
+  return t("ask.intent.durationSeconds", { count: action.estimatedDurationSeconds });
+}
+
+function effectScopeKey(scope: UiIntentAction["effectScope"]) {
+  return scope === "external" ? "ask.intent.effectScope.external" as const : "ask.intent.effectScope.guild" as const;
+}
+
+function rollbackKey(kind: UiIntentAction["rollbackKind"]) {
+  switch (kind) {
+    case "reversible": return "ask.intent.rollback.reversible" as const;
+    case "compensating_action": return "ask.intent.rollback.compensating_action" as const;
+    case "not_applicable": return "ask.intent.rollback.not_applicable" as const;
+    case "not_automatic": return "ask.intent.rollback.not_automatic" as const;
+  }
+}
+
 function outcomeKey(outcome: Awaited<ReturnType<GuildUiApi["actIntent"]>>["outcome"]) {
   switch (outcome) {
     case "busy": return "ask.intent.outcome.busy" as const;
@@ -480,6 +510,22 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                     </dl>
                   </header>
 
+                  {selectedProposal.evidence.length > 0 ? (
+                    <details className="ask-intent-evidence">
+                      <summary>{t("ask.intent.evidenceCount", {
+                        count: selectedProposal.evidence.length,
+                      })}</summary>
+                      <ul>
+                        {selectedProposal.evidence.map((evidence) => (
+                          <li key={`${evidence.sourceType}:${evidence.sourceId}`}>
+                            <strong>{evidence.label}</strong>
+                            <small>{evidence.sourceType} · {evidence.sourceId}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+
                   <ol className="ask-intent-actions">
                     {selectedProposal.actions.map((action) => (
                       <li key={action.position} className={`intent-action intent-action-${action.status}`}>
@@ -515,6 +561,30 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                               <dd>{action.durableHumanApprovals > 0
                                 ? t("ask.intent.humanApprovals", { count: action.durableHumanApprovals })
                                 : t("ask.intent.explicitConfirmation")}</dd>
+                            </div>
+                            <div>
+                              <dt>{t("ask.intent.executingActor")}</dt>
+                              <dd>{action.executingActorName}</dd>
+                            </div>
+                            <div>
+                              <dt>{t("ask.intent.connection")}</dt>
+                              <dd>{action.connectionId ?? t("ask.intent.noConnection")}</dd>
+                            </div>
+                            <div>
+                              <dt>{t("ask.intent.estimatedCost")}</dt>
+                              <dd>{formatEstimatedCost(locale, action, t)}</dd>
+                            </div>
+                            <div>
+                              <dt>{t("ask.intent.estimatedDuration")}</dt>
+                              <dd>{formatEstimatedDuration(action, t)}</dd>
+                            </div>
+                            <div>
+                              <dt>{t("ask.intent.effectScope")}</dt>
+                              <dd>{t(effectScopeKey(action.effectScope))}</dd>
+                            </div>
+                            <div>
+                              <dt>{t("ask.intent.rollback")}</dt>
+                              <dd>{t(rollbackKey(action.rollbackKind))}</dd>
                             </div>
                           </dl>
                           <details>

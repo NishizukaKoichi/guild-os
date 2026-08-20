@@ -51,6 +51,9 @@ const contextFields: readonly {
   { key: "memoryIntent", label: "initialization.memoryIntent", placeholder: "initialization.memoryIntentPlaceholder" },
   { key: "activityIntent", label: "initialization.activityIntent", placeholder: "initialization.activityIntentPlaceholder" },
   { key: "decisionStyle", label: "initialization.decisionStyle", placeholder: "initialization.decisionStylePlaceholder" },
+  { key: "languageAndStyle", label: "initialization.languageAndStyle", placeholder: "initialization.languageAndStylePlaceholder" },
+  { key: "agentIntent", label: "initialization.agentIntent", placeholder: "initialization.agentIntentPlaceholder" },
+  { key: "humanApprovalIntent", label: "initialization.humanApprovalIntent", placeholder: "initialization.humanApprovalIntentPlaceholder" },
 ];
 
 const primaryTemplateKeys: readonly CollectiveTemplateKey[] = [
@@ -95,6 +98,9 @@ export function InitializationPage({
     memoryIntent: string;
     activityIntent: string;
     decisionStyle: string;
+    languageAndStyle: string;
+    agentIntent: string;
+    humanApprovalIntent: string;
   }): Promise<CollectiveBlueprintDraft>;
   onInitialize(input: InitializeGuildRequest): Promise<void>;
 }) {
@@ -148,6 +154,11 @@ export function InitializationPage({
     decisionStyle: t("initialization.defaultDecision", {
       decisions: selectedTemplate.labels.decisions,
     }),
+    languageAndStyle: t("initialization.defaultLanguageAndStyle"),
+    agentIntent: t("initialization.defaultAgentIntent", {
+      agent: selectedTemplate.labels.agent,
+    }),
+    humanApprovalIntent: t("initialization.defaultHumanApprovalIntent"),
   }), [bootstrap.guildPurpose, selectedTemplate, t]);
   const dirty = step !== "template" || choice !== "personal" || displayName.trim() !== "" ||
     Object.keys(answerOverrides).length > 0 || blueprint !== null || rootOwnershipAccepted;
@@ -250,6 +261,9 @@ export function InitializationPage({
     memoryIntent: answer("memoryIntent"),
     activityIntent: answer("activityIntent"),
     decisionStyle: answer("decisionStyle"),
+    languageAndStyle: answer("languageAndStyle"),
+    agentIntent: answer("agentIntent"),
+    humanApprovalIntent: answer("humanApprovalIntent"),
   };
 
   async function generateBlueprint(event: FormEvent): Promise<void> {
@@ -266,6 +280,9 @@ export function InitializationPage({
         memoryIntent: answer("memoryIntent").trim(),
         activityIntent: answer("activityIntent").trim(),
         decisionStyle: answer("decisionStyle").trim(),
+        languageAndStyle: answer("languageAndStyle").trim(),
+        agentIntent: answer("agentIntent").trim(),
+        humanApprovalIntent: answer("humanApprovalIntent").trim(),
       });
       setBlueprint(generated);
       setStep("review");
@@ -295,6 +312,9 @@ export function InitializationPage({
         memoryIntent: reviewedAnswers?.memoryIntent ?? answer("memoryIntent").trim(),
         activityIntent: reviewedAnswers?.activityIntent ?? answer("activityIntent").trim(),
         decisionStyle: reviewedAnswers?.decisionStyle ?? answer("decisionStyle").trim(),
+        languageAndStyle: reviewedAnswers?.languageAndStyle ?? answer("languageAndStyle").trim(),
+        agentIntent: reviewedAnswers?.agentIntent ?? answer("agentIntent").trim(),
+        humanApprovalIntent: reviewedAnswers?.humanApprovalIntent ?? answer("humanApprovalIntent").trim(),
         vocabularyOverrides: {},
         ...(blueprint ? { blueprint } : {}),
       });
@@ -458,6 +478,9 @@ export function InitializationPage({
                 <div><dt>{t("initialization.summaryMemory")}</dt><dd>{summaryAnswers.memoryIntent}</dd></div>
                 <div><dt>{t("initialization.summaryActivity")}</dt><dd>{summaryAnswers.activityIntent}</dd></div>
                 <div><dt>{t("initialization.summaryDecision")}</dt><dd>{summaryAnswers.decisionStyle}</dd></div>
+                <div><dt>{t("initialization.summaryLanguageAndStyle")}</dt><dd>{summaryAnswers.languageAndStyle}</dd></div>
+                <div><dt>{t("initialization.summaryAgent")}</dt><dd>{summaryAnswers.agentIntent}</dd></div>
+                <div><dt>{t("initialization.summaryHumanApproval")}</dt><dd>{summaryAnswers.humanApprovalIntent}</dd></div>
               </dl>
             </section>
             <label className="initialization-ownership-confirmation">

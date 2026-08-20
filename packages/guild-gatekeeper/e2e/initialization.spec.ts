@@ -34,6 +34,9 @@ interface BlueprintExample {
     memoryIntent: string;
     activityIntent: string;
     decisionStyle: string;
+    languageAndStyle: string;
+    agentIntent: string;
+    humanApprovalIntent: string;
   };
 }
 
@@ -49,6 +52,8 @@ async function generateBlueprint(page: Page, example: BlueprintExample) {
   await expect(review).toBeVisible();
   await expect(review.locator(".blueprint-editor-overview input").first()).toHaveValue(example.expectedName);
   await expect(review.locator(".blueprint-editor-item")).not.toHaveCount(0);
+  await expect(review.getByText(/Approval policies|承認Policy|审批策略/)).toBeVisible();
+  await expect(review.getByText(/Joining, leaving|参加・退出|加入、离开/)).toBeVisible();
   return review;
 }
 
@@ -163,6 +168,9 @@ const purposeExamples: readonly BlueprintExample[] = [
       memoryIntent: "家族の予定、ケア、レシピ、約束、歴史を残す",
       activityIntent: "家事、ケア、予定、家族行事を一緒に進める",
       decisionStyle: "日常は家族の合意、重要事項は責任者が確認する",
+      languageAndStyle: "温かく、落ち着いて、分かりやすい言葉を使う",
+      agentIntent: "家族内の下書きと予定案を作る",
+      humanApprovalIntent: "外部送信、医療情報の共有、削除、権限変更",
     },
   },
   {
@@ -175,6 +183,9 @@ const purposeExamples: readonly BlueprintExample[] = [
       memoryIntent: "保存课程、学习证据和学校指南",
       activityIntent: "开展课程、学习支持和评估",
       decisionStyle: "由教育者审核，重要事项交由教学委员会决定",
+      languageAndStyle: "正式、清晰并适合学习者",
+      agentIntent: "准备课程草稿和学习支持建议",
+      humanApprovalIntent: "对外发布、学生数据共享、删除和权限变更",
     },
   },
   {
@@ -187,6 +198,9 @@ const purposeExamples: readonly BlueprintExample[] = [
       memoryIntent: "Keep playbooks, training notes, and team history",
       activityIntent: "Run training, matches, and team events",
       decisionStyle: "Coach review with team consent for major changes",
+      languageAndStyle: "Energetic, clear, and practical",
+      agentIntent: "Prepare training plans and propose calendar updates",
+      humanApprovalIntent: "External messages, player selection, spending, and deletion",
     },
   },
   {
@@ -199,6 +213,9 @@ const purposeExamples: readonly BlueprintExample[] = [
       memoryIntent: "事業ガイド、成果の証拠、方針を残す",
       activityIntent: "公益事業、キャンペーン、ボランティア活動を進める",
       decisionStyle: "共同体の合意を取り、重要事項は理事会が確認する",
+      languageAndStyle: "使命に忠実で、温かく、説明可能な言葉を使う",
+      agentIntent: "事業報告の下書きと予定案を作る",
+      humanApprovalIntent: "外部公開、寄付金の使用、削除、権限変更",
     },
   },
   {
@@ -211,6 +228,39 @@ const purposeExamples: readonly BlueprintExample[] = [
       memoryIntent: "Keep governance rules, proposals, votes, and collective history",
       activityIntent: "Run proposals, missions, and working-group sessions",
       decisionStyle: "Token voting with Human steward review for high-risk actions",
+      languageAndStyle: "Transparent, concise, and governance-focused",
+      agentIntent: "Summarize proposals and prepare governed execution plans",
+      humanApprovalIntent: "Treasury actions, external execution, deletion, and authority changes",
+    },
+  },
+  {
+    name: "cooperative",
+    locale: "en",
+    expectedName: "Member Cooperative",
+    answers: {
+      purpose: "Run a member-owned cooperative for shared food distribution and mutual support",
+      participants: "Member-owners, volunteers, partner services, and a bounded assistant",
+      memoryIntent: "Keep cooperative rules, shared resource records, and member history",
+      activityIntent: "Coordinate member initiatives, shared operations, and general meetings",
+      decisionStyle: "One member one vote with steward review for safety",
+      languageAndStyle: "Welcoming, practical, and member-owned",
+      agentIntent: "Prepare meeting drafts and propose delivery schedules",
+      humanApprovalIntent: "External orders, spending, member removal, and authority changes",
+    },
+  },
+  {
+    name: "civic community",
+    locale: "ja",
+    expectedName: "地域の共有圏",
+    answers: {
+      purpose: "自治コミュニティで地域課題と公共の取り組みを住民が共有する",
+      participants: "住民、自治会、公共担当者、協力団体、情報支援Agent",
+      memoryIntent: "地域の知識、公共の根拠、意見、決定の歴史を残す",
+      activityIntent: "意見募集、公共の取り組み、地域行事を進める",
+      decisionStyle: "住民の熟議と評議会レビューで決める",
+      languageAndStyle: "誰にでも分かる、公平で落ち着いた公共の言葉を使う",
+      agentIntent: "公開情報を要約し、意見募集の下書きを作る",
+      humanApprovalIntent: "外部公開、個人情報共有、削除、公共権限の変更",
     },
   },
 ];
@@ -251,12 +301,18 @@ for (const [locale, expectedName] of [
         memoryIntent: "保存照护记录、计划、知识和家庭历史",
         activityIntent: "共同处理家务、照护与家庭活动",
         decisionStyle: "日常事项采用家庭共识，重要事项由责任人审核",
+        languageAndStyle: "温暖、平静、清晰",
+        agentIntent: "准备家庭内部草稿和日程建议",
+        humanApprovalIntent: "外部发送、敏感信息共享、删除和权限变更",
       } : {
         purpose: "Help a family share care, plans, knowledge, and decisions",
         participants: "Family members and an authorized AI assistant",
         memoryIntent: "Keep care notes, plans, practical knowledge, and family history",
         activityIntent: "Coordinate household tasks, care, and family events",
         decisionStyle: "Family consent with responsible adult review for major changes",
+        languageAndStyle: "Warm, calm, and clear",
+        agentIntent: "Prepare internal household drafts and calendar suggestions",
+        humanApprovalIntent: "External messages, sensitive sharing, deletion, and authority changes",
       },
     });
     const viewport = await page.evaluate(() => ({
@@ -316,7 +372,7 @@ test("opens the native Knowledge file chooser inside the Cloudflare OS sandbox",
   const errors = collectBrowserErrors(page);
   const app = await mountSandboxedStandaloneApp(page, "root");
 
-  await app.locator(".nav-section-workspace > .nav-group-toggle").click();
+  await app.locator(".nav-section-more > .nav-group-toggle").click();
   await app.getByRole("button", { name: "Canonical memory", exact: true }).click();
   page.once("dialog", (confirmation) => confirmation.accept());
   await app.getByRole("button", { name: "Start revision", exact: true }).click();

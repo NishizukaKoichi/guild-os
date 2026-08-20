@@ -26,6 +26,9 @@ describe("Space Blueprint context", () => {
         memoryIntent: "Keep playbooks, training notes, and team history",
         activityIntent: "Run training, matches, and team events",
         decisionStyle: "Coach review with team consent for major changes",
+        languageAndStyle: "Energetic and practical",
+        agentIntent: "Prepare training and calendar drafts",
+        humanApprovalIntent: "External messages and team selection changes",
       },
     });
     const timestamp = "2026-08-16T00:00:00.000Z";

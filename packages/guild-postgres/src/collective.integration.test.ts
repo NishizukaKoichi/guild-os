@@ -150,6 +150,9 @@ integration("Guild Collective repository", () => {
         memoryIntent: "Care notes, household guides, and family history",
         activityIntent: "Plan care, household tasks, and family events",
         decisionStyle: "Family consent with responsible adult review",
+        languageAndStyle: "Warm and practical",
+        agentIntent: "Prepare internal care and schedule drafts",
+        humanApprovalIntent: "External messages and sensitive care changes",
       },
     });
 
@@ -292,6 +295,9 @@ integration("Guild Collective repository", () => {
           memoryIntent: "Evidence and findings",
           activityIntent: "Studies and experiments",
           decisionStyle: "Peer review",
+          languageAndStyle: "Formal and evidence-led",
+          agentIntent: "Prepare research summaries and experiment drafts",
+          humanApprovalIntent: "Publication, external sharing, and authority changes",
         },
         actorId: ids.root,
         chronicleEvent: event(ids.guild, ids.root, "collective.configured", "collective", ids.guild),

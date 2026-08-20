@@ -33,32 +33,30 @@ test("keeps management out of the default member navigation", async ({ page }) =
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("?standalone=member");
 
-  await expect(page.getByRole("button", { name: "Workspace", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "More", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Team", exact: true })).toHaveCount(0);
+  await expect(page.locator(".primary-nav [data-app-page='members']")).toHaveCount(0);
+  await expect(page.locator(".primary-nav [data-app-page='memory']")).toBeVisible();
+  await expect(page.locator(".primary-nav [data-app-page='activity']")).toBeVisible();
   await expect(page.getByRole("button", { name: "AI agents", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
-  await page.locator(".nav-section-workspace > .nav-group-toggle").click();
-  await expect(page.getByRole("button", { name: "Research memory", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Studies", exact: true })).toBeVisible();
   await page.locator(".nav-group-toggle").filter({ hasText: /^More$/ }).click();
   await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Operations", exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("uses a four-item mobile tab bar without horizontal overflow", async ({ page }) => {
+test("uses the six-item canonical mobile tab bar without horizontal overflow", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("?standalone=root");
 
   const tabs = page.getByRole("navigation", { name: "Primary navigation" });
-  await expect(tabs.getByRole("button")).toHaveCount(4);
+  await expect(tabs.getByRole("button")).toHaveCount(6);
   await expect(page.locator(".sidebar")).toHaveAttribute("aria-hidden", "true");
   await tabs.getByRole("button", { name: "More", exact: true }).click();
   await expect(page.locator(".sidebar")).toHaveClass(/sidebar-open/);
   await expect(tabs).not.toBeVisible();
-  await page.locator(".nav-section-workspace > .nav-group-toggle").click();
+  await page.locator(".nav-section-more > .nav-group-toggle").click();
   await page.getByRole("button", { name: "Canonical memory", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Knowledge", exact: true })).toBeVisible();
   await expect(tabs).toBeVisible();

@@ -28,8 +28,10 @@ describe("Actor-neutral Collective primitives", () => {
 
   it("allows built-in and namespaced custom Memory and Activity types", () => {
     expect(() => assertMemoryType("research")).not.toThrow();
+    expect(() => assertMemoryType("external_source")).not.toThrow();
     expect(() => assertMemoryType("custom:recipe")).not.toThrow();
     expect(() => assertActivityType("experiment")).not.toThrow();
+    expect(() => assertActivityType("mission")).not.toThrow();
     expect(() => assertActivityType("custom:mutual_aid")).not.toThrow();
     expect(() => assertMemoryType("recipe")).toThrow();
   });

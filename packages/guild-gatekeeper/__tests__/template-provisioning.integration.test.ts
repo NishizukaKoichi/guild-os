@@ -24,6 +24,9 @@ const answers: CollectiveOnboardingAnswers = {
   memoryIntent: "Approved context",
   activityIntent: "Reviewable work",
   decisionStyle: "Human review",
+  languageAndStyle: "Clear and practical",
+  agentIntent: "Prepare internal drafts",
+  humanApprovalIntent: "External and irreversible actions",
 };
 
 function constitution(guildId: string, rootId: string): Constitution {

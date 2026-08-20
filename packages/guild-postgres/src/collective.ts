@@ -8,6 +8,7 @@ import {
   assertMemoryContent,
   assertMemoryType,
   assertCollectiveBlueprintDraft,
+  parseCollectiveBlueprintDraft,
   assertNonBlank,
   collectiveTemplate,
   type Activity,
@@ -520,15 +521,14 @@ function activityOutcomeFromRow(row: ActivityOutcomeRow): ActivityOutcome {
 }
 
 function blueprintFromRow(row: BlueprintRow): CollectiveBlueprintRecord {
-  const draft = {
+  const draft = parseCollectiveBlueprintDraft({
     key: row.key,
     locale: row.locale,
     generationMode: row.generation_mode,
     generationWarnings: row.generation_warnings,
     onboardingAnswers: row.onboarding_answers,
     definition: row.definition,
-  };
-  assertCollectiveBlueprintDraft(draft);
+  });
   return {
     ...draft,
     guildId: row.guild_id,

@@ -64,6 +64,11 @@ test("shows daily actions first and filters global actions by permission", async
   const sidebar = page.locator(".sidebar");
   await expect(sidebar.locator("button[data-app-page='home']")).toBeVisible();
   await expect(sidebar.locator("button[data-app-page='ask']")).toBeVisible();
+  await expect(sidebar.locator("button[data-app-page='members']")).toHaveCount(0);
+  await expect(sidebar.locator("button[data-app-page='memory']")).toBeVisible();
+  await expect(sidebar.locator("button[data-app-page='activity']")).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "More", exact: true })).toBeVisible();
+  await sidebar.getByRole("button", { name: "More", exact: true }).click();
   await expect(sidebar.locator("button[data-app-page='inbox']")).toBeVisible();
   await expect(sidebar.locator("button[data-app-page='operations']")).toHaveCount(0);
   await expect(page.locator(".home-action-grid > button")).toHaveCount(4);

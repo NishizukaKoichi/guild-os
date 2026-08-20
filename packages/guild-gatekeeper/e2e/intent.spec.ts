@@ -57,6 +57,14 @@ test("keeps Ask read-only and executes an inspectable Plan one durable action at
   await expect(page.getByText("Level 2 · Consequential or external write", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Required durable human approvals: 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Expires", { exact: true })).toBeVisible();
+  await page.locator(".ask-intent-evidence summary").click();
+  await expect(page.getByText("Research intake procedure", { exact: true })).toBeVisible();
+  await expect(page.getByText("Research Synthesizer", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("No provider cost", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/USD\s*0\.25/)).toBeVisible();
+  await expect(page.getByText("45 seconds", { exact: true })).toBeVisible();
+  await expect(page.getByText("Writes outside this collective", { exact: true })).toBeVisible();
+  await expect(page.getByText("No automatic undo", { exact: true })).toBeVisible();
 
   const actions = page.locator(".intent-action");
   await expect(actions).toHaveCount(3);

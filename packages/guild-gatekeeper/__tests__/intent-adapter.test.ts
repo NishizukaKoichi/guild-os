@@ -202,6 +202,9 @@ describe("intent management adapter presentation", () => {
       requiredPermission: "activity.assign",
       explicitConfirmationRequired: true,
       attemptCount: 0,
+      estimatedCostMinor: 0,
+      effectScope: "guild",
+      rollbackKind: "reversible",
     });
     expect(ui.actions[4]).toMatchObject({
       riskLevel: 2,
@@ -209,6 +212,11 @@ describe("intent management adapter presentation", () => {
       durableHumanApprovals: 2,
       reauthenticationRequired: false,
       requiredPermission: "agent.run",
+      executingActorId: IDS.agent,
+      estimatedCostMinor: null,
+      estimatedDurationSeconds: null,
+      effectScope: "guild",
+      rollbackKind: "compensating_action",
     });
     expect(ui.nextActionPosition).toBe(0);
     expect(ui.canAct).toBe(true);

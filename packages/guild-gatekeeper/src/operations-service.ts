@@ -61,6 +61,16 @@ const WORKFLOW_ACTION_KINDS = [
   "memory_search", "activity_draft", "agent_delegate", "connection_invoke",
   "https_webhook", "federation_publish",
 ] as const;
+const ACTION_ENDPOINT_CONNECTION_KINDS = new Set<CreateConnectionRequest["kind"]>([
+  "api",
+  "cloudflare_gatekeeper",
+  "email",
+  "calendar",
+  "file_storage",
+  "git_repository",
+  "external_api",
+  "model_provider",
+]);
 
 function assertUuid(value: string, field: string): void {
   if (!UUID_PATTERN.test(value)) throw new Error(`${field} must be a UUID.`);
@@ -135,7 +145,8 @@ function assertConnectionConfiguration(
         !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(id))) {
     throw new Error("Connection capability IDs must be unique, bounded identifiers.");
   }
-  if (["mcp", "api", "cloudflare_service"].includes(kind) && capabilityIds.length === 0) {
+  if ((kind === "mcp" || kind === "cloudflare_service" ||
+      ACTION_ENDPOINT_CONNECTION_KINDS.has(kind)) && capabilityIds.length === 0) {
     throw new Error("This Connection type requires an explicit remote capability allowlist.");
   }
   if (kind === "mcp" && record.adapterKind !== undefined &&

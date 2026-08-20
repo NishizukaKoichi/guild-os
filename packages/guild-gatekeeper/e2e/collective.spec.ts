@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "playwright/test";
 import { navigateTo, navigateToMore } from "./navigation";
 
@@ -131,7 +132,6 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
 
   const settings = page.locator(".collective-settings");
   const template = page.locator("#collective-template");
-  await page.locator(".nav-section-workspace > .nav-group-toggle").click();
   const expected = [
     ["blank", "Members", "Memory", "Activity"],
     ["company", "People", "Knowledge", "Work"],
@@ -215,6 +215,9 @@ test("creates, edits, reuses, and applies a Purpose Blueprint without changing R
     memoryIntent: "Keep playbooks, training notes, and team history",
     activityIntent: "Run training, matches, and team events",
     decisionStyle: "Coach review with team consent for major changes",
+    languageAndStyle: "Energetic, clear, and practical",
+    agentIntent: "Prepare training plans and propose calendar updates",
+    humanApprovalIntent: "External messages and team selection changes",
   };
   for (const [key, value] of Object.entries(answers)) {
     await settings.locator(`[data-onboarding-field="${key}"]`).fill(value);
@@ -232,6 +235,47 @@ test("creates, edits, reuses, and applies a Purpose Blueprint without changing R
   await expect(review.locator(".blueprint-permission-details")).not.toContainText("activity.create");
   await review.locator('[data-blueprint-action="save"]').click();
   await expect(settings.getByText("Blueprint saved. It is now available for the Guild and its Spaces.", { exact: true })).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await settings.getByRole("button", { name: "Export Blueprint: Harbor Football Club", exact: true }).click();
+  const download = await downloadPromise;
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const exported = JSON.parse(await readFile(downloadPath!, "utf8")) as {
+    format: string;
+    blueprint: { definition: { name: string } };
+  };
+  expect(exported).toMatchObject({
+    format: "guild-os-collective-blueprint",
+    blueprint: { definition: { name: "Harbor Football Club" } },
+  });
+
+  await settings.getByRole("button", { name: "Duplicate Blueprint: Harbor Football Club", exact: true }).click();
+  const duplicate = settings.locator('[data-blueprint-builder="review"]');
+  await expect(duplicate.locator(".blueprint-editor-overview input").first()).toHaveValue("Copy of Harbor Football Club");
+  await duplicate.locator(".blueprint-editor-overview input").first().fill("Harbor Football Club Copy");
+  await duplicate.locator('[data-blueprint-action="save"]').click();
+  await expect(settings.locator(".collective-blueprint-list strong").getByText("Harbor Football Club Copy", { exact: true })).toBeVisible();
+
+  await settings.getByRole("button", { name: "Review authority migration: Harbor Football Club", exact: true }).click();
+  const authority = settings.locator('[data-blueprint-builder="authority"]');
+  await expect(authority.getByRole("heading", { name: "Authority migration proposal", exact: true })).toBeVisible();
+  await expect(authority).toContainText("Level 3 - critical authority change");
+  await expect(authority.getByRole("button", { name: /apply/i })).toHaveCount(0);
+  const authorityDownloadPromise = page.waitForEvent("download");
+  await authority.locator('[data-blueprint-action="export-authority"]').click();
+  const authorityDownload = await authorityDownloadPromise;
+  const authorityPath = await authorityDownload.path();
+  expect(authorityPath).not.toBeNull();
+  const authorityExport = JSON.parse(await readFile(authorityPath!, "utf8")) as {
+    format: string;
+    proposal: { appliesAutomatically: boolean; riskLevel: number };
+  };
+  expect(authorityExport).toMatchObject({
+    format: "guild-os-authority-migration-proposal",
+    proposal: { appliesAutomatically: false, riskLevel: 3 },
+  });
+  await authority.getByRole("button", { name: "Close", exact: true }).click();
 
   const researchSpace = settings.locator('select[data-space-name="Research"]');
   await researchSpace.selectOption({ label: "Harbor Football Club" });
@@ -376,8 +420,6 @@ for (const width of [390, 320] as const) {
         .getByRole("button", { name: "Apply profile", exact: true }).click();
       await page.getByRole("button", { name: "Open navigation", exact: true }).click();
       const sidebar = page.locator(".sidebar");
-      const workspace = sidebar.locator(".nav-section-workspace > .nav-group-toggle");
-      if (await workspace.getAttribute("aria-expanded") !== "true") await workspace.click();
       await expect(sidebar.getByRole("button", { name: members, exact: true })).toBeVisible();
       await expect(sidebar.getByRole("button", { name: memory, exact: true })).toBeVisible();
       await expect(sidebar.getByRole("button", { name: activity, exact: true })).toBeVisible();

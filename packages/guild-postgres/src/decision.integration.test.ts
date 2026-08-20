@@ -840,6 +840,77 @@ integration("Guild Decision repository", () => {
     ]);
   });
 
+  it("enforces quorum, council, Agent proposal, and fail-closed Custom methods", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const ids = await fixture();
+
+    for (const method of ["quorum_vote", "council"] as const) {
+      const decision = await createMethodDraft(ids, method);
+      await proposeMethod(ids, decision.id, 1);
+      const detail = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+        new GuildDecisionRepository(connection, ids.guild).getDecision(decision.id));
+      expect(detail.requiredApprovals).toBe(2);
+      expect((await participate(ids, {
+        id: decision.id,
+        version: 2,
+        actorIdentityId: ids.manager1,
+        verdict: "approve",
+        selectedOptionId: decision.options[0].id,
+      })).status).toBe("proposed");
+      expect((await participate(ids, {
+        id: decision.id,
+        version: 3,
+        actorIdentityId: ids.root,
+        verdict: "approve",
+        selectedOptionId: decision.options[0].id,
+      })).status).toBe("approved");
+    }
+
+    const agentProposalWithoutEvidence = await createMethodDraft(
+      ids,
+      "agent_proposal_human_approval",
+      { sourceIds: [] },
+    );
+    await expect(proposeMethod(ids, agentProposalWithoutEvidence.id, 1)).rejects.toThrow(
+      "require a rationale and at least one evidence source",
+    );
+
+    const agentProposal = await createMethodDraft(
+      ids,
+      "agent_proposal_human_approval",
+      { sourceIds: [randomUUID()] },
+    );
+    await proposeMethod(ids, agentProposal.id, 8);
+    expect((await participate(ids, {
+      id: agentProposal.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: agentProposal.options[0].id,
+      reason: "A Human reviewed the Agent proposal and its evidence.",
+    })).status).toBe("approved");
+
+    const custom = await createMethodDraft(ids, "custom", { sourceIds: [randomUUID()] });
+    await proposeMethod(ids, custom.id, 1);
+    const customDetail = await withGuildTransaction(connectionString, ids.guild, async (connection) =>
+      new GuildDecisionRepository(connection, ids.guild).getDecision(custom.id));
+    expect(customDetail.requiredApprovals).toBe(2);
+    expect((await participate(ids, {
+      id: custom.id,
+      version: 2,
+      actorIdentityId: ids.manager1,
+      verdict: "approve",
+      selectedOptionId: custom.options[0].id,
+    })).status).toBe("proposed");
+    expect((await participate(ids, {
+      id: custom.id,
+      version: 3,
+      actorIdentityId: ids.root,
+      verdict: "approve",
+      selectedOptionId: custom.options[0].id,
+    })).status).toBe("approved");
+  });
+
   it("freezes participation, rejects duplicates and stale versions, and keeps snapshots append-only", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
     const ids = await fixture();

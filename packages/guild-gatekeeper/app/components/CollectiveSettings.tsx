@@ -12,6 +12,7 @@ import type {
   SaveCollectiveBlueprintRequest,
   SetSpaceVocabularyRequest,
   UiCollectiveContext,
+  UiDirectoryRole,
 } from "../../src/management-types";
 import { CollectiveBlueprintBuilder } from "./CollectiveBlueprintBuilder";
 import { ContextProfilePreview } from "./ContextProfilePreview";
@@ -32,12 +33,14 @@ function isBlueprintSelection(value: ContextSelection): value is `blueprint:cust
 
 export function CollectiveSettings({
   collective,
+  currentRoles,
   onGenerateBlueprint,
   onSaveBlueprint,
   onConfigure,
   onSetSpaceVocabulary,
 }: {
   collective: UiCollectiveContext;
+  currentRoles: readonly UiDirectoryRole[];
   onGenerateBlueprint(input: GenerateCollectiveBlueprintRequest): Promise<CollectiveBlueprintDraft>;
   onSaveBlueprint(input: SaveCollectiveBlueprintRequest): Promise<void>;
   onConfigure(input: ConfigureCollectiveRequest): Promise<void>;
@@ -169,6 +172,7 @@ export function CollectiveSettings({
 
       <CollectiveBlueprintBuilder
         blueprints={collective.blueprints}
+        currentRoles={currentRoles}
         canConfigure={collective.canConfigure}
         onGenerate={onGenerateBlueprint}
         onSave={onSaveBlueprint}

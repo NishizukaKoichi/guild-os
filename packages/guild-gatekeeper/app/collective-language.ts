@@ -186,15 +186,15 @@ export function localizeCollectiveContext(
 }
 
 const memoryTypeLabels: Record<AppLocale, Record<string, string>> = {
-  en: { fact: "Fact", document: "Document", conversation: "Conversation", event: "Event", experience: "Experience", rule: "Rule", decision: "Decision", artifact: "Artifact", research: "Research", data: "Data", manual: "Manual", failure: "Failure", learning: "Learning", external: "External source", agent_output: "Agent output", knowledge: "Canonical knowledge" },
-  ja: { fact: "事実", document: "文書", conversation: "会話", event: "出来事", experience: "経験", rule: "ルール", decision: "意思決定", artifact: "成果物", research: "調査結果", data: "データ", manual: "マニュアル", failure: "失敗", learning: "学び", external: "外部資料", agent_output: "Agent成果物", knowledge: "正式な知識" },
-  "zh-CN": { fact: "事实", document: "文档", conversation: "对话", event: "事件", experience: "经验", rule: "规则", decision: "决策", artifact: "成果物", research: "研究", data: "数据", manual: "手册", failure: "失败", learning: "学习", external: "外部资料", agent_output: "代理成果", knowledge: "正式知识" },
+  en: { fact: "Fact", document: "Document", conversation: "Conversation", event: "Event", experience: "Experience", rule: "Rule", decision: "Decision", artifact: "Artifact", research: "Research", data: "Data", manual: "Manual", failure: "Failure", learning: "Learning", external: "External source", external_source: "External source", agent_output: "Agent output", knowledge: "Canonical knowledge" },
+  ja: { fact: "事実", document: "文書", conversation: "会話", event: "出来事", experience: "経験", rule: "ルール", decision: "意思決定", artifact: "成果物", research: "調査結果", data: "データ", manual: "マニュアル", failure: "失敗", learning: "学び", external: "外部資料", external_source: "外部情報源", agent_output: "Agent成果物", knowledge: "正式な知識" },
+  "zh-CN": { fact: "事实", document: "文档", conversation: "对话", event: "事件", experience: "经验", rule: "规则", decision: "决策", artifact: "成果物", research: "研究", data: "数据", manual: "手册", failure: "失败", learning: "学习", external: "外部资料", external_source: "外部来源", agent_output: "代理成果", knowledge: "正式知识" },
 };
 
 const activityTypeLabels: Record<AppLocale, Record<string, string>> = {
-  en: { task: "Task", project: "Project", quest: "Quest", event: "Event", discussion: "Discussion", experiment: "Experiment", study: "Study", campaign: "Campaign", ritual: "Ritual", session: "Session", creation: "Creation", maintenance: "Maintenance", investigation: "Investigation", goal: "Goal", step: "Step" },
-  ja: { task: "タスク", project: "プロジェクト", quest: "クエスト", event: "イベント", discussion: "議論", experiment: "実験", study: "研究", campaign: "キャンペーン", ritual: "儀式", session: "セッション", creation: "制作", maintenance: "保守", investigation: "調査", goal: "目標", step: "手順" },
-  "zh-CN": { task: "任务", project: "项目", quest: "Quest", event: "活动", discussion: "讨论", experiment: "实验", study: "研究", campaign: "行动", ritual: "仪式", session: "会期", creation: "创作", maintenance: "维护", investigation: "调查", goal: "目标", step: "步骤" },
+  en: { task: "Task", project: "Project", quest: "Quest", event: "Event", discussion: "Discussion", experiment: "Experiment", study: "Study", campaign: "Campaign", ritual: "Ritual", session: "Session", creation: "Creation", maintenance: "Maintenance", investigation: "Investigation", mission: "Mission", goal: "Goal", step: "Step" },
+  ja: { task: "タスク", project: "プロジェクト", quest: "クエスト", event: "イベント", discussion: "議論", experiment: "実験", study: "研究", campaign: "キャンペーン", ritual: "儀式", session: "セッション", creation: "制作", maintenance: "保守", investigation: "調査", mission: "ミッション", goal: "目標", step: "手順" },
+  "zh-CN": { task: "任务", project: "项目", quest: "Quest", event: "活动", discussion: "讨论", experiment: "实验", study: "研究", campaign: "行动", ritual: "仪式", session: "会期", creation: "创作", maintenance: "维护", investigation: "调查", mission: "任务行动", goal: "目标", step: "步骤" },
 };
 
 const activityStatusLabels: Record<AppLocale, Record<ActivityStatus, string>> = {
@@ -212,6 +212,10 @@ const decisionMethodLabels: Record<AppLocale, Record<DecisionMethod, string>> = 
     editorial: "Editorial review",
     policy: "Policy evaluation",
     hybrid: "Policy + Human approval",
+    quorum_vote: "Quorum vote",
+    council: "Council review",
+    agent_proposal_human_approval: "Agent proposal + Human approval",
+    custom: "Custom governed method",
   },
   ja: {
     custodian: "管理責任者による判断",
@@ -221,6 +225,10 @@ const decisionMethodLabels: Record<AppLocale, Record<DecisionMethod, string>> = 
     editorial: "編集レビュー",
     policy: "ポリシー判定",
     hybrid: "ポリシー判定＋人間承認",
+    quorum_vote: "定足数投票",
+    council: "評議会レビュー",
+    agent_proposal_human_approval: "Agent提案＋人間承認",
+    custom: "独自の統治方式",
   },
   "zh-CN": {
     custodian: "监护人决策",
@@ -230,6 +238,10 @@ const decisionMethodLabels: Record<AppLocale, Record<DecisionMethod, string>> = 
     editorial: "编辑评审",
     policy: "策略判定",
     hybrid: "策略判定＋人工批准",
+    quorum_vote: "法定人数投票",
+    council: "理事会评审",
+    agent_proposal_human_approval: "Agent提案＋人工批准",
+    custom: "自定义治理方式",
   },
 };
 

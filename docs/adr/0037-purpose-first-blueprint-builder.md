@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-08-16
 
+Amended: 2026-08-21
+
 ## Context
 
 The guided Other flow introduced by ADR 0036 asks useful questions but stores only vocabulary and
@@ -21,10 +23,14 @@ must never acquire authority merely because it sounds plausible.
 - Keep Personal with AI, Company, Research, and Community as the short first-run choices. Keep the
   specialist presets and raw Blank under advanced options.
 - Make Other a Purpose-first Blueprint Builder. Ask why the collective exists, who or what
-  participates, what it remembers, how it acts, and how it decides.
-- Generate an actual, schema-validated Blueprint containing a name and purpose, vocabulary, Role
-  and Capability proposals, Spaces, Memory types, Activity types and states, Decision methods,
-  Home layout, Workflows, and an optional bounded Agent proposal.
+  participates, what it remembers, how it acts, how it decides, which language and atmosphere it
+  should use, which outward actions Agents may propose, and which actions always require Human
+  confirmation.
+- Generate an actual, schema-validated Blueprint containing a name and purpose, vocabulary, visual
+  theme, Role and Capability proposals, Spaces, Membership labels, Memory types and workflows,
+  Activity types and states, Decision methods, approval policies, Home layout, recommended
+  Workflows, bounded Agents and limits, Connection suggestions, onboarding, offboarding, retention,
+  and export policy.
 - Treat generation as an untrusted draft. Show the complete result for Human review and editing
   before it can be saved or applied.
 - Persist purchaser Blueprints in the existing Guild-scoped Template/Profile boundary and retain
@@ -37,6 +43,10 @@ must never acquire authority merely because it sounds plausible.
   Guild or Space changes Context/Profile choices only. Existing Role permissions, Constitution,
   approval rules, Connections, and Agent permissions require their existing dedicated governed
   operations and are never changed by Blueprint assignment.
+- When a reviewed Blueprint proposes authority changes for an existing Guild, create a separate
+  Level 3 migration proposal containing each affected Role, Capability, approval rule, Connection,
+  and Agent limit. It requires Human approval and a rollback plan and is never applied by Profile
+  assignment.
 - Keep purchaser-authored content in its original language. UI chrome remains translated through
   the normal English, Japanese, and Simplified Chinese dictionaries.
 

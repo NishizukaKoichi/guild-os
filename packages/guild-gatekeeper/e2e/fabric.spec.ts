@@ -181,8 +181,18 @@ test("operates purchaser-owned Connections, Automation, Federation, Models, expo
     has: page.getByRole("heading", { name: "Create a connection", exact: true }),
   });
   await expect(connectionForm.getByRole("combobox", { name: "Connection type", exact: true })
-    .locator("option")).toContainText([
-    "HTTPS webhook", "MCP server", "Cloudflare service binding",
+    .locator("option")).toHaveText([
+    "HTTPS webhook",
+    "MCP server",
+    "OAuth service",
+    "Cloudflare OS Gatekeeper",
+    "Cloudflare service binding",
+    "Email",
+    "Calendar",
+    "File storage",
+    "Git repository",
+    "External API",
+    "Model provider",
   ]);
   await connectionForm.getByRole("button", { name: "Cancel", exact: true }).click();
 

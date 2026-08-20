@@ -67,9 +67,29 @@ function requireCapabilities(connection: Connector): readonly ConfiguredConnecti
   return values;
 }
 
+const GATEKEEPER_CONNECTION_KINDS = new Set<Connector["kind"]>([
+  "api",
+  "cloudflare_gatekeeper",
+  "email",
+  "calendar",
+  "file_storage",
+  "git_repository",
+  "external_api",
+  "model_provider",
+]);
+
 function connectionConfig(connection: Connector): ConnectionAdapterConfig {
   const configuredCapabilities = capabilities(connection.configuration);
   const configuration = record(connection.configuration);
+  if (GATEKEEPER_CONNECTION_KINDS.has(connection.kind)) {
+    return {
+      kind: "cloudflare_gatekeeper_https",
+      endpointUrl: requireEndpoint(connection),
+      capabilities: requireCapabilities(connection),
+      secretHeaders: secretHeaders(connection),
+      routes: routes(connection.configuration),
+    };
+  }
   switch (connection.kind) {
     case "mcp":
       return {
@@ -82,14 +102,6 @@ function connectionConfig(connection: Connector): ConnectionAdapterConfig {
         ...(optionalString(configuration?.protocolVersion)
           ? { protocolVersion: optionalString(configuration?.protocolVersion) }
           : {}),
-      };
-    case "api":
-      return {
-        kind: "cloudflare_gatekeeper_https",
-        endpointUrl: requireEndpoint(connection),
-        capabilities: requireCapabilities(connection),
-        secretHeaders: secretHeaders(connection),
-        routes: routes(connection.configuration),
       };
     case "https_webhook":
     case "webhook":
@@ -121,6 +133,8 @@ function connectionConfig(connection: Connector): ConnectionAdapterConfig {
       };
     case "database":
     case "storage":
+      throw new ConnectionAdapterError("unsupported_operation");
+    default:
       throw new ConnectionAdapterError("unsupported_operation");
   }
 }
