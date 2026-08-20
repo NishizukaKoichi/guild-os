@@ -13,14 +13,16 @@ when one required behavior is absent, even if most of the area exists.
 | Fact | Evidence at audit start |
 | --- | --- |
 | Core repository | `/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os` |
-| Branch and HEAD | `main` at `4b9d7206ce29d9147c2e8e4d0c9a0a0f8e64b173` |
-| Remote divergence | Five local commits ahead of `origin/main`; zero behind |
-| Origin | `origin/main` at `72301b3bd537655ef7f148837e52eee1b669caaf` |
-| Local-only work | Personal first run, guided custom setup, Purpose-first Builder, commercial boundary docs, UX quality gate |
-| Worktree | Clean at audit start; the implementation described below is intentionally uncommitted until all local gates complete |
+| Branch and HEAD | `main` at `6f3a82d7387d9e6357661c0311403ef92e817b82` before the Runtime-role release commit |
+| Remote divergence | `6f3a82d7387d9e6357661c0311403ef92e817b82` was pushed; the Runtime-role release change is intentionally uncommitted until all gates complete |
+| Origin | `origin/main` at `6f3a82d7387d9e6357661c0311403ef92e817b82` |
+| Local-only work | Separate PostgreSQL management/Runtime role provisioning, deploy preflight, CI coverage, and operating documentation |
+| Worktree | Modified only by the audited Runtime-role release change |
 | Cloudflare OS | Pinned submodule `bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5` |
-| Production | Workshop reachable behind Cloudflare Access; active Workshop release annotation points to Core commit `32372d4b55297d4b28b02cd5464764e668dbcf99` |
-| Production database | **Blocked by external credential**: no production `DATABASE_URL` was present, so applied migration `0047` cannot be asserted |
+| Production | Existing purchaser deployment remains untouched; all five active Worker annotations point to Core commit `72301b3bd537655ef7f148837e52eee1b669caaf` |
+| Staging database | Temporary schema-only Neon branch `br-plain-shadow-a7v9pgvf`; migrations `0001`-`0050`, PostgreSQL 18, TLS `verify-full`, forced RLS on 96 tables, and a separate least-privileged `guild_runtime_app` role verified |
+| Real database tests | Runtime role passed 19 PostgreSQL files / 72 tests and 14 Gatekeeper files / 33 tests; schema-management credentials were not supplied to either integration suite |
+| Production database | Existing production remains on its previous release boundary; no migration or credential change was made during staging preparation |
 | Production authenticated smoke | **Blocked by external credential**: no Access service-token environment was present |
 | Distribution repository | Missing at audit start; now created as the separate Git root `/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os-distribution` |
 | Core license | Apache License 2.0 retained; direct Cloudflare OS notices present |
@@ -61,12 +63,12 @@ when one required behavior is absent, even if most of the area exists.
 | 30 | Updater | Implemented but unverified | Signed manifest, exact pins, compatibility, entitlement, backup, migration dry run, build/deploy/migrate/smoke, Worker rollback, and evidence are locally tested; a real purchaser update remains external-credential blocked. |
 | 31 | Commercial offering | Implemented and verified | Owned, Update Plan, optional Care, custom migration, direct provider costs, and draft pricing/support boundaries are documented without Runtime price hardcoding. |
 | 32 | Seller independence | Implemented and verified | Static boundary checks, empty seller-dependency manifests, local clean-room evidence, and expired-entitlement tests prove no standard Runtime call-home or seller kill dependency. |
-| 33 | Security baseline | Implemented but unverified | RLS, TLS, prefilter, Secrets, immutable evidence, idempotency, Kill, Break Glass, signed bundles, SBOM/license gate, and rollback tests exist; final real-database and authenticated-staging evidence remains blocked. |
+| 33 | Security baseline | Implemented but unverified | RLS, TLS, prefilter, Secrets, immutable evidence, idempotency, Kill, Break Glass, signed bundles, SBOM/license gate, rollback, and separate management/Runtime database roles pass real PostgreSQL; authenticated cloud staging remains. |
 | 34 | Explicit non-goals | Implemented and verified | Exclusions are documented and absent from the Core product surface. |
 | 35 | Current-state audit | Implemented and verified | This matrix records Git, remote, submodule, production annotation, migration inventory, licensing, and Distribution state. |
 | 36 | Gap Matrix and authoritative acceptance | Implemented and verified | The 42-section specification is the authority; this matrix and Full-Spec Acceptance include Core, Distribution, external validation, and legal gates without shrinking completion. |
 | 37 | Safe implementation sequence | In progress | Core and Distribution implementation, local gates, and separate commits are complete; credential-bound cloud installation, staging, and release stages remain. |
-| 38 | Required test coverage | Implemented but unverified | Builder, Personal, profiles, Space context, Ask/Plan/Act, permissions, Distribution, expiry, rollback, restore preparation, i18n, mobile, and accessibility tests exist. PostgreSQL integration and real cloud clean-room remain unavailable without safe external resources. |
+| 38 | Required test coverage | Implemented but unverified | Builder, Personal, profiles, Space context, Ask/Plan/Act, permissions, Distribution, expiry, rollback, restore preparation, i18n, mobile, accessibility, and all PostgreSQL/Gatekeeper integration tests pass. Real cloud clean-room and authenticated smoke remain. |
 | 39 | Technical completion | Missing | Multiple required rows are partial/missing/unverified and staging evidence is absent. |
 | 40 | Sale readiness | Blocked by legal review | Professional legal, privacy, tax, pricing, refund, and support review cannot be replaced by implementation. |
 | 41 | Final evidence report | Implemented but unverified | Exact local Core and Distribution commits, test evidence, and the pinned Core release are recorded; push/CI, purchaser-owned staging, and authenticated smoke evidence are not available. |

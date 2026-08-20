@@ -75,15 +75,23 @@ jobs:
           CREATE EXTENSION IF NOT EXISTS vector;
           CREATE EXTENSION IF NOT EXISTS pg_trgm;
           CREATE ROLE guild_app LOGIN PASSWORD 'guild_app' NOSUPERUSER NOBYPASSRLS;
+          CREATE ROLE guild_runtime_app LOGIN PASSWORD 'guild_runtime_app' NOSUPERUSER NOBYPASSRLS;
           ALTER DATABASE guild_os OWNER TO guild_app;
           SQL
 
       - name: Apply and verify PostgreSQL schema
         env:
           DATABASE_URL: postgresql://guild_app:guild_app@127.0.0.1:5432/guild_os
+          GUILD_RUNTIME_DATABASE_ROLE: guild_runtime_app
         run: |
           pnpm db:migrate
           pnpm db:migrate
+          pnpm db:provision-runtime -- --allow-insecure-localhost
           pnpm db:verify -- --allow-insecure-localhost
+
+      - name: Verify PostgreSQL Runtime role
+        env:
+          DATABASE_URL: postgresql://guild_runtime_app:guild_runtime_app@127.0.0.1:5432/guild_os
+        run: |
           pnpm --filter @guild-os/postgres test:integration
           pnpm --filter @guild-os/gatekeeper test:integration

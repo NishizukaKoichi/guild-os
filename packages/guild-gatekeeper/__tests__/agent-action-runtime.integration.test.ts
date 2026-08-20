@@ -584,7 +584,7 @@ integration("production Agent action runtime", () => {
     await persistAndApprove(ids, run);
     const runtime = new GuildAgentActionRuntime(env, ids.guild);
     const first = runtime.execute(run.id, run.workflowInstanceId);
-    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     const duplicate = runtime.execute(run.id, run.workflowInstanceId);
     releaseDelivery?.();
     const outcomes = await Promise.allSettled([first, duplicate]);

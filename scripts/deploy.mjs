@@ -884,6 +884,7 @@ async function persistDeploymentLock(config, releaseCommit, allowIncomplete = fa
 function sanitizedChildEnv(env) {
   const childEnv = { ...env };
   delete childEnv.DATABASE_URL;
+  delete childEnv.GUILD_RUNTIME_DATABASE_ROLE;
   delete childEnv.GUILD_WEBHOOK_SIGNING_SECRET;
   delete childEnv.CF_AI_GATEWAY_API_TOKEN;
   delete childEnv.CF_ACCESS_CLIENT_ID;
@@ -979,7 +980,12 @@ async function main() {
   const releaseCommit = check ? null : releaseSource();
   if (!check) {
     const { verifyProductionDatabase } = await import("./database-preflight.mjs");
-    const result = await verifyProductionDatabase(process.env.DATABASE_URL);
+    if (!process.env.GUILD_RUNTIME_DATABASE_ROLE) {
+      throw new Error("GUILD_RUNTIME_DATABASE_ROLE is required for deployment.");
+    }
+    const result = await verifyProductionDatabase(process.env.DATABASE_URL, {
+      runtimeRoleName: process.env.GUILD_RUNTIME_DATABASE_ROLE,
+    });
     console.log(JSON.stringify({ event: "guild.database.preflight", ...result }));
   }
   // Validate every secret before any Worker is deployed. Dry runs intentionally remain secret-free.

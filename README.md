@@ -205,22 +205,28 @@ uses reserved example values and is never a production configuration.
 
 ## PostgreSQL
 
-Create a blank PostgreSQL database. Before the restricted application role runs migrations, a
-provider administrator must enable the two reviewed extensions in that database:
+Create a blank PostgreSQL database with two separate login roles: a schema-management role used
+only by operators for migrations, and a least-privileged Runtime role used by Hyperdrive and the
+Workers. Before the management role runs migrations, a provider administrator must enable the two
+reviewed extensions in that database and create the Runtime login with a generated password:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
-No application runtime role should receive extension-management or superuser authority. Then run
-migrations with the application connection string supplied only through the process environment:
+Neither role may be superuser. The Runtime role must also have no `BYPASSRLS`, `CREATEROLE`,
+`CREATEDB`, replication, or schema-creation authority. Run migrations with the management
+connection string supplied only through the process environment:
 
 ```sh
 read -r -s DATABASE_URL
 export DATABASE_URL
 pnpm db:migrate
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
+pnpm db:provision-runtime
 unset DATABASE_URL
+unset GUILD_RUNTIME_DATABASE_ROLE
 ```
 
 To inspect migration filenames and hashes without connecting:
@@ -237,13 +243,16 @@ Before production deploy, verify the actual target without changing it:
 ```sh
 read -r -s DATABASE_URL
 export DATABASE_URL
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
 pnpm db:verify
-unset DATABASE_URL
+unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE
 ```
 
-This requires PostgreSQL 17+, TLS, a non-superuser role without `BYPASSRLS`, the exact migration
-set and checksums for the release, and forced RLS on every Guild table. Plaintext localhost is
-available only for explicit local diagnostics with `--allow-insecure-localhost`.
+`DATABASE_URL` in these commands is the management URL, never the Hyperdrive URL. Verification
+requires PostgreSQL 17+, certificate-verified TLS, an exact migration ledger, forced RLS on every
+Guild table, and a separate Runtime login with application DML, governed-function execution, and
+read-only migration-ledger access. Plaintext localhost is available only for explicit local
+diagnostics with `--allow-insecure-localhost`.
 
 CI enables `vector` and `pg_trgm` as a database administrator, then applies every migration twice
 to an ephemeral PostgreSQL 18 database owned by a non-superuser. It verifies Guild RLS isolation,
@@ -251,15 +260,15 @@ Root Owner integrity, Chronicle immutability, and the semantic-search schema. Fo
 verification, supply a migrated, disposable test database; these commands mutate it:
 
 ```sh
-read -r -s DATABASE_URL
-export DATABASE_URL
+read -r -s RUNTIME_DATABASE_URL
+export DATABASE_URL="$RUNTIME_DATABASE_URL"
 pnpm --filter @guild-os/postgres test:integration
 pnpm --filter @guild-os/gatekeeper test:integration
-unset DATABASE_URL
+unset DATABASE_URL RUNTIME_DATABASE_URL
 pnpm --filter @guild-os/gatekeeper test:e2e
 ```
 
-Create a Hyperdrive configuration for the migrated database from the Cloudflare dashboard. Copy the
+Create Hyperdrive with the Runtime role connection string, never the management role. Copy the
 32-character Hyperdrive configuration ID; database credentials do not belong in this repository.
 
 ## Deployment configuration

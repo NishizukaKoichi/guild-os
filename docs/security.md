@@ -216,6 +216,14 @@ default prevents historical observations from becoming visible to a new collabor
 
 ## PostgreSQL
 
+Schema management and Runtime use different purchaser-owned login roles. The management role is
+used only by migration, preflight, backup, and recovery tooling. Hyperdrive carries a separate
+Runtime credential with no superuser, `BYPASSRLS`, role/database creation, replication, or schema
+creation. Runtime can mutate application tables only through forced RLS, execute reviewed
+`guild_runtime` functions, and read but not modify the migration ledger. Deployment verifies this
+boundary before any Worker update. Managed-provider ownership capabilities therefore never become
+an application credential.
+
 Every application transaction executes:
 
 ```sql
@@ -253,7 +261,8 @@ does not make deleted files visible or lose the cleanup obligation.
 
 ## Secrets
 
-- PostgreSQL credentials live in the database provider and Hyperdrive configuration.
+- PostgreSQL management credentials live only in the purchaser's operations secret store. The
+  separate least-privileged Runtime credential lives in the database provider and Hyperdrive.
 - Model-provider credentials live in AI Gateway or Wrangler secrets.
 - OAuth credentials live in their owning Gatekeeper Worker secrets.
 - Secrets are never valid deployment JSONC values. Purchaser metadata belongs in ignored

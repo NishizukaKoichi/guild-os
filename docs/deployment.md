@@ -66,14 +66,17 @@ unreviewed changes.
 ## 2. Create purchaser-owned infrastructure
 
 1. Create a blank PostgreSQL database with TLS, automated provider backups, point-in-time recovery
-   where available, and a dedicated non-superuser application role. As a provider administrator,
-   enable `vector` and `pg_trgm` once, then remove the privileged session. The application role must
-   not receive extension-management authority.
-2. Run `pnpm db:migrate` with the direct database URL containing exactly
-   `sslmode=verify-full`. Never put that URL in Git or either deployment configuration file.
-   Then run `pnpm db:verify`; production verification requires PostgreSQL 17+, TLS, a non-superuser
-   role without `BYPASSRLS`, exact migration checksums, and forced RLS on every Guild table.
-3. Create a Hyperdrive configuration for that database and record its 32-character ID.
+   where available, a non-superuser schema-management login, and a separate Runtime login. As a
+   provider administrator, enable `vector` and `pg_trgm` once, create the Runtime login with a
+   generated password, then remove the privileged session. Runtime must have no `BYPASSRLS`,
+   `CREATEROLE`, `CREATEDB`, replication, extension-management, or schema-creation authority.
+2. With the management URL containing exactly `sslmode=verify-full`, run `pnpm db:migrate`, set
+   `GUILD_RUNTIME_DATABASE_ROLE` to the Runtime role name, and run `pnpm db:provision-runtime`.
+   Never put either database URL in Git or a deployment configuration file. Run `pnpm db:verify`
+   with the same management URL and role name; it verifies PostgreSQL 17+, TLS, exact migration
+   checksums, forced RLS, and Runtime least privilege.
+3. Create Hyperdrive with the Runtime role URL and record its 32-character ID. Never give
+   Hyperdrive the management credential.
 4. Choose the Workshop hostname. For an evaluation deployment, use a `workersDev` route. For
    production, use a hostname in a purchaser-owned Cloudflare zone.
 5. Create a Cloudflare Access self-hosted application for that exact hostname. Start with only the
@@ -211,6 +214,7 @@ hidden prompt for the live deploy:
 pnpm exec wrangler login
 read -r -s DATABASE_URL
 export DATABASE_URL
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
 read -r -s GUILD_WEBHOOK_SIGNING_SECRET
 export GUILD_WEBHOOK_SIGNING_SECRET
 ```
@@ -226,13 +230,14 @@ Deploy and clear the shell environment:
 
 ```sh
 pnpm deploy
-unset DATABASE_URL GUILD_WEBHOOK_SIGNING_SECRET CF_AI_GATEWAY_API_TOKEN
+unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE GUILD_WEBHOOK_SIGNING_SECRET CF_AI_GATEWAY_API_TOKEN
 ```
 
-The deploy script rejects uncommitted source or an unpinned submodule, verifies the direct database,
-then reruns tests, lint/type checks, and builds before updating a Worker. Every deployed Worker
-Version receives the full Git
-SHA as its message and `guild-os-<short-sha>` as its tag. It validates every required secret before
+The deploy script rejects uncommitted source or an unpinned submodule, verifies the management
+database URL and the separately named Runtime role, then reruns tests, lint/type checks, and builds
+before updating a Worker. It strips both database values from every child process. Every deployed
+Worker Version receives the full Git SHA as its message and `guild-os-<short-sha>` as its tag. It
+validates every required secret before
 the first update, creates restricted temporary secret files for Wrangler, deletes them in all exit
 paths, and removes database, Webhook, AI, and Access smoke credentials from unrelated child
 processes.

@@ -138,7 +138,8 @@ product requirement must be resolved explicitly rather than silently weakened.
 ## Release sequence
 
 1. Produce a clean commit with all local, PostgreSQL, E2E, build, lint, type, dependency, and visual
-   gates green.
+   gates green. Database evidence must use a separate schema-management role for migration and a
+   least-privileged Runtime role for integration tests and Hyperdrive.
 2. Capture and verify a purchaser-owned encrypted production backup before any migration.
 3. Run migration dry-run, apply the forward-only migration set, and reconcile legacy/canonical
    counts.

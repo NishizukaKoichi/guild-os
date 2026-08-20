@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertDatabasePreflight,
+  assertRuntimeRoleName,
+  assertRuntimeRolePreflight,
   assertVerifiedTlsConfiguration,
   hasVerifiedClientTls,
+  provisionRuntimeDatabaseRole,
 } from "./database-preflight.mjs";
 
 const migrations = [
@@ -26,6 +29,27 @@ function snapshot() {
   };
 }
 
+function runtimeSnapshot() {
+  return {
+    exists: true,
+    canLogin: true,
+    superuser: false,
+    bypassRls: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    publicUsage: true,
+    publicCreate: false,
+    runtimeUsage: true,
+    runtimeCreate: false,
+    ledgerRead: true,
+    ledgerWrite: false,
+    applicationTableCount: 10,
+    applicationDml: true,
+    runtimeFunctionExecute: true,
+  };
+}
+
 test("database preflight requires exact migrations and forced RLS", () => {
   assert.doesNotThrow(() => assertDatabasePreflight(snapshot(), migrations));
   assert.throws(() => assertDatabasePreflight({
@@ -45,6 +69,14 @@ test("database preflight rejects privileged, old, or plaintext production connec
   }, migrations), /superuser/i);
   assert.throws(() => assertDatabasePreflight({
     ...snapshot(),
+    bypassRls: true,
+  }, migrations), /BYPASSRLS/i);
+  assert.doesNotThrow(() => assertDatabasePreflight({
+    ...snapshot(),
+    bypassRls: true,
+  }, migrations, { allowManagementBypassRls: true }));
+  assert.throws(() => assertDatabasePreflight({
+    ...snapshot(),
     serverVersionNum: 160_010,
   }, migrations), /PostgreSQL 17/i);
   assert.throws(() => assertDatabasePreflight({
@@ -55,6 +87,66 @@ test("database preflight rejects privileged, old, or plaintext production connec
     ...snapshot(),
     ssl: false,
   }, migrations, { allowInsecureLocalhost: true, localDatabase: true }));
+});
+
+test("Runtime role preflight enforces least privilege and application access", () => {
+  assert.doesNotThrow(() => assertRuntimeRoleName("guild_runtime_app"));
+  assert.throws(() => assertRuntimeRoleName("Guild Runtime"), /simple PostgreSQL role name/i);
+  assert.doesNotThrow(() => assertRuntimeRolePreflight(runtimeSnapshot()));
+  assert.throws(() => assertRuntimeRolePreflight({
+    ...runtimeSnapshot(),
+    bypassRls: true,
+  }), /privileged/i);
+  assert.throws(() => assertRuntimeRolePreflight({
+    ...runtimeSnapshot(),
+    publicCreate: true,
+  }), /schema boundary/i);
+  assert.throws(() => assertRuntimeRolePreflight({
+    ...runtimeSnapshot(),
+    ledgerWrite: true,
+  }), /migration ledger/i);
+  assert.throws(() => assertRuntimeRolePreflight({
+    ...runtimeSnapshot(),
+    applicationDml: false,
+  }), /application table privileges/i);
+});
+
+test("Runtime provisioning applies least-privilege grants in one transaction", async () => {
+  const statements = [];
+  const client = {
+    async connect() {},
+    async end() {},
+    async query(statement) {
+      statements.push(statement);
+      if (statement.includes("current_user AS management_role")) {
+        return { rows: [{
+          management_role: "guild_app",
+          database_name: "guild_os",
+          runtime_exists: true,
+          runtime_can_login: true,
+          runtime_superuser: false,
+          runtime_bypass_rls: false,
+          management_superuser: false,
+          management_bypass_rls: false,
+        }] };
+      }
+      return { rows: [] };
+    },
+  };
+  await provisionRuntimeDatabaseRole(
+    "postgresql://guild_app:secret@127.0.0.1/guild_os",
+    "guild_runtime_app",
+    { allowInsecureLocalhost: true, client },
+  );
+  assert.equal(statements.includes("BEGIN"), true);
+  assert.equal(statements.includes("COMMIT"), true);
+  assert.equal(statements.includes("ROLLBACK"), false);
+  assert.equal(statements.some((statement) => statement.includes(
+    "REVOKE ALL PRIVILEGES ON TABLE public.guild_schema_migrations FROM \"guild_runtime_app\"",
+  )), true);
+  assert.equal(statements.some((statement) => statement.includes(
+    "ALTER DEFAULT PRIVILEGES FOR ROLE \"guild_app\"",
+  )), true);
 });
 
 test("client TLS evidence requires encryption and certificate authorization", () => {

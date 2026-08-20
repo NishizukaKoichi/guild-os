@@ -41,9 +41,10 @@ versions can be rolled between while the release is evaluated.
    pnpm --filter @guild-os/postgres migrate --dry-run
    ```
 
-5. Enable `vector` and `pg_trgm` as the database administrator. Then apply the full migration set
-   twice to an empty PostgreSQL 18 database owned by a non-superuser and run both integration
-   suites. The second migration pass must report no work.
+5. Enable `vector` and `pg_trgm` as the database administrator. Create separate non-superuser
+   management and Runtime logins. Apply the full migration set twice with management, provision
+   Runtime grants, then run both integration suites using Runtime. The second migration pass must
+   report no work.
 
    ```sh
    psql "$REHEARSAL_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
@@ -51,8 +52,12 @@ versions can be rolled between while the release is evaluated.
      -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm'
    DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm db:migrate
    DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm db:migrate
-   DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm --filter @guild-os/postgres test:integration
-   DATABASE_URL="$REHEARSAL_DATABASE_URL" pnpm --filter @guild-os/gatekeeper test:integration
+   DATABASE_URL="$REHEARSAL_DATABASE_URL" \
+     GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app pnpm db:provision-runtime
+   DATABASE_URL="$REHEARSAL_DATABASE_URL" \
+     GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app pnpm db:verify
+   DATABASE_URL="$REHEARSAL_RUNTIME_DATABASE_URL" pnpm --filter @guild-os/postgres test:integration
+   DATABASE_URL="$REHEARSAL_RUNTIME_DATABASE_URL" pnpm --filter @guild-os/gatekeeper test:integration
    ```
 
 ## Production apply and reconciliation

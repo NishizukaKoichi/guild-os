@@ -102,8 +102,10 @@ Perform ownership changes in the purchaser accounts, then verify them from a pur
 
 1. Cloudflare: purchaser administrators can manage billing, account members, Access, DNS, Workers,
    Hyperdrive, KV, R2, Workflows, AI, and API tokens.
-2. PostgreSQL: purchaser administrators can restore backups and rotate the non-superuser application
-   role without seller access.
+2. PostgreSQL: purchaser administrators can restore backups, rotate the non-superuser management
+   and Runtime credentials independently, and prove Hyperdrive uses only the Runtime role. The
+   Runtime role has no DDL, `BYPASSRLS`, role/database creation, replication, or migration-ledger
+   write authority, and neither credential remains accessible to the seller after handover.
 3. Git: purchaser administrators can clone, review submodule state, run CI, create protected
    releases, and recover deleted local workstations.
 4. Domain: purchaser controls registrar, DNS ownership, and renewal.
@@ -147,9 +149,10 @@ Generate fresh evidence paths outside the repository:
 ```sh
 read -r -s DATABASE_URL
 export DATABASE_URL
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
 pnpm release:evidence -- \
   --output /absolute/purchaser-ops/releases/RELEASE.json
-unset DATABASE_URL
+unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE
 pnpm smoke:production -- \
   --output /absolute/purchaser-ops/releases/SMOKE.json
 read -r BACKUP_PATH
