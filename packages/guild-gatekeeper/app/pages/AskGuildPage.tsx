@@ -17,7 +17,7 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AskGuildCitation,
   AskGuildResponse,
@@ -101,10 +101,11 @@ function actionIcon(kind: UiIntentAction["kind"]) {
   return <ListChecks size={18} />;
 }
 
-export function AskGuildPage({ api, onOpenCitation, onNavigate }: {
+export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }: {
   api: GuildUiApi;
   onOpenCitation(citation: AskGuildCitation): void;
   onNavigate(page: AppPage): void;
+  focusRequestId?: number;
 }) {
   const { locale, t } = useI18n();
   const [mode, setMode] = useState<"ask" | "plan" | "act">("ask");
@@ -120,6 +121,9 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate }: {
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
+  const questionRef = useRef<HTMLTextAreaElement>(null);
+  const answerRef = useRef<HTMLElement>(null);
+  const handledFocusRequest = useRef<number | null>(null);
 
   const selectedProposal = useMemo(
     () => proposals.find((proposal) => proposal.id === selectedProposalId) ?? null,
@@ -156,6 +160,13 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate }: {
     };
   }, [api, t]);
 
+  useEffect(() => {
+    if (!focusRequestId || handledFocusRequest.current === focusRequestId) return;
+    handledFocusRequest.current = focusRequestId;
+    setMode("ask");
+    requestAnimationFrame(() => questionRef.current?.focus());
+  }, [focusRequestId]);
+
   function selectMode(next: "ask" | "plan" | "act") {
     setMode(next);
     setError(null);
@@ -172,6 +183,7 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate }: {
       const answer = await api.askGuild({ question, locale });
       setResponse(answer);
       setObjective(question.trim());
+      requestAnimationFrame(() => answerRef.current?.focus());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("error.generic"));
     } finally {
@@ -275,6 +287,7 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate }: {
             <div className="ask-input-row">
               <Search size={19} aria-hidden="true" />
               <textarea
+                ref={questionRef}
                 id="ask-guild-question"
                 required
                 rows={3}
@@ -302,7 +315,7 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate }: {
             </div>
           ) : (
             <div className="ask-result">
-              <section className="ask-answer" aria-live="polite">
+              <section ref={answerRef} className="ask-answer" aria-live="polite" tabIndex={-1}>
                 <h2>{t("ask.answer")}</h2>
                 <p>{response.answer}</p>
                 {response.inferred ? <Notice>{t("ask.inference")}</Notice> : null}

@@ -2,6 +2,7 @@ import { RpcTarget, newMessagePortRpcSession, type RpcStub } from "capnweb";
 import { createRoot } from "react-dom/client";
 import type { GuildUiApi } from "../src/management-types";
 import { App } from "./App";
+import { DialogAccessibilityManager } from "./components/DialogAccessibilityManager";
 import { installFormSubmitBridge } from "./form-submit-bridge";
 import { I18nProvider } from "./i18n";
 import "./styles.css";
@@ -20,6 +21,7 @@ installFormSubmitBridge(document);
 function render(api: GuildUiApi) {
   createRoot(root!).render(
     <I18nProvider>
+      <DialogAccessibilityManager />
       <App api={api} />
     </I18nProvider>,
   );

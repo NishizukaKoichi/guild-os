@@ -14,7 +14,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ACTIVITY_TRANSITIONS,
   CLASSIFICATIONS,
@@ -49,6 +49,7 @@ import {
   useI18n,
   visibilityTranslationKey,
 } from "../i18n";
+import { useUnsavedChanges } from "../hooks/useUnsavedChanges";
 
 function messageFrom(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
@@ -89,7 +90,35 @@ function ActivityEditor({
   const [startsAt, setStartsAt] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const initialSnapshot = useRef(JSON.stringify({
+    parentActivityId,
+    spaceId,
+    assigneeActorId,
+    type,
+    title,
+    description,
+    status,
+    visibility,
+    classification,
+    startsAt,
+    dueAt,
+  }));
+  const dirty = initialSnapshot.current !== JSON.stringify({
+    parentActivityId,
+    spaceId,
+    assigneeActorId,
+    type,
+    title,
+    description,
+    status,
+    visibility,
+    classification,
+    startsAt,
+    dueAt,
+  });
+  const mayDiscard = useUnsavedChanges(dirty && !busy, t("common.discardChanges"));
   const activeProfile = contextProfileForSpace(collective, spaceId);
   const workflowOptions = activeProfile.workflows.filter((workflow) => workflow.activityType);
   const activeActors = directory?.identities.filter((identity) =>
@@ -115,6 +144,8 @@ function ActivityEditor({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -140,8 +171,13 @@ function ActivityEditor({
     } catch (cause) {
       setError(messageFrom(cause, t("error.generic")));
     } finally {
+      submitLock.current = false;
       setBusy(false);
     }
+  }
+
+  function requestClose() {
+    if (!busy && mayDiscard()) onClose();
   }
 
   return (
@@ -149,7 +185,7 @@ function ActivityEditor({
       <section className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="activity-dialog-title">
         <header className="dialog-header">
           <h2 id="activity-dialog-title">{activeProfile.labels.startActivity}</h2>
-          <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}><X size={19} /></button>
+          <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={requestClose}><X size={19} /></button>
         </header>
         <form className="stack-form" onSubmit={(event) => void submit(event)}>
           {error ? <Notice kind="error">{error}</Notice> : null}
@@ -170,7 +206,7 @@ function ActivityEditor({
             <label><span>{t("activity.type")}</span><select aria-label={t("activity.type")} value={type} onChange={(event) => setType(event.target.value as ActivityType)}>{activeProfile.activityTypes.map((value) => <option key={value} value={value}>{contextActivityTypeLabel(collective, value, locale, spaceId)}</option>)}</select></label>
             <label><span>{t("activity.status")}</span><select aria-label={t("activity.status")} value={status} onChange={(event) => setStatus(event.target.value as ActivityStatus)}>{(["proposed", "planned", "ready"] as const).map((value) => <option key={value} value={value}>{activityStatusLabel(value, locale)}</option>)}</select></label>
           </div>
-          <label><span>{t("activity.titleField")}</span><input required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label><span>{t("activity.titleField")}</span><input required autoFocus maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
           <label><span>{t("activity.description")}</span><textarea maxLength={10_000} rows={5} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
           <div className="form-grid">
             <label><span>{t("activity.assignee")}</span><select aria-label={t("activity.assignee")} value={assigneeActorId} onChange={(event) => setAssigneeActorId(event.target.value)}><option value="">{t("activity.unassigned")}</option>{activeActors.map((actor) => <option key={actor.id} value={actor.id}>{actor.displayName}</option>)}</select></label>
@@ -185,7 +221,7 @@ function ActivityEditor({
             <label><span>{t("activity.dueAt")}</span><input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>
           </div>
           <footer className="dialog-actions">
-            <button className="secondary-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
+            <button className="secondary-button" type="button" onClick={requestClose}>{t("common.cancel")}</button>
             <button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}<span>{activeProfile.labels.startActivity}</span></button>
           </footer>
         </form>
@@ -378,11 +414,13 @@ export function ActivityPage({
   api,
   collective,
   directory,
+  createRequestId,
   onOpenStructured,
 }: {
   api: GuildUiApi;
   collective: UiCollectiveContext;
   directory: UiDirectory | null;
+  createRequestId?: number;
   onOpenStructured(): void;
 }) {
   const { locale, t } = useI18n();
@@ -396,6 +434,8 @@ export function ActivityPage({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const handledCreateRequest = useRef<number | null>(null);
   const filterTypes = useMemo(() => visibleActivityTypes(collective), [collective]);
   const actors = useMemo(() => new Map(directory?.identities.map((identity) => [identity.id, identity.displayName]) ?? []), [directory]);
   const dates = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }), [locale]);
@@ -417,6 +457,13 @@ export function ActivityPage({
   }, [api, search, t, type]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!createRequestId || handledCreateRequest.current === createRequestId ||
+        !page?.creatableSpaceIds.length) return;
+    handledCreateRequest.current = createRequestId;
+    setEditor("new");
+  }, [createRequestId, page]);
 
   function depth(activity: UiActivity): number {
     let current = activity.parentActivityId;
@@ -490,6 +537,7 @@ export function ActivityPage({
         <label className="search-field"><Search size={17} /><span className="sr-only">{t("common.search")}</span><input value={search} placeholder={t("activity.searchPlaceholder")} onChange={(event) => setSearch(event.target.value)} /></label>
         <label><span className="sr-only">{t("activity.type")}</span><select value={type} onChange={(event) => setType(event.target.value as ActivityType | "")}><option value="">{t("activity.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{contextActivityTypeLabel(collective, value, locale)}</option>)}</select></label>
       </section>
+      {success ? <Notice kind="success">{success}</Notice> : null}
       {error ? <Notice kind="error">{error}</Notice> : null}
       {loading && !page ? <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("common.loading")}</div> : null}
       {!loading && page?.items.length === 0 ? <EmptyState icon={ListTodo} title={t("activity.emptyTitle")} description={t("activity.emptyDescription")} action={page.creatableSpaceIds.length ? <button className="primary-button" type="button" onClick={() => setEditor("new")}><Plus size={17} />{collective.labels.startActivity}</button> : undefined} /> : null}
@@ -552,6 +600,7 @@ export function ActivityPage({
           await api.createActivity(input);
           setEditor(null);
           await load();
+          setSuccess(t("activity.created"));
         }}
         onClose={() => setEditor(null)}
       /> : null}

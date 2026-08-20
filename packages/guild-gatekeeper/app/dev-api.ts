@@ -188,6 +188,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     bootstrap = { ...bootstrap, accountId: unknownId, rootOwner: false };
   } else if (mode === "suspended") {
     bootstrap = { ...bootstrap, accountId: memberId, rootOwner: false };
+  } else if (mode === "departed") {
+    bootstrap = { ...bootstrap, accountId: memberId, rootOwner: false };
   } else if (mode === "member") {
     bootstrap = { ...bootstrap, accountId: memberId, membershipState: "preboarding", rootOwner: false };
   } else if (mode === "recovery-human") {
@@ -238,7 +240,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       },
     };
   }
-  if (mode === "uninvited" || mode === "suspended") {
+  if (mode === "uninvited" || mode === "suspended" || mode === "departed") {
     restrictedBootstrap = {
       screen: "access",
       initialized: true,
@@ -247,8 +249,8 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       guildName: bootstrap.guildName,
       guildPurpose: bootstrap.guildPurpose,
       accountId: bootstrap.accountId,
-      identityExists: mode === "suspended",
-      membershipState: mode === "suspended" ? "suspended" : null,
+      identityExists: mode !== "uninvited",
+      membershipState: mode === "suspended" ? "suspended" : mode === "departed" ? "departed" : null,
       preferredLocale: bootstrap.preferredLocale,
       breakGlass: bootstrap.breakGlass,
     };
@@ -397,6 +399,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
     nextIdentityCursor: null,
     nextInvitationCursor: null,
   };
+  let unreadOverviewFailureCount = mode === "partial-failure" ? 1 : 0;
 
   const initialTemplate = collectiveTemplate("research");
   let collective: UiCollectiveContext = {
@@ -2063,6 +2066,9 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       return collective;
     },
     async claimInvitation(input: ClaimInvitationInput) {
+      if (input.token !== token()) {
+        throw new Error("Invitation token is invalid or not found.");
+      }
       bootstrap = {
         ...bootstrap,
         membershipState: "preboarding",
@@ -3542,13 +3548,13 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
             .some((text) => text.toLocaleLowerCase().includes(search)));
       });
       return {
-        items,
+        items: mode === "empty" ? [] : items,
         nextCursor: null,
-        creatableSpaceIds: mode === "root" ? collective.spaces.map((space) => space.id) : [],
+        creatableSpaceIds: mode === "root" || mode === "empty" ? collective.spaces.map((space) => space.id) : [],
       };
     },
     async createMemory(input) {
-      if (mode !== "root") throw new Error("This Actor cannot add Memory.");
+      if (mode !== "root" && mode !== "empty") throw new Error("This Actor cannot add Memory.");
       assertMemoryContent(input.title, input.summary, input.body);
       if (input.confidence !== null &&
           (!Number.isFinite(input.confidence) || input.confidence < 0 || input.confidence > 1)) {
@@ -3695,13 +3701,13 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
         return true;
       });
       return {
-        items,
+        items: mode === "empty" ? [] : items,
         nextCursor: null,
-        creatableSpaceIds: mode === "root" ? collective.spaces.map((space) => space.id) : [],
+        creatableSpaceIds: mode === "root" || mode === "empty" ? collective.spaces.map((space) => space.id) : [],
       };
     },
     async createActivity(input) {
-      if (mode !== "root") throw new Error("This Actor cannot start Activity.");
+      if (mode !== "root" && mode !== "empty") throw new Error("This Actor cannot start Activity.");
       assertActivityText(input.title, input.description);
       assertAssignable(input.assigneeActorId);
       const parent = input.parentActivityId === null
@@ -5071,6 +5077,10 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
       return version;
     },
     async getInboxPage(request = {}) {
+      if (request.unreadOnly && unreadOverviewFailureCount > 0) {
+        unreadOverviewFailureCount -= 1;
+        throw new Error("Development fixture could not load the inbox overview.");
+      }
       const items = inbox.filter((notification) =>
         notification.recipientIdentityId === bootstrap.accountId &&
         (!request.kind || notification.kind === request.kind) &&

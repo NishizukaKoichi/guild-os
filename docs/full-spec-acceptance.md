@@ -1,6 +1,6 @@
 # Guild OS Full-Spec Acceptance
 
-Updated: 2026-08-16
+Updated: 2026-08-20
 
 This document is the release contract for the complete Guild OS specification. A feature is not
 complete because a type, table, route, or mock exists. `Complete` requires the production data
@@ -42,6 +42,7 @@ creates an implicit cross-Guild search index or shared seller-controlled tenant.
 | Federation | Another Guild can be an Actor; selected Memory, Activity, and Decisions can be shared through an explicit revocable federation grant | Cross-deployment contract, no-ambient-sharing tests, Federation UI |
 | Templates and Purpose-first Builder | Personal with AI, Company, Community, Research, Creator, Open Source, Agent Collective, and Blank remain reusable presets. Other must turn five natural-language purpose answers into a reviewable Blueprint containing the collective name and purpose, vocabulary, Role and Capability proposals, Spaces, Memory types, Activity types and states, Decision methods, Home layout, Workflows, and a bounded suggested Agent. A purchaser can edit, save, version, reuse, and apply the Blueprint without code, and a Space can override the Guild Profile with a saved Blueprint. Generation is a proposal only: it must never silently mutate an existing Role, Capability, Constitution, approval rule, Connection, or Agent permission. Raw Blank remains an advanced fully manual path, not the fallback for an unknown collective. | Domain/schema/API tests; family, school, sports team, NPO, and DAO browser journeys; English/Japanese/Simplified Chinese at 1440/390/320; explicit tests that generation and Profile assignment do not alter existing authority |
 | Internationalization | English default with complete English, Japanese, and Simplified Chinese UI dictionaries; user content remains original unless explicitly translated | Missing-key test and three-locale E2E |
+| Experience quality | Home exposes the four daily intentions before structure; permitted destinations support direct links, Back, Forward, and reload; one permission-aware Search or create entry works by pointer, touch, and `Command/Control + K`; initialization asks only for the selected starting profile, purpose, display name, and explicit Root acceptance in the common path; invitation links remove one-time credentials from the address after reading them; partial failures never produce a false all-clear; dialogs manage focus and unsaved drafts; all primary operations have pending, success, error, retry, and single-flight behavior appropriate to their effect | `experience-quality.spec.ts`; keyboard and focus assertions; critical/serious axe violations at zero; 1440 x 1000, 1280 x 800, 768 x 1024, 390 x 844, and 320 x 568 without unintended horizontal overflow; English, Japanese, and Simplified Chinese E2E; ignored before/after browser evidence documented in `docs/ux-quality-audit.md` |
 | Operations | Purchaser-owned deploy, model/provider configuration, observability, export, backup, restore, rollback, and administrator handover | Clean-room setup, checksummed backup, isolated restore, release evidence |
 
 ## Explicit exclusions
@@ -62,3 +63,9 @@ pass without modifying unrelated live data.
 Fixed presets alone do not satisfy the Templates row. Guild OS may claim to be a general
 Collective OS only when a collective absent from those presets can explain its purpose and create
 its own structure and language without code.
+
+Experience quality is a release gate, not a screenshot review. Existing browser workflows must not
+be removed to make the suite pass. A release candidate must complete the Root, member, invitation,
+initialization, Ask/Plan/Act, Memory, Activity, Inbox, error-recovery, mobile, keyboard, and sandbox
+journeys with no page errors or console errors. Navigation visibility remains presentation only;
+API permissions, PostgreSQL RLS, governance, and Chronicle remain the authority boundary.

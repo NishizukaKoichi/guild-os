@@ -9,7 +9,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CLASSIFICATIONS,
   MEMORY_LAYERS,
@@ -42,6 +42,7 @@ import {
   useI18n,
   visibilityTranslationKey,
 } from "../i18n";
+import { useUnsavedChanges } from "../hooks/useUnsavedChanges";
 
 function localized(value: LocalizedText, locale: "en" | "ja" | "zh-CN"): string {
   return value[locale] ?? value.en ?? value.ja ?? value["zh-CN"] ?? "";
@@ -90,7 +91,39 @@ function MemoryEditor({
   );
   const [changeNote, setChangeNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const initialSnapshot = useRef(JSON.stringify({
+    type,
+    title,
+    summary,
+    body,
+    spaceId,
+    visibility,
+    classification,
+    allowedActorIds,
+    confidence,
+    custody,
+    layer,
+    lastVerifiedAt,
+    changeNote,
+  }));
+  const dirty = initialSnapshot.current !== JSON.stringify({
+    type,
+    title,
+    summary,
+    body,
+    spaceId,
+    visibility,
+    classification,
+    allowedActorIds,
+    confidence,
+    custody,
+    layer,
+    lastVerifiedAt,
+    changeNote,
+  });
+  const mayDiscard = useUnsavedChanges(dirty && !busy, t("common.discardChanges"));
   const activeProfile = contextProfileForSpace(collective, spaceId);
   const workflowOptions = activeProfile.workflows.filter((workflow) => workflow.memoryType);
   const dialogTitle = memory ? t("memory.editTitle") : activeProfile.labels.remember;
@@ -110,6 +143,8 @@ function MemoryEditor({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -146,6 +181,7 @@ function MemoryEditor({
     } catch (cause) {
       setError(messageFrom(cause, t("error.generic")));
     } finally {
+      submitLock.current = false;
       setBusy(false);
     }
   }
@@ -156,12 +192,16 @@ function MemoryEditor({
       : [...current, actorId]);
   }
 
+  function requestClose() {
+    if (!busy && mayDiscard()) onClose();
+  }
+
   return (
     <div className="dialog-backdrop" role="presentation">
       <section className="dialog dialog-wide" role="dialog" aria-modal="true" aria-label={dialogTitle}>
         <header className="dialog-header">
           <h2>{dialogTitle}</h2>
-          <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}><X size={19} /></button>
+          <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={requestClose}><X size={19} /></button>
         </header>
         <form className="stack-form" onSubmit={(event) => void submit(event)}>
           {error ? <Notice kind="error">{error}</Notice> : null}
@@ -218,7 +258,7 @@ function MemoryEditor({
           ) : null}
           <label htmlFor="memory-title">
             <span>{t("memory.titleField")}</span>
-            <input id="memory-title" required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} />
+            <input id="memory-title" required autoFocus maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
           <label htmlFor="memory-summary">
             <span>{t("memory.summary")}</span>
@@ -270,7 +310,7 @@ function MemoryEditor({
             <input id="memory-change-note" maxLength={2_000} value={changeNote} onChange={(event) => setChangeNote(event.target.value)} />
           </label>
           <footer className="dialog-actions">
-            <button className="secondary-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
+            <button className="secondary-button" type="button" onClick={requestClose}>{t("common.cancel")}</button>
             <button className="primary-button" type="submit" disabled={busy}>
               {busy ? <LoaderCircle className="spin" size={17} /> : memory ? <Pencil size={17} /> : <Plus size={17} />}
               <span>{memory ? t("common.save") : activeProfile.labels.remember}</span>
@@ -286,11 +326,13 @@ export function MemoryPage({
   api,
   collective,
   directory,
+  createRequestId,
   onOpenGoverned,
 }: {
   api: GuildUiApi;
   collective: UiCollectiveContext;
   directory: UiDirectory | null;
+  createRequestId?: number;
   onOpenGoverned(memoryId: string): void;
 }) {
   const { locale, t } = useI18n();
@@ -301,6 +343,8 @@ export function MemoryPage({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const handledCreateRequest = useRef<number | null>(null);
   const filterTypes = useMemo(() => visibleMemoryTypes(collective), [collective]);
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }), [locale]);
 
@@ -317,6 +361,13 @@ export function MemoryPage({
   }, [api, search, t, type]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!createRequestId || handledCreateRequest.current === createRequestId ||
+        !page?.creatableSpaceIds.length) return;
+    handledCreateRequest.current = createRequestId;
+    setEditor("new");
+  }, [createRequestId, page]);
 
   async function loadMore() {
     if (!page?.nextCursor) return;
@@ -357,6 +408,7 @@ export function MemoryPage({
         <label className="search-field"><Search size={17} /><span className="sr-only">{t("common.search")}</span><input value={search} placeholder={t("memory.searchPlaceholder")} onChange={(event) => setSearch(event.target.value)} /></label>
         <label><span className="sr-only">{t("memory.type")}</span><select value={type} onChange={(event) => setType(event.target.value as MemoryType | "")}><option value="">{t("memory.allTypes")}</option>{filterTypes.map((value) => <option key={value} value={value}>{contextMemoryTypeLabel(collective, value, locale)}</option>)}</select></label>
       </section>
+      {success ? <Notice kind="success">{success}</Notice> : null}
       {error ? <Notice kind="error">{error}</Notice> : null}
       {loading && !page ? <div className="inline-loading"><LoaderCircle className="spin" size={20} />{t("common.loading")}</div> : null}
       {!loading && page?.items.length === 0 ? <EmptyState icon={BookOpen} title={t("memory.emptyTitle")} description={t("memory.emptyDescription")} action={page.creatableSpaceIds.length ? <button className="primary-button" type="button" onClick={() => setEditor("new")}><Plus size={17} />{collective.labels.remember}</button> : undefined} /> : null}
@@ -392,11 +444,13 @@ export function MemoryPage({
           await api.createMemory(input);
           setEditor(null);
           await load();
+          setSuccess(t("memory.created"));
         }}
         onSave={async (input) => {
           await api.saveMemory(input);
           setEditor(null);
           await load();
+          setSuccess(t("memory.saved"));
         }}
         onClose={() => setEditor(null)}
       /> : null}

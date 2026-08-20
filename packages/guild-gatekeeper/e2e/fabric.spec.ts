@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "playwright/test";
+import type { AppPage } from "../app/navigation";
+import { navigateTo } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -18,12 +20,16 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 async function openMorePage(page: Page, label: string) {
-  if ((page.viewportSize()?.width ?? 1_024) <= 760) {
-    await page.locator(".mobile-tabbar").getByRole("button", { name: "More", exact: true }).click();
-  }
-  const more = page.locator(".nav-group-toggle");
-  if (await more.getAttribute("aria-expanded") !== "true") await more.click();
-  await page.locator(".sidebar").getByRole("button", { name: label, exact: true }).click();
+  const destinations: Record<string, AppPage> = {
+    "Private messages": "messages",
+    "Joining & handovers": "lifecycle",
+    Contributions: "contributions",
+    "Context graph": "context",
+    Operations: "operations",
+  };
+  const destination = destinations[label];
+  if (!destination) throw new Error(`Unknown navigation destination: ${label}`);
+  await navigateTo(page, destination);
 }
 
 test("keeps private conversation out of Guild Memory until an explicit promotion", async ({ page }) => {

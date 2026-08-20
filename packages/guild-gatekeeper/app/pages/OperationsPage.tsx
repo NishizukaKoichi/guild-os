@@ -1703,17 +1703,17 @@ function DataTab({
 
       <section className="content-section">
         <SectionHeading icon={TableProperties} title={t("operations.data.tablesTitle")} description={t("operations.data.tablesDescription")} count={inventory.tables.length} />
-        {inventory.tables.length === 0 ? <EmptyCollection icon={TableProperties} title={t("operations.data.tablesEmptyTitle")} description={t("operations.data.tablesEmptyDescription")} /> : <div className="definition-list">{inventory.tables.map((table) => <div key={table.tableName}><TableProperties size={18} /><dt>{table.tableName}</dt><dd>{t("operations.data.rowCount", { count: table.rowCount })}</dd></div>)}</div>}
+        {inventory.tables.length === 0 ? <EmptyCollection icon={TableProperties} title={t("operations.data.tablesEmptyTitle")} description={t("operations.data.tablesEmptyDescription")} /> : <dl className="definition-list">{inventory.tables.map((table) => <div key={table.tableName}><TableProperties size={18} /><dt>{table.tableName}</dt><dd>{t("operations.data.rowCount", { count: table.rowCount })}</dd></div>)}</dl>}
       </section>
 
       <section className="content-section">
         <SectionHeading icon={FileArchive} title={t("operations.data.filesTitle")} description={t("operations.data.filesDescription")} count={inventory.files.length} />
-        {inventory.files.length === 0 ? <EmptyCollection icon={FileArchive} title={t("operations.data.filesEmptyTitle")} description={t("operations.data.filesEmptyDescription")} /> : <div className="definition-list">{inventory.files.map((file) => <div key={file.id}><FileArchive size={18} /><dt>{file.r2Key}</dt><dd>{t("operations.data.fileDetail", { mediaType: file.mediaType, byteSize: file.byteSize, createdAt: formatDate(file.createdAt, locale, t) })}</dd></div>)}</div>}
+        {inventory.files.length === 0 ? <EmptyCollection icon={FileArchive} title={t("operations.data.filesEmptyTitle")} description={t("operations.data.filesEmptyDescription")} /> : <dl className="definition-list">{inventory.files.map((file) => <div key={file.id}><FileArchive size={18} /><dt>{file.r2Key}</dt><dd>{t("operations.data.fileDetail", { mediaType: file.mediaType, byteSize: file.byteSize, createdAt: formatDate(file.createdAt, locale, t) })}</dd></div>)}</dl>}
       </section>
 
       <section className="content-section">
         <SectionHeading icon={Archive} title={t("operations.data.schemaTitle")} description={t("operations.data.schemaDescription")} count={inventory.schemaMigrations.length} />
-        {inventory.schemaMigrations.length === 0 ? <EmptyCollection icon={Archive} title={t("operations.data.schemaEmptyTitle")} description={t("operations.data.schemaEmptyDescription")} /> : <div className="definition-list">{inventory.schemaMigrations.map((migration) => <div key={migration.name}><Archive size={18} /><dt>{migration.name}</dt><dd>{t("operations.data.migrationDetail", { checksum: migration.checksum, appliedAt: formatDate(migration.appliedAt, locale, t) })}</dd></div>)}</div>}
+        {inventory.schemaMigrations.length === 0 ? <EmptyCollection icon={Archive} title={t("operations.data.schemaEmptyTitle")} description={t("operations.data.schemaEmptyDescription")} /> : <dl className="definition-list">{inventory.schemaMigrations.map((migration) => <div key={migration.name}><Archive size={18} /><dt>{migration.name}</dt><dd>{t("operations.data.migrationDetail", { checksum: migration.checksum, appliedAt: formatDate(migration.appliedAt, locale, t) })}</dd></div>)}</dl>}
       </section>
 
       <section className="content-section">

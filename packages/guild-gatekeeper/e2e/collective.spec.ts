@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "playwright/test";
-import { navigateToMore } from "./navigation";
+import { expect, test, type Locator, type Page } from "playwright/test";
+import { navigateTo, navigateToMore } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -18,12 +18,17 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(viewport.scrollWidth).toBe(viewport.clientWidth);
 }
 
+async function discardAndClose(page: Page, dialog: Locator): Promise<void> {
+  page.once("dialog", (confirmation) => void confirmation.accept());
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+}
+
 test("shows Human, Agent, Service, and Guild in one Members surface", async ({ page }) => {
   const errors = collectBrowserErrors(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
 
-  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await navigateTo(page, "members");
   const members = page.locator(".identity-table");
   await expect(members.getByText("Avery Morgan", { exact: true })).toBeVisible();
   await expect(members.getByText("Research Synthesizer", { exact: true })).toBeVisible();
@@ -49,12 +54,11 @@ test("orders Home intents and Agent guidance from the active Guild profile", asy
     "Start research",
     "Record findings",
     "Review updates",
-    "Researchers",
   ]);
   await expect(page.getByRole("button", { name: /Agent runs in progress/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Memory reviews/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Runs needing attention/ })).toBeVisible();
-  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await navigateTo(page, "members");
   await page.getByRole("button", { name: "Create agent", exact: true }).click();
   await expect(page.getByRole("dialog").getByLabel("Agent name", { exact: true }))
     .toHaveValue("Research synthesizer");
@@ -63,13 +67,12 @@ test("orders Home intents and Agent guidance from the active Guild profile", asy
   await navigateToMore(page, "Settings");
   await page.locator("#collective-template").selectOption("template:company");
   await page.locator(".collective-settings").getByRole("button", { name: "Apply profile", exact: true }).click();
-  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await navigateTo(page, "home");
   await expect(page.locator(".home-action-copy strong")).toHaveText([
     "Review updates",
     "Start work",
     "Ask a question",
     "Document",
-    "People",
   ]);
   expect(errors).toEqual([]);
 });
@@ -79,7 +82,7 @@ test("creates broad Memory and recursive Activity without the legacy hierarchy",
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("?standalone=root");
 
-  await page.getByRole("button", { name: "Research memory", exact: true }).click();
+  await navigateTo(page, "memory");
   await expect(page.getByText("Signals from the fictional coastal habitat study", { exact: true })).toBeVisible();
   await expect(page.getByText("Governed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Record findings", exact: true }).click();
@@ -99,7 +102,7 @@ test("creates broad Memory and recursive Activity without the legacy hierarchy",
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(memory.getByText("A revised working observation for review.", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Studies", exact: true }).click();
+  await navigateTo(page, "activity");
   await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Title", { exact: true }).fill("Explore a fictional signal");
@@ -128,6 +131,7 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
 
   const settings = page.locator(".collective-settings");
   const template = page.locator("#collective-template");
+  await page.locator(".nav-section-workspace > .nav-group-toggle").click();
   const expected = [
     ["blank", "Members", "Memory", "Activity"],
     ["company", "People", "Knowledge", "Work"],
@@ -149,7 +153,7 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
   await researchSpace.selectOption("template:creator");
   await expect(researchSpace).toHaveValue("template:creator");
 
-  await page.getByRole("button", { name: "Studies", exact: true }).click();
+  await navigateTo(page, "activity");
   await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
   let dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
@@ -167,9 +171,9 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
     "Session",
     "Campaign",
   ]);
-  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await discardAndClose(page, dialog);
 
-  await page.getByRole("button", { name: "Research memory", exact: true }).click();
+  await navigateTo(page, "memory");
   await page.getByRole("button", { name: "Record findings", exact: true }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Space", { exact: true }).selectOption({ label: "Research" });
@@ -181,9 +185,9 @@ test("switches purpose profiles and applies a complete Space Context Profile", a
     "Document",
     "Learning",
   ]);
-  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await discardAndClose(page, dialog);
 
-  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await navigateTo(page, "members");
   await page.getByRole("button", { name: "Create agent", exact: true }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Agent name", { exact: true })).toHaveValue("Research synthesizer");
@@ -233,7 +237,7 @@ test("creates, edits, reuses, and applies a Purpose Blueprint without changing R
   await researchSpace.selectOption({ label: "Harbor Football Club" });
   await expect(researchSpace.locator("option:checked")).toHaveText("Harbor Football Club");
 
-  await page.getByRole("button", { name: "Studies", exact: true }).click();
+  await navigateTo(page, "activity");
   await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
   let dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "Space", exact: true }).selectOption({ label: "Research" });
@@ -243,7 +247,7 @@ test("creates, edits, reuses, and applies a Purpose Blueprint without changing R
     "Match",
     "Team event",
   ]);
-  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await discardAndClose(page, dialog);
 
   await navigateToMore(page, "Settings");
   await page.locator("#collective-template").selectOption({ label: "Harbor Football Club" });
@@ -273,7 +277,7 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
   }
 
   await applyTemplate("community");
-  await page.getByRole("button", { name: "Collective decisions", exact: true }).click();
+  await navigateTo(page, "decisions");
   await page.locator(".page-header").getByRole("button", { name: "Create Decision", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Create a Decision", exact: true });
   await expect(dialog.getByRole("button", { name: "Community vote", exact: true })).toBeVisible();
@@ -285,7 +289,7 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
     "Vote",
   ]);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "Initiatives", exact: true }).click();
+  await navigateTo(page, "activity");
   await page.locator(".page-header").getByRole("button", { name: "Start an initiative", exact: true }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
@@ -297,12 +301,12 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
 
   await applyTemplate("creator");
-  await page.getByRole("button", { name: "Creative memory", exact: true }).click();
+  await navigateTo(page, "memory");
   await page.getByRole("button", { name: "Save an idea", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "Save an idea", exact: true });
   await expect(dialog.getByLabel("Type", { exact: true }).locator("option").first()).toHaveText("Artifact");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "Creations", exact: true }).click();
+  await navigateTo(page, "activity");
   await page.locator(".page-header").getByRole("button", { name: "Start creating", exact: true }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Title", { exact: true }).fill("Prepare a fictional release");
@@ -312,16 +316,16 @@ test("adapts activity, memory, membership, and Actor behavior to the selected pu
   await expect(creation).toContainText("Open Archive Bridge");
 
   await applyTemplate("agent-collective");
-  await page.getByRole("button", { name: "Actors", exact: true }).click();
+  await navigateTo(page, "members");
   const actors = page.locator(".identity-table");
   await expect(actors.getByText("Avery Morgan", { exact: true })).toHaveCount(0);
   await expect(actors.getByText("Research Synthesizer", { exact: true })).toBeVisible();
   await expect(page.locator(".members-heading-row").getByRole("button", { name: "Agent", exact: true })).toBeVisible();
 
   await applyTemplate("company");
-  await page.getByRole("button", { name: "People", exact: true }).click();
+  await navigateTo(page, "members");
   await expect(page.locator(".identity-table").getByText("Preboarding", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Work", exact: true }).click();
+  await navigateTo(page, "activity");
   await page.locator(".page-header").getByRole("button", { name: "Start work", exact: true }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Type", { exact: true }).locator("option")).toHaveText([
@@ -372,6 +376,8 @@ for (const width of [390, 320] as const) {
         .getByRole("button", { name: "Apply profile", exact: true }).click();
       await page.getByRole("button", { name: "Open navigation", exact: true }).click();
       const sidebar = page.locator(".sidebar");
+      const workspace = sidebar.locator(".nav-section-workspace > .nav-group-toggle");
+      if (await workspace.getAttribute("aria-expanded") !== "true") await workspace.click();
       await expect(sidebar.getByRole("button", { name: members, exact: true })).toBeVisible();
       await expect(sidebar.getByRole("button", { name: memory, exact: true })).toBeVisible();
       await expect(sidebar.getByRole("button", { name: activity, exact: true })).toBeVisible();
@@ -388,19 +394,17 @@ for (const width of [390, 320] as const) {
     await page.goto("?standalone=root");
     await expectNoHorizontalOverflow(page);
 
-    const tabs = page.getByRole("navigation", { name: "Primary navigation" });
-    await tabs.getByRole("button", { name: "Research memory", exact: true }).click();
+    await navigateTo(page, "memory");
     await expect(page.getByRole("heading", { name: "Research memory", exact: true })).toBeVisible();
     await expectNoHorizontalOverflow(page);
-    await tabs.getByRole("button", { name: "Studies", exact: true }).click();
+    await navigateTo(page, "activity");
     await expect(page.getByRole("heading", { name: "Studies", exact: true })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await page.locator(".page-header").getByRole("button", { name: "Start research", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
-    await tabs.getByRole("button", { name: "More", exact: true }).click();
-    await page.getByRole("button", { name: "Researchers", exact: true }).click();
+    await navigateTo(page, "members");
     await expect(page.getByRole("heading", { name: "Researchers", exact: true, level: 1 })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     expect(errors).toEqual([]);

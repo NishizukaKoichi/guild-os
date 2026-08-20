@@ -1,5 +1,5 @@
-import { KeyRound, Languages, LogIn, ShieldAlert, ShieldCheck } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { KeyRound, Languages, LoaderCircle, LogIn, ShieldAlert, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { AppLocale } from "@guild-os/domain";
 import type {
   ClaimInvitationInput,
@@ -9,6 +9,7 @@ import type {
 import { Notice } from "../components/Notice";
 import { RecoveryDialog } from "../components/RecoveryManager";
 import { membershipTranslationKey, useI18n } from "../i18n";
+import { invitationTokenFromLocation, scrubLocationHash } from "../navigation";
 
 export function AccessPage({
   bootstrap,
@@ -24,18 +25,46 @@ export function AccessPage({
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tokenFromLink, setTokenFromLink] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const displayNameRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const submitLock = useRef(false);
   const inactive = bootstrap.membershipState === "suspended" || bootstrap.membershipState === "departed";
+
+  useEffect(() => {
+    const invitationToken = invitationTokenFromLocation();
+    if (!invitationToken) return;
+    setToken(invitationToken);
+    setTokenFromLink(true);
+    scrubLocationHash();
+    requestAnimationFrame(() => displayNameRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
+
+  function claimError(cause: unknown): string {
+    const message = cause instanceof Error ? cause.message.toLocaleLowerCase() : "";
+    if (message.includes("expired")) return t("access.errorExpired");
+    if (message.includes("used") || message.includes("accepted")) return t("access.errorUsed");
+    if (message.includes("invalid") || message.includes("not found")) return t("access.errorInvalid");
+    return t("access.errorGeneric");
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     setSubmitting(true);
     setError(null);
     try {
       await onClaim({ token: token.trim(), displayName: displayName.trim(), preferredLocale: locale });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("error.generic"));
+      setError(claimError(cause));
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -68,7 +97,9 @@ export function AccessPage({
           <>
             <div className="access-symbol access-symbol-error"><ShieldAlert size={28} /></div>
             <h1>{t("access.revokedTitle")}</h1>
-            <p>{t("access.revokedDescription")}</p>
+            <p>{t(bootstrap.membershipState === "departed"
+              ? "access.departedDescription"
+              : "access.suspendedDescription")}</p>
             <span className={`status-pill status-${bootstrap.membershipState}`}>
               {t(membershipTranslationKey(bootstrap.membershipState))}
             </span>
@@ -78,7 +109,8 @@ export function AccessPage({
             <div className="access-symbol"><KeyRound size={28} /></div>
             <h1>{t("access.title")}</h1>
             <p>{t("access.description")}</p>
-            <form className="stack-form" onSubmit={submit}>
+            {tokenFromLink ? <Notice kind="success">{t("access.linkReady")}</Notice> : null}
+            <form className="stack-form" aria-busy={submitting} onSubmit={submit}>
               <label>
                 <span>{t("access.token")}</span>
                 <input
@@ -88,23 +120,41 @@ export function AccessPage({
                   maxLength={43}
                   placeholder={t("access.tokenPlaceholder")}
                   value={token}
-                  onChange={(event) => setToken(event.target.value)}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby="access-token-help"
+                  onChange={(event) => {
+                    setToken(event.target.value);
+                    setTokenFromLink(false);
+                    setError(null);
+                  }}
                 />
+                <small id="access-token-help">{t("access.tokenHelp")}</small>
               </label>
               <label>
                 <span>{t("access.displayName")}</span>
                 <input
+                  ref={displayNameRef}
                   required
                   autoComplete="name"
                   maxLength={200}
                   placeholder={t("access.displayNamePlaceholder")}
                   value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
+                  onChange={(event) => {
+                    setDisplayName(event.target.value);
+                    setError(null);
+                  }}
                 />
               </label>
-              {error ? <Notice kind="error">{error}</Notice> : null}
+              {error ? (
+                <div ref={errorRef} tabIndex={-1}>
+                  <Notice kind="error" title={t("access.errorTitle")}>
+                    <p>{error}</p>
+                    <p>{t("access.errorHelp")}</p>
+                  </Notice>
+                </div>
+              ) : null}
               <button className="primary-button" type="submit" disabled={submitting}>
-                <LogIn size={17} />
+                {submitting ? <LoaderCircle className="spin" size={17} /> : <LogIn size={17} />}
                 <span>{t("access.submit")}</span>
               </button>
             </form>

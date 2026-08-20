@@ -21,15 +21,29 @@ authorization boundary or remove evidence from sensitive operations.
 - Home starts from four plain-language intentions: ask a question, save knowledge, plan work, and
   review updates. It also reads existing permission-filtered APIs to show unread items, work
   assigned to the current Human, and Agent approvals without introducing a broader data endpoint.
+  A partial read failure is reported as unavailable and retryable; it must never be rendered as an
+  all-clear result. Attention rows open the exact current handling surface and move keyboard focus
+  to it.
 - First-owner setup appears only while required foundations remain incomplete. Its steps link to
   shared Knowledge, a Human invitation, an Agent, and offline recovery codes.
-- Navigation has three levels. Home, Ask, and Inbox are always primary. Knowledge, Work, and
-  Decisions are a disclosed workspace. Team, AI Agents, Activity, and Settings are under More.
-  Preboarding members see their workspace immediately; ordinary members do not see management
-  destinations they cannot use.
+- Navigation has three levels. Home, Ask, and Inbox are always primary. Template-specific Memory,
+  Activity, Decisions, Canonical Memory, and Structured Work are disclosed under Workspace.
+  Members, Messages, Lifecycle, Contributions, Context, Chronicle, and Settings are disclosed under
+  More. Operations appears there only when the current membership has a management capability.
+  Settings remains readable by active members so Constitution and governance are transparent, while
+  editing remains protected by API permissions and PostgreSQL RLS.
 - The mobile interface keeps Home, Ask, Inbox, and More in a stable four-item bottom bar. The full
   sidebar becomes inaccessible while closed so keyboard and assistive-technology users do not
   encounter duplicate controls.
+- Every permitted page has a non-sensitive hash route. Browser Back, Forward, reload, and direct
+  links therefore behave like navigation without putting free text, invitation credentials, or
+  approval payloads in the route. Unknown or unavailable destinations recover to Home.
+- A visible Search or create control and `Command/Control + K` open one permission-aware action
+  menu. It can open permitted destinations, Ask, Memory creation, Activity creation, and Inbox.
+- Existing dialogs share one accessibility lifecycle: initial focus, contained Tab order, Escape
+  cancellation when safe, background scroll protection, and focus return. Dirty creation forms
+  require an explicit discard choice, while consequential authority and external-effect checks
+  remain in their governed confirmation surfaces.
 - Empty collections explain the outcome and expose one permitted next action. Ask offers reusable
   example questions instead of an instructional paragraph alone.
 - Entry copy uses plain language. Exact lifecycle, permission, classification, and approval terms
@@ -49,10 +63,14 @@ authorization boundary or remove evidence from sensitive operations.
 ## Consequences
 
 The first screen is useful without training, while advanced administration remains reachable in two
-actions. Home performs four bounded reads in parallel and treats an unavailable area as absent
-rather than failing the whole screen. If a future aggregate endpoint is added, it must preserve the
-same permission filtering before replacing those calls.
+actions. Home performs bounded reads in parallel and preserves successful regions when another
+region fails. If a future aggregate endpoint is added, it must preserve the same permission
+filtering and partial-failure semantics before replacing those calls.
 
-Regression coverage lives in `packages/guild-gatekeeper/e2e/usability.spec.ts`, alongside the full
-governance workflows. Rollback is a normal Git revert of this ADR and the corresponding app-shell,
-Home, empty-state, copy, style, and E2E changes; no schema or stored data changed.
+Regression coverage lives in `packages/guild-gatekeeper/e2e/usability.spec.ts` and
+`packages/guild-gatekeeper/e2e/experience-quality.spec.ts`, alongside the full governance
+workflows. The experience suite checks route history, direct links, action distance, role filtering,
+focus, draft protection, partial failures, invitation handoff, five viewports, three locales, and
+critical/serious axe violations. Rollback is a normal Git revert of this ADR and the corresponding
+app-shell, Home, access, initialization, shared state, style, and E2E changes; no schema or stored
+data changed.

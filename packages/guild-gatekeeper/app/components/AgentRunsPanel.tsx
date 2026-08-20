@@ -14,7 +14,7 @@ import {
   UserRound,
   Workflow,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   GuildUiApi,
   UiAgentRunDetail,
@@ -59,7 +59,11 @@ function resultTimestamp(result: AgentRunResult): string {
   return result.kind === "https_webhook" ? result.deliveredAt : result.completedAt;
 }
 
-export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory: UiDirectory }) {
+export function AgentRunsPanel({ api, directory, focusRequestId }: {
+  api: GuildUiApi;
+  directory: UiDirectory;
+  focusRequestId?: number;
+}) {
   const { locale, t } = useI18n();
   const [page, setPage] = useState<UiAgentRunPage | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -71,6 +75,7 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -78,6 +83,16 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
   const spaceNames = useMemo(() => new Map(
     directory.spaces.map((space) => [space.id, space.name]),
   ), [directory.spaces]);
+
+  useEffect(() => {
+    if (focusRequestId === undefined) return;
+    requestAnimationFrame(() => {
+      const section = sectionRef.current;
+      const heading = section?.querySelector<HTMLElement>("#agent-runs-title");
+      section?.scrollIntoView({ block: "start" });
+      heading?.focus({ preventScroll: true });
+    });
+  }, [focusRequestId]);
   const knownInactiveAgentIds = useMemo(() => new Set(directory.identities
     .filter((identity) => identity.kind === "agent" &&
       (identity.status !== "active" || identity.membershipState !== "active"))
@@ -169,11 +184,11 @@ export function AgentRunsPanel({ api, directory }: { api: GuildUiApi; directory:
   }
 
   return (
-    <section className="content-section agent-runs-section" aria-labelledby="agent-runs-title">
+    <section ref={sectionRef} className="content-section agent-runs-section" aria-labelledby="agent-runs-title">
       <div className="section-heading-row agent-runs-heading">
         <Activity size={18} />
         <div>
-          <h2 id="agent-runs-title">{t("agentRun.title")}</h2>
+          <h2 id="agent-runs-title" tabIndex={-1}>{t("agentRun.title")}</h2>
           <p>{t("agentRun.subtitle")}</p>
         </div>
         <div className="agent-runs-heading-actions">

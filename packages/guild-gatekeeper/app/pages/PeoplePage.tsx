@@ -2,6 +2,7 @@ import {
   Check,
   Bot,
   Clipboard,
+  Link2,
   LogOut,
   Plus,
   RotateCcw,
@@ -39,12 +40,14 @@ import {
   invitationTranslationKey,
   useI18n,
 } from "../i18n";
+import { invitationLinkForToken } from "../navigation";
 
 interface PeoplePageProps {
   api: GuildUiApi;
   bootstrap: UiMemberBootstrapState;
   collective: UiCollectiveContext;
   directory: UiDirectory;
+  focusAgentRunsRequestId?: number;
   onIssue(input: IssueInvitationInput): Promise<IssuedInvitation>;
   onRevoke(invitationId: string): Promise<void>;
   onMembershipChange(
@@ -69,6 +72,7 @@ export function PeoplePage({
   bootstrap,
   collective,
   directory,
+  focusAgentRunsRequestId,
   onIssue,
   onRevoke,
   onMembershipChange,
@@ -89,7 +93,7 @@ export function PeoplePage({
   const [roleIdentity, setRoleIdentity] = useState<UiDirectoryIdentity | null>(null);
   const [offboardIdentity, setOffboardIdentity] = useState<UiDirectoryIdentity | null>(null);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"link" | "token" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState<"identities" | "invitations" | null>(null);
@@ -149,11 +153,13 @@ export function PeoplePage({
     }
   }
 
-  async function copyToken() {
+  const invitationLink = issued ? invitationLinkForToken(issued.token) : null;
+
+  async function copyInvitation(kind: "link" | "token") {
     if (!issued) return;
-    await navigator.clipboard.writeText(issued.token);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    await navigator.clipboard.writeText(kind === "link" ? invitationLink ?? issued.token : issued.token);
+    setCopied(kind);
+    window.setTimeout(() => setCopied(null), 1800);
   }
 
   async function loadMore(
@@ -313,7 +319,7 @@ export function PeoplePage({
         </section>
       ) : null}
 
-      <AgentRunsPanel api={api} directory={directory} />
+      <AgentRunsPanel api={api} directory={directory} focusRequestId={focusAgentRunsRequestId} />
 
       {inviteOpen ? <InviteDialog collective={collective} directory={directory} onClose={() => setInviteOpen(false)} onIssue={issue} /> : null}
       {serviceOpen ? <ServiceDialog directory={directory} onCreate={onCreateService} onClose={() => setServiceOpen(false)} /> : null}
@@ -343,13 +349,25 @@ export function PeoplePage({
               <button className="icon-button" type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setIssued(null)}><X size={19} /></button>
             </header>
             <Notice>{t("people.tokenWarning")}</Notice>
-            <label className="token-field"><span>{t("people.tokenLabel")}</span><code>{issued.token}</code></label>
-            <footer className="dialog-actions">
-              <button className="secondary-button" type="button" onClick={() => void copyToken()}>
-                {copied ? <Check size={17} /> : <Clipboard size={17} />}
-                <span>{copied ? t("common.copied") : t("common.copy")}</span>
+            <label className="token-field invitation-link-field">
+              <span>{t("people.invitationLink")}</span>
+              <input readOnly value={invitationLink ?? ""} onFocus={(event) => event.currentTarget.select()} />
+            </label>
+            <p className="security-note"><Shield size={15} />{t("people.invitationLinkSecurity")}</p>
+            <details className="invitation-token-details">
+              <summary>{t("people.showToken")}</summary>
+              <label className="token-field"><span>{t("people.tokenLabel")}</span><code>{issued.token}</code></label>
+              <button className="secondary-button" type="button" onClick={() => void copyInvitation("token")}>
+                {copied === "token" ? <Check size={17} /> : <Clipboard size={17} />}
+                <span>{copied === "token" ? t("common.copied") : t("people.copyToken")}</span>
               </button>
-              <button className="primary-button" type="button" onClick={() => setIssued(null)}>{t("common.close")}</button>
+            </details>
+            <footer className="dialog-actions">
+              <button className="primary-button" type="button" onClick={() => void copyInvitation("link")}>
+                {copied === "link" ? <Check size={17} /> : <Link2 size={17} />}
+                <span>{copied === "link" ? t("common.copied") : t("people.copyInvitationLink")}</span>
+              </button>
+              <button className="secondary-button" type="button" data-dialog-close onClick={() => setIssued(null)}>{t("common.close")}</button>
             </footer>
           </section>
         </div>

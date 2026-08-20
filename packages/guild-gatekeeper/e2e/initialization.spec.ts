@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test, type FrameLocator, type Page } from "playwright/test";
+import { navigateTo } from "./navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -108,7 +109,7 @@ test("requires explicit Root acceptance before the Workshop administrator become
 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
   await expect(page.locator(".sidebar-account")).toContainText("Root");
-  await page.getByRole("button", { name: "People and AI", exact: true }).click();
+  await navigateTo(page, "members");
   await expect(page.getByText(/Personal administrator/)).toBeVisible();
   await expect(page.getByText("Personal assistant", { exact: true })).toBeVisible();
   await expect(page.getByText(/Employee|Manager|Preboarding/)).toHaveCount(0);
@@ -132,7 +133,7 @@ test("turns the selected purpose into a complete initial context and Role preset
   await finishInitialization(page);
 
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Researchers", exact: true }).click();
+  await navigateTo(page, "members");
   await expect(page.locator(".identity-table")).toContainText("Research lead");
   await expect(page.getByText(/Admin|Manager|Staff/)).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -315,7 +316,7 @@ test("opens the native Knowledge file chooser inside the Cloudflare OS sandbox",
   const errors = collectBrowserErrors(page);
   const app = await mountSandboxedStandaloneApp(page, "root");
 
-  await app.locator(".nav-group-toggle").filter({ hasText: /^More$/ }).click();
+  await app.locator(".nav-section-workspace > .nav-group-toggle").click();
   await app.getByRole("button", { name: "Canonical memory", exact: true }).click();
   page.once("dialog", (confirmation) => confirmation.accept());
   await app.getByRole("button", { name: "Start revision", exact: true }).click();

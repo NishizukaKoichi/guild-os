@@ -156,12 +156,12 @@ export function SettingsPage({
           <ShieldCheck size={19} />
           <div><h2>{t("settings.securityTitle")}</h2></div>
         </div>
-        <div className="definition-list">
+        <dl className="definition-list">
           <div><KeyRound size={18} /><dt>{t("settings.auth")}</dt><dd>{t("settings.authValue")}</dd></div>
           <div><LockKeyhole size={18} /><dt>{t("settings.authorization")}</dt><dd>{t("settings.authorizationValue")}</dd></div>
           <div><Database size={18} /><dt>{t("settings.storage")}</dt><dd>{t("settings.storageValue")}</dd></div>
           <div><ShieldCheck size={18} /><dt>{t("settings.owner")}</dt><dd>{t("settings.ownerValue")}</dd></div>
-        </div>
+        </dl>
       </section>
     </>
   );

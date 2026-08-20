@@ -8,7 +8,12 @@ export function Notice({ kind = "info", title, children }: {
   const Icon = kind === "success" ? CheckCircle2 : kind === "warning" ? TriangleAlert :
     kind === "error" ? AlertCircle : Info;
   return (
-    <div className={`notice notice-${kind}`} role={kind === "error" ? "alert" : "status"}>
+    <div
+      className={`notice notice-${kind}`}
+      role={kind === "error" ? "alert" : "status"}
+      aria-live={kind === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
+    >
       <Icon size={18} aria-hidden="true" />
       <div>
         {title ? <strong>{title}</strong> : null}

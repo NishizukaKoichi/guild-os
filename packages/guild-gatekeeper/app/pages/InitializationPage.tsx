@@ -19,7 +19,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   COLLECTIVE_TEMPLATES,
   assertCollectiveBlueprintDraft,
@@ -112,6 +112,9 @@ export function InitializationPage({
   const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const generateLock = useRef(false);
+  const submitLock = useRef(false);
   const templatesByKey = useMemo(
     () => new Map(templates.map((template) => [template.key, template])),
     [templates],
@@ -146,6 +149,22 @@ export function InitializationPage({
       decisions: selectedTemplate.labels.decisions,
     }),
   }), [bootstrap.guildPurpose, selectedTemplate, t]);
+  const dirty = step !== "template" || choice !== "personal" || displayName.trim() !== "" ||
+    Object.keys(answerOverrides).length > 0 || blueprint !== null || rootOwnershipAccepted;
+
+  useEffect(() => {
+    if (!dirty || submitting) return;
+    const protectDraft = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", protectDraft);
+    return () => window.removeEventListener("beforeunload", protectDraft);
+  }, [dirty, submitting]);
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   function answer(key: keyof CollectiveOnboardingAnswers): string {
     return answerOverrides[key] ?? (isCustom ? "" : defaultAnswers[key]);
@@ -202,8 +221,8 @@ export function InitializationPage({
     );
   }
 
-  function renderContextFields() {
-    return contextFields.map((field) => (
+  function renderContextFields(fields = contextFields) {
+    return fields.map((field) => (
       <label key={field.key}>
         <span>{t(field.label)}</span>
         <textarea
@@ -223,9 +242,20 @@ export function InitializationPage({
   }
 
   const contextComplete = contextFields.every((field) => answer(field.key).trim().length > 0);
+  const canSubmit = Boolean(displayName.trim() && rootOwnershipAccepted &&
+    (!isCustom ? contextComplete : blueprint));
+  const summaryAnswers = blueprint?.onboardingAnswers ?? {
+    purpose: answer("purpose"),
+    participants: answer("participants"),
+    memoryIntent: answer("memoryIntent"),
+    activityIntent: answer("activityIntent"),
+    decisionStyle: answer("decisionStyle"),
+  };
 
   async function generateBlueprint(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (generateLock.current) return;
+    generateLock.current = true;
     setGenerating(true);
     setError(null);
     try {
@@ -242,12 +272,15 @@ export function InitializationPage({
     } catch (cause) {
       setError(messageFrom(cause, t("initialization.blueprintError")));
     } finally {
+      generateLock.current = false;
       setGenerating(false);
     }
   }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -268,6 +301,7 @@ export function InitializationPage({
     } catch (cause) {
       setError(messageFrom(cause, t("initialization.error")));
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -332,7 +366,7 @@ export function InitializationPage({
           <div className="initialization-profile-preview initialization-profile-preview-desktop">
             <ContextProfilePreview template={selectedTemplate} />
           </div>
-          <details className="initialization-profile-preview-mobile">
+          <details className="initialization-profile-preview-mobile" open>
             <summary>{t("initialization.profileDetails")}</summary>
             <ContextProfilePreview template={selectedTemplate} />
           </details>
@@ -350,10 +384,11 @@ export function InitializationPage({
           <p>{t("initialization.builderPurposeDescription")}</p>
           <form className="stack-form" onSubmit={generateBlueprint}>
             {renderContextFields()}
-            {error ? <Notice kind="error">{error}</Notice> : null}
+            {!contextComplete ? <p className="form-guidance" id="blueprint-required-help">{t("initialization.completePurposeAnswers")}</p> : null}
+            {error ? <div ref={errorRef} tabIndex={-1}><Notice kind="error">{error}</Notice></div> : null}
             <footer className="dialog-actions initialization-form-actions">
               <button className="secondary-button" type="button" onClick={() => setStep("template")}><ArrowLeft size={17} /><span>{t("common.back")}</span></button>
-              <button className="primary-button" data-blueprint-action="generate" type="submit" disabled={generating || !contextComplete}>
+              <button className="primary-button" data-blueprint-action="generate" type="submit" aria-describedby={!contextComplete ? "blueprint-required-help" : undefined} disabled={generating || !contextComplete}>
                 {generating ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}
                 <span>{t(generating ? "initialization.blueprintGenerating" : "initialization.blueprintGenerate")}</span>
               </button>
@@ -371,7 +406,7 @@ export function InitializationPage({
           <Notice>{t("initialization.blueprintAuthoritySafety")}</Notice>
           <form noValidate onSubmit={acceptBlueprint}>
             <BlueprintEditor draft={blueprint} onChange={setBlueprint} />
-            {error ? <Notice kind="error">{error}</Notice> : null}
+            {error ? <div ref={errorRef} tabIndex={-1}><Notice kind="error">{error}</Notice></div> : null}
             <footer className="initialization-actions blueprint-review-actions">
               <button className="secondary-button" type="button" onClick={() => setStep("purpose")}><ArrowLeft size={17} /><span>{t("initialization.changeAnswers")}</span></button>
               <button className="primary-button" data-blueprint-action="accept" type="submit"><span>{t("initialization.acceptBlueprint")}</span><ArrowRight size={17} /></button>
@@ -401,6 +436,30 @@ export function InitializationPage({
                 <input id="initialization-owner-display-name" required autoFocus autoComplete="name" maxLength={200} value={displayName} placeholder={t("initialization.displayNamePlaceholder")} onChange={(event) => setDisplayName(event.target.value)} />
               </label>
             </div>
+            {!isCustom ? (
+              <label>
+                <span>{t("initialization.purpose")}</span>
+                <textarea
+                  required
+                  maxLength={2_000}
+                  rows={2}
+                  value={answer("purpose")}
+                  placeholder={t("initialization.purposePlaceholder")}
+                  onChange={(event) => setAnswerOverrides((current) => ({ ...current, purpose: event.target.value }))}
+                />
+                <small>{t("initialization.purposeHelp")}</small>
+              </label>
+            ) : null}
+            <section className="initialization-creation-summary" aria-labelledby="initialization-creation-summary-title">
+              <h2 id="initialization-creation-summary-title">{t("initialization.creationSummaryTitle")}</h2>
+              <p>{t("initialization.creationSummaryDescription")}</p>
+              <dl>
+                <div><dt>{t("initialization.summaryParticipants")}</dt><dd>{summaryAnswers.participants}</dd></div>
+                <div><dt>{t("initialization.summaryMemory")}</dt><dd>{summaryAnswers.memoryIntent}</dd></div>
+                <div><dt>{t("initialization.summaryActivity")}</dt><dd>{summaryAnswers.activityIntent}</dd></div>
+                <div><dt>{t("initialization.summaryDecision")}</dt><dd>{summaryAnswers.decisionStyle}</dd></div>
+              </dl>
+            </section>
             <label className="initialization-ownership-confirmation">
               <input
                 required
@@ -427,10 +486,11 @@ export function InitializationPage({
               <details className="initialization-context-customization">
                 <summary>{t("initialization.advancedTitle")}</summary>
                 <p>{t("initialization.advancedDescription")}</p>
-                {renderContextFields()}
+                {renderContextFields(contextFields.filter((field) => field.key !== "purpose"))}
               </details>
             )}
-            {error ? <Notice kind="error">{error}</Notice> : null}
+            {!canSubmit ? <p className="form-guidance" id="initialization-create-help">{t("initialization.createRequirements")}</p> : null}
+            {error ? <div ref={errorRef} tabIndex={-1}><Notice kind="error">{error}</Notice></div> : null}
             <footer className="dialog-actions initialization-form-actions">
               <button className="secondary-button" type="button" onClick={() => setStep(isCustom ? "review" : "template")}>
                 <ArrowLeft size={17} /><span>{t("common.back")}</span>
@@ -439,8 +499,8 @@ export function InitializationPage({
                 className="primary-button"
                 data-initialization-action="create"
                 type="submit"
-                disabled={submitting || !displayName.trim() || !rootOwnershipAccepted ||
-                  (!isCustom && !contextComplete) || (isCustom && !blueprint)}
+                aria-describedby={!canSubmit ? "initialization-create-help" : undefined}
+                disabled={submitting || !canSubmit}
               >
                 {submitting ? <LoaderCircle className="spin" size={17} /> : <Crown size={17} />}
                 <span>{t("initialization.submit")}</span>

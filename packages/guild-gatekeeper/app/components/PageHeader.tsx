@@ -6,7 +6,7 @@ export function PageHeader({ title, subtitle, action }: {
   return (
     <header className="page-header">
       <div>
-        <h1>{title}</h1>
+        <h1 data-page-title>{title}</h1>
         <p>{subtitle}</p>
       </div>
       {action ? <div className="page-action">{action}</div> : null}
