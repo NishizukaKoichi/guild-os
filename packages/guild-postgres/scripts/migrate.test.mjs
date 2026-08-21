@@ -60,6 +60,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
     "0048_extended_decision_methods.sql",
     "0049_purchaser_connection_profiles.sql",
     "0050_memory_activity_type_completion.sql",
+    "0051_backup_safe_function_search_path.sql",
   ]);
   for (const migration of migrations) {
     assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -127,4 +128,7 @@ test("migration files load in lexical order with SHA-256 checksums", async () =>
   assert.match(migrations[46].sql, /Collective Blueprint version history is append-only/);
   assert.match(migrations[47].sql, /WHEN 'custom' THEN 'hybrid'/);
   assert.match(migrations[47].sql, /Decision quorum is below the Constitution requirement/);
+  assert.match(migrations[48].sql, /cloudflare_gatekeeper/);
+  assert.match(migrations[49].sql, /external_source/);
+  assert.match(migrations[50].sql, /SET search_path TO pg_catalog, public/);
 });

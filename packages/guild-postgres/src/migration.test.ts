@@ -35,6 +35,7 @@ const agentTokenLimitsMigrationUrl = new URL("../migrations/0029_agent_token_lim
 const extendedDecisionMethodsMigrationUrl = new URL("../migrations/0048_extended_decision_methods.sql", import.meta.url);
 const purchaserConnectionProfilesMigrationUrl = new URL("../migrations/0049_purchaser_connection_profiles.sql", import.meta.url);
 const memoryActivityTypeCompletionMigrationUrl = new URL("../migrations/0050_memory_activity_type_completion.sql", import.meta.url);
+const backupSafeFunctionSearchPathMigrationUrl = new URL("../migrations/0051_backup_safe_function_search_path.sql", import.meta.url);
 
 describe("Guild PostgreSQL migration", () => {
   it("keeps the runtime schema marker pinned to the latest migration", async () => {
@@ -91,6 +92,15 @@ describe("Guild PostgreSQL migration", () => {
     expect(sql).toContain("'external_source'");
     expect(sql).toContain("'mission'");
     expect(sql.match(/\^custom:/g)).toHaveLength(2);
+    expect(sql).not.toContain("NO FORCE ROW LEVEL SECURITY");
+  });
+
+  it("keeps forced-RLS functions resolvable when pg_dump clears the session search path", async () => {
+    const sql = await readFile(fileURLToPath(backupSafeFunctionSearchPathMigrationUrl), "utf8");
+    expect(sql).toContain("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+    expect(sql).toContain("ALTER FUNCTION %s SET search_path TO pg_catalog, public");
+    expect(sql).toContain("namespace.nspname = 'guild_runtime'");
+    expect(sql).toContain("Every guild_runtime function requires a backup-safe search_path");
     expect(sql).not.toContain("NO FORCE ROW LEVEL SECURITY");
   });
 

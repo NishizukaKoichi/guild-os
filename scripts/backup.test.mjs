@@ -361,6 +361,10 @@ test("PostgreSQL dump is explicitly Guild-scoped under forced RLS", () => {
       "postgresql://runtime@example.invalid/guild_os?sslmode=require",
       "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a",
     ), /verify-full/i);
+    assert.throws(() => pgDumpEnvironment(
+      "postgresql://runtime@ep-example-pooler.ap-southeast-2.aws.neon.tech/guild_os?sslmode=verify-full",
+      "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9a",
+    ), /direct, unpooled/i);
   } finally {
     if (inherited === undefined) delete process.env.PGOPTIONS;
     else process.env.PGOPTIONS = inherited;

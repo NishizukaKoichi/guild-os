@@ -386,6 +386,12 @@ export function pgDumpEnvironment(connectionString, guildId) {
     throw new Error("A valid Guild UUID is required for backup.");
   }
   assertVerifiedTlsConfiguration(connectionString);
+  const databaseHost = new URL(connectionString).hostname.toLowerCase();
+  if (databaseHost.includes("-pooler.")) {
+    throw new Error(
+      "DATABASE_URL for backup must use a direct, unpooled PostgreSQL endpoint because pg_dump requires the Guild startup setting.",
+    );
+  }
   const path = process.env.PATH;
   const connectionEnvironment = postgresConnectionEnvironment(connectionString);
   return {

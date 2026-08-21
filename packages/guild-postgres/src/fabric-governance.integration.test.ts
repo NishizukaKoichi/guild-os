@@ -906,4 +906,35 @@ integration("private promotion and Contribution correction governance", () => {
       )).rows[0]?.count);
     expect(count).toBe("0");
   });
+
+  it("evaluates contribution RLS with the empty search path used by pg_dump", async () => {
+    const ids = await fixture("Backup search path");
+    const requestId = randomUUID();
+
+    await asActor(ids, ids.participant, async (connection) => {
+      await new GuildFabricGovernanceRepository(connection, ids.guild)
+        .requestContributionCorrection({
+          id: requestId,
+          actorId: ids.participant,
+          evidenceEventId: ids.participantEvidence,
+          reason: "Verify that forced-RLS backup remains available with a cleared search path.",
+          audit: audit(),
+        });
+    });
+
+    await asActor(ids, ids.manager, async (connection) => {
+      await connection.query("SELECT set_config('search_path', 'pg_catalog', true)");
+      const functionResult = await connection.query<{ allowed: boolean }>(
+        "SELECT guild_runtime.is_contribution_correction_manager($1, $2, $3) AS allowed",
+        [ids.guild, ids.manager, ids.participantEvidence],
+      );
+      expect(functionResult.rows).toEqual([{ allowed: true }]);
+
+      const visible = await connection.query<{ id: string }>(
+        "SELECT id::text FROM public.contribution_correction_requests WHERE guild_id = $1 AND id = $2",
+        [ids.guild, requestId],
+      );
+      expect(visible.rows).toEqual([{ id: requestId }]);
+    });
+  });
 });

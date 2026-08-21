@@ -39,7 +39,9 @@ operator assertion; the script cannot prove the storage layer's encryption polic
 
 - A clean source checkout with the purchaser's `deployment.lock.json`
 - `pg_dump` and `psql` matching the production PostgreSQL major version
-- `DATABASE_URL` with read access to the full Guild database and explicit `sslmode=verify-full`
+- A direct, unpooled `DATABASE_URL` with read access to the full Guild database and explicit
+  `sslmode=verify-full`; the backup's Guild-scoped startup setting is not compatible with
+  transaction-pooler endpoints
 - `CLOUDFLARE_API_TOKEN` scoped to read the configured KV namespaces, R2 buckets, Access
   application/policies, and Worker deployments
 - Zero nonterminal Agent Runs, pending/processing outbox rows, or pending file uploads
@@ -88,6 +90,10 @@ be restored while row security remains active. It compares Chronicle and per-tab
 the remote R2 tree, indexes every object, hashes every exported control file, and runs the same full
 verification used by `backup:verify`. Copy the finished directory off-site only after the command
 succeeds.
+
+For Neon, copy the direct endpoint rather than the hostname containing `-pooler`. The backup command
+rejects a recognized pooler endpoint before creating output so a failed startup cannot leave a
+misleading partial backup.
 
 The source checkout may be ahead of the active deployment during a pre-deploy backup. The manifest
 records the clean backup-tool commit and active Worker release separately, requires every Worker to
