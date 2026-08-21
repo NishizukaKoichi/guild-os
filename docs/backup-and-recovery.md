@@ -198,19 +198,48 @@ foreign key to a new UUID.
 5. Configure a new ignored `deployment.local.jsonc` and let the first deploy create a new lock.
    Set `guild.id` to the backup Guild UUID. Never transplant production Cloudflare resource IDs
    into the rehearsal.
-6. Deploy the exact source commit recorded by the backup, then apply only reviewed newer migrations.
-7. Recreate every provider Secret and Connection Secret or Service Binding from purchaser custody.
+6. Initialize the destination Cloudflare OS profile and explicitly enable the Guild ambient
+   Gatekeeper for the intended testers. Cloudflare OS per-user account identifiers, its profile
+   state, and ambient Gatekeeper enablement are deployment state, not Guild backup contents.
+7. Deploy the exact source commit recorded by the backup, then apply only reviewed newer migrations.
+8. Recreate every provider Secret and Connection Secret or Service Binding from purchaser custody.
    Verify the binding names and the exact model/capability allowlists; never copy a Secret value
    from application metadata because it is not stored there.
-8. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
+9. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
    Inbox, Chronicle ordering, Agent approval/delivery, and Kill behavior.
-9. Rotate Break Glass codes. A point-in-time database restore can revive the generation pointer that
-   existed at that historical time.
-10. Record measured RPO/RTO and the release, backup, restore-plan, and smoke checksums.
+10. Use a separately custodied Break Glass code to bind the destination Cloudflare OS Human account
+    to Root, then rotate the generation. A point-in-time database restore can revive the generation
+    pointer that existed at that historical time. If the backup records no active code set, stop the
+    production recovery: absence of a separately custodied code is an operational recovery failure,
+    not permission to bypass Root governance. A nonproduction rehearsal may use a separately
+    approved target-only bootstrap that follows the repository's hashing, invalidation, and Chronicle
+    invariants, but it must be invalidated immediately and recorded as rehearsal-only evidence.
+11. Record measured RPO/RTO and the release, backup, restore-plan, and smoke checksums.
 
 After application checks, verify every destination store against the same restore plan. A successful
 login is not evidence that KV, R2, private data, Connection metadata, or Chronicle ordering was
 restored.
+
+### Verified rehearsal evidence
+
+On 2026-08-21, exact Core commit
+`63de2470e6ec7e5c4783ed947e54de7c78534eee` and Cloudflare OS commit
+`bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5` completed an owner-controlled isolated rehearsal.
+The verified encrypted backup restored 96 forced-RLS table scopes with no row-count mismatch and
+Chronicle sequence `2888`, five KV values with exact hashes, and three R2 objects totaling 113,274
+bytes with exact hashes and metadata. Access protection, authenticated Workshop access, unsigned
+Webhook rejection, the real Break Glass Root-transfer UI, and post-recovery database integrity all
+passed. Measured RPO was zero for the verified backup and measured RTO was 40m 46.571s.
+
+The source backup contained no active Break Glass code set. A target-only, Chronicle-recorded code
+generation was therefore used only to test the real recovery UI and was invalidated immediately.
+The rehearsal also confirmed that the destination Cloudflare OS profile and Guild ambient
+Gatekeeper must be initialized separately. All temporary Workers, Workflow, Hyperdrive, KV, R2,
+Access application and policies, Neon branch, API tokens, Service Token, and plaintext recovery code
+were deleted after verification. Checksummed evidence remains outside Git under
+`/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os-staging-evidence/restore-63de247.*`. This is
+evidence for full-store restore behavior inside an owner-controlled account; it is not evidence of
+an independent purchaser-account installation.
 
 ## Purchaser migration
 
