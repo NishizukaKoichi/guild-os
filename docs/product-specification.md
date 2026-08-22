@@ -304,9 +304,11 @@ fully rolled back on mismatch.
 
 Commercial release and update-entitlement signing use separate encrypted keys outside both source
 repositories. A key set becomes active only after a named Human verifies two encrypted offline
-copies. The public trust state is signed by both key purposes, package acquisition accepts active
-keys only, historical audit may accept retired keys explicitly, and revoked keys are always denied.
-Signing-key expiry or loss must never disable an installed purchaser Runtime.
+copies with distinct observed filesystem Device IDs and confirms that their physical failure
+boundaries are independent from each other and the primary custody location. The public trust state
+is signed by both key purposes, package acquisition accepts active keys only, historical audit may
+accept retired keys explicitly, and revoked keys are always denied. Signing-key expiry or loss must
+never disable an installed purchaser Runtime.
 
 ## 34. Explicit non-goals
 
