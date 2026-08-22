@@ -1,6 +1,6 @@
 # Guild OS Full-Spec Acceptance
 
-Updated: 2026-08-21
+Updated: 2026-08-22
 
 The authoritative requirements are in [the product specification](product-specification.md), and
 their current evidence state is in [the product completion matrix](product-completion-matrix.md).
@@ -46,6 +46,7 @@ creates an implicit cross-Guild search index or shared seller-controlled tenant.
 | Owned Distribution | A separate `guild-os-distribution` repository pins an exact Apache Core release and contains the official Installer, Updater, signed bundle, diagnostics, entitlement, compliance outputs, legal drafts, and handover material without importing private code into Core | Separate Git root, boundary tests, exact Core pin, package tests, bundle manifest, artifact inventory |
 | Installer | A purchaser can preflight, configure, dry-run, deploy, initialize, smoke-test, and receive recovery/handover evidence entirely in purchaser-owned infrastructure without sending Secrets to the seller | Clean-room installation run, Secret-leak test, failure/retry tests, sanitized handover report |
 | Updater and entitlement | Signed exact-commit releases update in place only after compatibility, backup, migration dry-run, build, deploy, migration, authenticated smoke, and rollback preparation. Entitlement expiry blocks new downloads only and never affects installed runtime or export | Signature/tamper tests, expiry runtime test, update/rollback rehearsal, release evidence |
+| Signing-key custody | Release and entitlement use separate encrypted keys outside Git. Candidate keys require two signed offline-backup attestations and named Human activation. The public trust state is signed by both keys; normal acquisition accepts active keys only, historical audit may explicitly accept retired keys, and revoked keys are always denied | File-permission, wrong-passphrase, repository-boundary, backup-attestation, trust-state tamper, activation, retirement, revocation, and historical-verification tests; sanitized operational evidence outside Git |
 | Compliance | Core remains Apache-2.0. Distribution preserves all Core/submodule licenses and notices, generates SPDX or CycloneDX SBOM, inventories shipped components, and fails closed on unknown or disallowed licenses | Automated license/SBOM gate and bundle inspection; legal drafts marked for professional review |
 | Seller independence | Installed runtime has no seller API, database, license, AI proxy, Secret, domain, backup, telemetry, or kill-switch dependency | Static boundary scan plus offline/expired-entitlement runtime acceptance |
 | Commercial operations | Export, encrypted backup, isolated restore, customer-owned migration, support boundary, and optional Care are documented and operable without perpetual seller labor | Clean-room handover, backup/restore rehearsal, commercial draft docs, diagnostics |
