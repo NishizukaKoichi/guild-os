@@ -26,7 +26,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { UiCollectiveContext, UiMemberBootstrapState } from "../../src/management-types";
 import { membershipStateLabel } from "../collective-language";
 import { useI18n } from "../i18n";
-import type { AppPage, QuickAction } from "../navigation";
+import { COMPACT_NAVIGATION_MAX_WIDTH, type AppPage, type QuickAction } from "../navigation";
 import { GlobalActionMenu, type GlobalDestination } from "./GlobalActionMenu";
 
 export type { AppPage } from "../navigation";
@@ -121,7 +121,7 @@ export function AppShell({
   }, [morePage]);
 
   useEffect(() => {
-    const media = matchMedia("(max-width: 760px)");
+    const media = matchMedia(`(max-width: ${COMPACT_NAVIGATION_MAX_WIDTH}px)`);
     const update = () => {
       setMobileViewport(media.matches);
       if (!media.matches) setMobileOpen(false);

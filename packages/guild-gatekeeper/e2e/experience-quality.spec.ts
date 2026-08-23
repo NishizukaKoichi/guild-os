@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "playwright/test";
+import { COMPACT_NAVIGATION_MAX_WIDTH } from "../app/navigation";
 import { navigateTo } from "./navigation";
 
 const DEMO_INVITATION_TOKEN = "DemoOnlyTokenForVisualQualityReview1234567890A".slice(0, 43);
@@ -262,6 +263,10 @@ test("keeps all supported viewports and languages free of horizontal overflow", 
     await page.setViewportSize(viewport);
     await page.goto("?standalone=root#/home");
     await expect(page.locator(".home-action-grid > button")).toHaveCount(4);
+    if (viewport.width <= COMPACT_NAVIGATION_MAX_WIDTH) {
+      await expect(page.locator(".mobile-tabbar")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open navigation", exact: true })).toBeVisible();
+    }
     await expectNoHorizontalOverflow(page);
     await navigateTo(page, "ask");
     await expectNoHorizontalOverflow(page);

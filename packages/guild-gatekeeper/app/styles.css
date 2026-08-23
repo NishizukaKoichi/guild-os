@@ -6332,7 +6332,8 @@ body.modal-open {
   }
 }
 
-@media (max-width: 760px) {
+/* Keep this breakpoint aligned with COMPACT_NAVIGATION_MAX_WIDTH. */
+@media (max-width: 820px) {
   .ask-mode-actions {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -7808,7 +7809,7 @@ body.modal-open {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 820px) {
   .private-workspace {
     min-height: 0;
     grid-template-columns: minmax(0, 1fr);

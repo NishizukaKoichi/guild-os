@@ -1,5 +1,5 @@
 import type { Page } from "playwright/test";
-import type { AppPage } from "../app/navigation";
+import { COMPACT_NAVIGATION_MAX_WIDTH, type AppPage } from "../app/navigation";
 
 const MORE_PAGES: ReadonlySet<AppPage> = new Set([
   "decisions",
@@ -16,7 +16,7 @@ const MORE_PAGES: ReadonlySet<AppPage> = new Set([
 ]);
 
 export async function navigateTo(page: Page, destination: AppPage): Promise<void> {
-  const mobile = (page.viewportSize()?.width ?? 1_024) <= 760;
+  const mobile = (page.viewportSize()?.width ?? 1_024) <= COMPACT_NAVIGATION_MAX_WIDTH;
   const sidebar = page.locator(".sidebar");
 
   if (mobile && !(await sidebar.evaluate((element) => element.classList.contains("sidebar-open")))) {

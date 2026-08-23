@@ -36,7 +36,9 @@ authorization boundary or remove evidence from sensitive operations.
 - The mobile interface keeps Home, Ask, Members, Memory, Activity, and More in a stable six-item
   bottom bar. Labels are template-specific and constrained without horizontal scrolling. The full
   sidebar becomes inaccessible while closed so keyboard and assistive-technology users do not
-  encounter duplicate controls.
+  encounter duplicate controls. The same compact navigation applies at 820px and below so tablet
+  widths do not compress the fixed sidebar, global action, and language controls into an
+  overflowing header.
 - Every permitted page has a non-sensitive hash route. Browser Back, Forward, reload, and direct
   links therefore behave like navigation without putting free text, invitation credentials, or
   approval payloads in the route. Unknown or unavailable destinations recover to Home.

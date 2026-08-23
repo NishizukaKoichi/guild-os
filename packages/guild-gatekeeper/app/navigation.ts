@@ -26,6 +26,8 @@ export const APP_PAGES = [
 export type AppPage = (typeof APP_PAGES)[number];
 export type QuickAction = "ask" | "remember" | "start" | "review" | "agent-runs";
 
+export const COMPACT_NAVIGATION_MAX_WIDTH = 820;
+
 const APP_PAGE_SET: ReadonlySet<string> = new Set(APP_PAGES);
 const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 

@@ -2,7 +2,8 @@ import { defineConfig } from "playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  // Cold single-file transforms and full axe scans can exceed 30 seconds under parallel load.
+  timeout: 60_000,
   expect: { timeout: 7_000 },
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,

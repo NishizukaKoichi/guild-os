@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { COMPACT_NAVIGATION_MAX_WIDTH } from "../app/navigation";
 
 function collectBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -10,7 +11,7 @@ function collectBrowserErrors(page: Page): string[] {
 }
 
 async function openAsk(page: Page) {
-  const navigation = (page.viewportSize()?.width ?? 1_024) <= 760
+  const navigation = (page.viewportSize()?.width ?? 1_024) <= COMPACT_NAVIGATION_MAX_WIDTH
     ? page.locator(".mobile-tabbar")
     : page.locator(".sidebar");
   await navigation.getByRole("button", { name: "Ask", exact: true }).click();
