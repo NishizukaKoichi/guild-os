@@ -74,6 +74,12 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
   signing custody, hosted CI, restore, and professional approval as separate evidence classes. Its
   authenticated CI capture command writes only an exact successful GitHub Actions run to evidence
   storage outside Git.
+- Core now generates the independent restore proof through a two-phase, read-only verifier. The
+  pre-recovery artifact compares live PostgreSQL, KV, R2, Worker inventory, and authenticated smoke
+  against the selected backup and target; the post-recovery artifact adds Break Glass consumption,
+  Root recovery, Chronicle ordering, post-recovery smoke, RPO, and measured RTO. Distribution accepts
+  only that generated `guild-os-restore-verification/v1` artifact and finalizes it as purchaser-bound
+  `guild-os-restore-rehearsal/v2`; legacy hand-authored v1 evidence is rejected.
 
 ## Verified local baseline
 
@@ -82,17 +88,20 @@ audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-ba
 files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
 credentials were skipped and remain separate gates.
 
-The Distribution passed typecheck, 43 tests, lint, compliance, build, dependency audit, and a
+The Distribution passed typecheck, 44 tests, lint, compliance, build, dependency audit, and a
 deterministic clean-room chain covering install, update, backup, isolated restore preparation,
 expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
 evidence and is not an independent purchaser-account installation.
 
 The pushed functional baselines also passed exact-SHA hosted CI: Core run
-[`32699266927`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32699266927) at
-`a9096e7224ce7e46704016587208c7bb72539b3f`, and Distribution run
-[`32699370616`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32699370616)
-at `50b5ca635248844b77b8924e91c53b2995e4e00d`. Authenticated capture records are stored outside
-both repositories; future candidate SHAs require their own records.
+[`32701111385`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32701111385) at
+`1ac5d838fc66dbb46940f51331f9b988feffcb27`, and Distribution run
+[`32701195480`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32701195480)
+at `8199f22e9671623d0af4376daa561dcae91c00d6`. Authenticated capture records are stored outside
+both repositories with SHA-256
+`5ab1d4360b921fe4df5ef41b61871481e1c0a893197ebf52683321d9e1286e2b` and
+`6358c60097d613778008f63809efb4cab50d6966ebd8dc678b6a175cdcb17a5`; future candidate SHAs
+require their own records.
 
 ## Remaining completion gates
 
@@ -100,8 +109,8 @@ both repositories; future candidate SHAs require their own records.
   and domain boundary; capture live v3 Installer evidence and Human first-run initialization.
 - Run one successful live update and one deliberately failed authenticated-smoke update proving all
   previous Worker Versions were restored.
-- Perform a full restore into an independent purchaser-owned target, not only owner-controlled or
-  synthetic restore preparation.
+- Execute the generated two-phase restore verifier against a full independent purchaser-owned
+  target, complete Break Glass recovery, and finalize the resulting purchaser-bound v2 evidence.
 - Activate production release and entitlement signing custody with two physically independent
   offline devices and named Human approval.
 - Obtain professional approval for commercial license, trademark, contribution rights, privacy,

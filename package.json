@@ -22,6 +22,8 @@
     "backup:create": "node scripts/backup.mjs create",
     "backup:verify": "node scripts/backup.mjs verify",
     "restore:prepare": "node scripts/backup.mjs prepare-restore",
+    "restore:verify-pre": "node scripts/restore-rehearsal.mjs pre",
+    "restore:verify-post": "node scripts/restore-rehearsal.mjs post",
     "smoke:production": "node scripts/production-smoke.mjs",
     "smoke:webhook": "node packages/webhook-receiver/scripts/smoke.mjs"
   },

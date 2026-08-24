@@ -11,12 +11,14 @@ async function document(path) {
 }
 
 test("product documents keep one authority and the implemented Distribution boundary", async () => {
-  const [readme, architecture, licensing, adr, specification, acceptance, v1, matrix, snapshot] =
+  const [readme, architecture, licensing, adr, restoreAdr, specification, acceptance, v1, matrix,
+    snapshot] =
     await Promise.all([
     document("README.md"),
     document("docs/architecture.md"),
     document("docs/licensing-and-distribution.md"),
     document("docs/adr/0038-separate-commercial-distribution-from-apache-core.md"),
+    document("docs/adr/0040-generate-and-bind-independent-restore-evidence.md"),
     document("docs/product-specification.md"),
     document("docs/full-spec-acceptance.md"),
     document("docs/v1-completion.md"),
@@ -31,8 +33,11 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(architecture, /`guild-os-distribution` repository/);
   assert.match(licensing, /Separate commercial product repository/);
   assert.match(adr, /Implemented: 2026-08-24/);
-  assert.match(matrix, /43 Distribution tests/);
-  assert.match(snapshot, /passed typecheck, 43 tests/);
+  assert.match(restoreAdr, /ownership-attestation file, live Installer-evidence file, deployment lock/);
+  assert.match(matrix, /44 Distribution tests/);
+  assert.match(snapshot, /passed typecheck, 44 tests/);
+  assert.match(matrix, /generated two-phase read-only verifier/);
+  assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
   assert.doesNotMatch(matrix, /candidate still requires new exact-SHA hosted CI/i);
   assert.doesNotMatch(matrix, /current candidate still requires commit, push, exact-SHA hosted CI/i);
   assert.doesNotMatch(snapshot, /Push the exact Core and Distribution release-candidate commits/i);

@@ -398,13 +398,20 @@ pnpm backup:create -- --output /absolute/encrypted/path \
   --confirm-encrypted-destination
 pnpm backup:verify -- --input /absolute/backup/path
 pnpm restore:prepare -- --input /absolute/backup/path --output /absolute/restore/path
+pnpm restore:verify-pre -- --backup /absolute/backup/path \
+  --restore-plan /absolute/restore/path --smoke /absolute/initial-smoke.json \
+  --output /absolute/restore-pre-recovery.json
+pnpm restore:verify-post -- --pre /absolute/restore-pre-recovery.json \
+  --smoke /absolute/post-recovery-smoke.json --output /absolute/restore-technical.json
 ```
 
 They capture and verify a Guild-scoped forced-RLS PostgreSQL SQL dump, binary KV, R2, Access,
 Worker versions, and optional Context Artifacts without storing secrets. R2 uses the Cloudflare
 REST API by default; `--r2-remote` selects an optional configured `rclone` path for large stores.
-`restore:prepare` generates bounded KV bulk files and never mutates cloud state. Full requirements
-and the new-resource restore drill are in [backup and recovery](docs/backup-and-recovery.md).
+`restore:prepare` generates bounded KV bulk files and never mutates cloud state. The two
+`restore:verify-*` commands read the isolated target and produce checksum-bound pre/post recovery
+evidence without executing recovery or changing cloud state. Full requirements and the
+new-resource restore drill are in [backup and recovery](docs/backup-and-recovery.md).
 
 ## Upgrades
 

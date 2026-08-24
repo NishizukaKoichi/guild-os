@@ -205,20 +205,57 @@ foreign key to a new UUID.
 8. Recreate every provider Secret and Connection Secret or Service Binding from purchaser custody.
    Verify the binding names and the exact model/capability allowlists; never copy a Secret value
    from application metadata because it is not stored there.
-9. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
+9. Run authenticated production smoke into a new external evidence file, then have Core compare the
+   live target against the immutable backup before any recovery mutation:
+
+   ```sh
+   pnpm smoke:production -- \
+     --output /PURCHASER-EVIDENCE/restore-initial-smoke.json
+   pnpm restore:verify-pre -- \
+     --backup /absolute/verified-backup \
+     --restore-plan /absolute/prepared-restore \
+     --smoke /PURCHASER-EVIDENCE/restore-initial-smoke.json \
+     --output /PURCHASER-EVIDENCE/restore-pre-recovery.json
+   ```
+
+   `restore:verify-pre` is read-only. It re-verifies the backup and restore plan, queries the live
+   forced-RLS PostgreSQL boundary, reads every target KV value and R2 object, compares exact hashes
+   and metadata, binds the active Worker inventory and authenticated Access smoke, and writes
+   `guild-os-restore-verification-pre/v1`. The output and checksum must remain outside Git. The
+   command requires purchaser-scoped `DATABASE_URL` with `sslmode=verify-full`,
+   `CLOUDFLARE_API_TOKEN`, and the target deployment configuration and lock.
+10. Verify Root integrity, RLS cross-Guild denial, Knowledge/files, Ask citations, Work, Decisions,
    Inbox, Chronicle ordering, Agent approval/delivery, and Kill behavior.
-10. Use a separately custodied Break Glass code to bind the destination Cloudflare OS Human account
+11. Use a separately custodied Break Glass code to bind the destination Cloudflare OS Human account
     to Root, then rotate the generation. A point-in-time database restore can revive the generation
     pointer that existed at that historical time. If the backup records no active code set, stop the
     production recovery: absence of a separately custodied code is an operational recovery failure,
     not permission to bypass Root governance. A nonproduction rehearsal may use a separately
     approved target-only bootstrap that follows the repository's hashing, invalidation, and Chronicle
     invariants, but it must be invalidated immediately and recorded as rehearsal-only evidence.
-11. Record measured RPO/RTO and the release, backup, restore-plan, and smoke checksums.
+12. Run a second authenticated smoke and generate the post-recovery technical record:
 
-After application checks, verify every destination store against the same restore plan. A successful
-login is not evidence that KV, R2, private data, Connection metadata, or Chronicle ordering was
-restored.
+   ```sh
+   pnpm smoke:production -- \
+     --output /PURCHASER-EVIDENCE/restore-post-recovery-smoke.json
+   pnpm restore:verify-post -- \
+     --pre /PURCHASER-EVIDENCE/restore-pre-recovery.json \
+     --smoke /PURCHASER-EVIDENCE/restore-post-recovery-smoke.json \
+     --output /PURCHASER-EVIDENCE/restore-technical.json
+   ```
+
+   The post phase queries the same target and proves a completed recovery, one consumed code, code
+   generation invalidation, an active Human Root membership, a later `break_glass.used` Chronicle
+   event, no plaintext-capable code column, and authenticated smoke after recovery. It calculates
+   measured RPO/RTO and emits checksum-bound `guild-os-restore-verification/v1`. It does not execute
+   Break Glass or mutate the target. Guild OS Owned must then bind this technical record to the
+   independent purchaser configuration and named ownership attestation; the Core record alone is
+   not independent-purchaser commercial evidence.
+
+After application checks, preserve both Smoke files, both Core verification files, their checksum
+sidecars, the immutable backup, and restore plan in purchaser-controlled encrypted storage. A
+successful login or hand-authored summary is not evidence that KV, R2, private data, Connection
+metadata, or Chronicle ordering was restored.
 
 ### Verified rehearsal evidence
 

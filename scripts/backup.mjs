@@ -231,7 +231,7 @@ export function guildBackupTableNames(tables) {
   return scoped;
 }
 
-async function databaseBoundary(connectionString, guildId) {
+export async function databaseBoundary(connectionString, guildId) {
   const client = new Client({ connectionString });
   await client.connect();
   try {
@@ -470,7 +470,7 @@ async function cloudflareJson(path, token, options = {}, fetcher = fetch) {
   throw lastError;
 }
 
-async function cloudflareBytes(path, token, fetcher = fetch) {
+export async function cloudflareBytes(path, token, fetcher = fetch) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
@@ -609,7 +609,7 @@ export async function listR2Objects(accountId, bucket, token, fetcher = fetch) {
   return objects;
 }
 
-async function downloadR2Object(accountId, bucket, object, token, fetcher = fetch) {
+export async function downloadR2Object(accountId, bucket, object, token, fetcher = fetch) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
