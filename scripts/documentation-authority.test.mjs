@@ -34,19 +34,20 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(licensing, /Separate commercial product repository/);
   assert.match(adr, /Implemented: 2026-08-24/);
   assert.match(restoreAdr, /ownership-attestation file, live Installer-evidence file, deployment lock/);
-  assert.match(matrix, /49 Distribution tests/);
-  assert.match(snapshot, /passed typecheck, 49 tests/);
+  assert.match(matrix, /50 Distribution tests/);
+  assert.match(snapshot, /passed typecheck, 50 tests/);
   assert.match(specification, /complete local Git source archives/);
   assert.match(acceptance, /No seller source fetch is allowed/);
   assert.match(acceptance, /Open Core access/);
+  assert.match(acceptance, /complete anonymous clone\/install\/build/);
   assert.match(acceptance, /acquired-package CLI smoke/);
   assert.match(matrix, /Core GitHub repository is currently `PRIVATE`/);
   assert.match(matrix, /source-complete signed release v2/);
   assert.match(matrix, /current release SHA must always come from Git/);
   assert.match(matrix, /generated two-phase read-only verifier/);
   assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
-  assert.doesNotMatch(matrix, /\b(?:38|46) Distribution tests\b/);
-  assert.doesNotMatch(snapshot, /\b(?:38|46) tests\b/);
+  assert.doesNotMatch(matrix, /\b(?:38|46|49) Distribution tests\b/);
+  assert.doesNotMatch(snapshot, /\b(?:38|46|49) tests\b/);
 
   for (const [name, contents] of [
     ["README", readme],

@@ -83,6 +83,10 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
   signing custody, hosted CI, restore, and professional approval as separate evidence classes. Its
   authenticated CI capture command writes only an exact successful GitHub Actions run to evidence
   storage outside Git.
+- Commercial readiness request/report v2 additionally requires machine-generated Open Core
+  acquisition evidence and re-executes the complete credential-free HTTPS clone, exact Core and
+  Cloudflare OS checkout, strict object verification, frozen install, typecheck, and build. It fails
+  while Core remains private; no checksum-only or hand-authored record can bypass the live recheck.
 - Core now generates the independent restore proof through a two-phase, read-only verifier. The
   pre-recovery artifact compares live PostgreSQL, KV, R2, Worker inventory, and authenticated smoke
   against the selected backup and target; the post-recovery artifact adds Break Glass consumption,
@@ -97,26 +101,27 @@ audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-ba
 files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
 credentials were skipped and remain separate gates.
 
-The source-complete Distribution candidate passed typecheck, 49 tests, lint, compliance, build,
+The source-complete Distribution candidate passed typecheck, 50 tests, lint, compliance, build,
 dependency audit, real Git-bundle clone/object verification, and a
 deterministic clean-room chain covering install, update, backup, isolated restore preparation,
 expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
 evidence and is not an independent purchaser-account installation.
 
 The last externally captured source-complete baseline before this document update passed exact-SHA
-hosted CI: Core run [`32711005802`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32711005802)
-at `c9d875461c4cc4c8ca16b76a861cf2d76aec271d`, and Distribution run
-[`32713696163`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32713696163)
-at `1304fbee8e4a1fe81f45e037961c3ae648521710`. Authenticated capture records are stored outside
+hosted CI: Core run [`32715346943`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32715346943)
+at `41bdaba1b7b52477fd0bb2bc595afe35ac87ce25`, and Distribution run
+[`32715716653`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32715716653)
+at `00eecd64e6c6c5385e8f76f02f9acf8c37e873ea`. Authenticated capture records are stored outside
 both repositories with SHA-256
-`dd4005388cd811790b06fe68cb804a8500d895e3f3583b6133826aa6e4e5ff74` and
-`034a59c230af13b4ef70001464d7f6dbb7da2128b349d94828c1b14b7a0f2fce`. These records prove only
+`ef837c0ba80cf08f112f2885b112b332fb1586bfa5ab33bc2ed7a359c9ba7c33` and
+`52bc3bab80d07517803f71ab4f3c5a8f490285608627dc9079c8811857480a7f`. These records prove only
 those SHAs; every later candidate requires a new hosted-CI capture rather than a document edit.
 
 ## Remaining completion gates
 
 - With explicit owner authorization, publish the Apache Core repository or an equivalent source
-  release and prove unauthenticated clean acquisition plus self-installation.
+  release, then capture readiness v2 evidence from the complete credential-free acquisition and
+  self-installation recheck.
 - Install into a genuinely independent purchaser-owned Cloudflare, PostgreSQL, AI, Access, backup,
   and domain boundary; capture live v4 Installer evidence and Human first-run initialization.
 - Run one successful live update and one deliberately failed authenticated-smoke update proving all

@@ -40,7 +40,10 @@ Open Core availability requires more than an Apache license file in a private re
 this product line is complete, a technical user must be able to obtain the exact Core source without
 seller approval, preserve its license/notices, and complete a documented clean self-install. Making
 the repository public or publishing an equivalent source release is an explicit owner-controlled
-external action.
+external action. Commercial readiness must fail closed unless a machine-generated record proves that
+credential-free HTTPS acquisition, exact Core and Cloudflare OS checkout, strict Git verification,
+frozen dependency installation, typecheck, and build all succeed. The verifier must re-execute that
+complete acquisition rather than trust a hand-authored status record.
 
 ## 3. Ownership and costs
 
@@ -380,7 +383,9 @@ unknown Collectives, Agent Collective, per-Space context, Ask/Plan/Act, Actor-ne
 commercial separation, customer-owned installation, expired update entitlement, backup/restore,
 mobile, and all three locales. Existing tests cannot be removed merely to make the gate pass.
 Open Core completion additionally requires an unauthenticated clean clone or source download and a
-clean self-install from that public artifact.
+clean self-install from that public artifact. The commercial readiness gate must bind the resulting
+evidence to the exact release candidate and repeat the complete credential-free acquisition and
+build at verification time.
 
 ## 39. Technical completion
 
