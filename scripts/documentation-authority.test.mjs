@@ -34,13 +34,14 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(licensing, /Separate commercial product repository/);
   assert.match(adr, /Implemented: 2026-08-24/);
   assert.match(restoreAdr, /ownership-attestation file, live Installer-evidence file, deployment lock/);
-  assert.match(matrix, /44 Distribution tests/);
-  assert.match(snapshot, /passed typecheck, 44 tests/);
+  assert.match(matrix, /46 Distribution tests/);
+  assert.match(snapshot, /passed typecheck, 46 tests/);
+  assert.match(specification, /complete local Git source archives/);
+  assert.match(acceptance, /No seller source fetch is allowed/);
+  assert.match(matrix, /source-complete signed release v2/);
+  assert.match(matrix, /current release SHA must always come from Git/);
   assert.match(matrix, /generated two-phase read-only verifier/);
   assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
-  assert.doesNotMatch(matrix, /candidate still requires new exact-SHA hosted CI/i);
-  assert.doesNotMatch(matrix, /current candidate still requires commit, push, exact-SHA hosted CI/i);
-  assert.doesNotMatch(snapshot, /Push the exact Core and Distribution release-candidate commits/i);
   assert.doesNotMatch(matrix, /\b38 Distribution tests\b/);
   assert.doesNotMatch(snapshot, /\b38 tests\b/);
 

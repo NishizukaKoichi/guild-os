@@ -11,8 +11,9 @@ their own PostgreSQL database and model providers, and owns every stored object 
 There is no seller-operated API, licensing server, or required subscription.
 
 This checkout is distributed under Apache License 2.0. The separate Guild OS Owned Distribution
-packages exact Core releases without relicensing this source tree or adding a runtime call-home
-dependency. Read [Licensing and distribution](docs/licensing-and-distribution.md) and
+packages the exact Core and pinned Cloudflare OS commits as signed local Git source archives,
+without relicensing this source tree or adding a runtime call-home or seller-repository dependency.
+Read [Licensing and distribution](docs/licensing-and-distribution.md) and
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) before creating or selling a bundle.
 
 > [!IMPORTANT]

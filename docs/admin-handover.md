@@ -9,8 +9,9 @@ operate, recover, export, restore, and revoke the system without a seller accoun
 At acceptance, the purchaser controls:
 
 - the canonical Git repository and release history;
-- the license, third-party notices, dependency inventory, and exact source/object manifest shipped
-  with the installed release;
+- the signed release package, exact Core and Cloudflare OS local Git source archives, license,
+  third-party notices, dependency inventory, and exact source/object manifest shipped with the
+  installed release;
 - the Cloudflare account, zone, DNS, Access application, Workers, Workflows, Hyperdrive, KV, R2,
   Durable Objects, AI Gateway, and service bindings used by the instance;
 - the PostgreSQL organization/project, application role, backups, and recovery process;
@@ -29,7 +30,7 @@ custodians, never credential values.
 
 | Asset | Record |
 | --- | --- |
-| Source | Repository URL, release commit, Cloudflare OS gitlink, root/submodule licenses, third-party and dependency inventory, branch protection owner |
+| Source | Signed release-manifest checksum, local Core/Cloudflare OS bundle checksums and archive location, optional purchaser Git URL, release commit, gitlink, licenses, notices, dependency inventory, branch protection owner |
 | Cloudflare | Account ID, account owners, zone, billing owner, support plan |
 | Access | Application ID, audience, hostname, policy owner, emergency deny procedure |
 | Workers | Worker names and active Version IDs for Workshop, Context, Guild Gatekeeper, receiver, and error reporter |
@@ -52,11 +53,13 @@ or backup manifests to the reusable template repository. They belong to the purc
 5. Generate release and production smoke evidence outside the repository.
 6. Inventory every Secret reference and service binding without retrieving values.
 7. Generate and preserve the exact dependency license inventory for the reviewed lockfile.
-8. Add at least two purchaser-controlled Cloudflare and PostgreSQL administrators.
-9. Add a purchaser-controlled Git organization owner and verify branch protection and release
-   access.
-10. Invite a second active Human into Guild OS with the intended recovery administration Role.
-11. Resolve or explicitly accept every item in the full-spec acceptance contract. Do not label an
+8. Preserve the signed release package and verify that its Core and Cloudflare OS bundles clone
+   locally at the recorded commits without a seller repository.
+9. Add at least two purchaser-controlled Cloudflare and PostgreSQL administrators.
+10. Add a purchaser-controlled Git organization owner and verify branch protection and release
+    access when the purchaser imports the acquired source into its own Git host.
+11. Invite a second active Human into Guild OS with the intended recovery administration Role.
+12. Resolve or explicitly accept every item in the full-spec acceptance contract. Do not label an
     unresolved item complete.
 
 Exact source and local gate record:
@@ -106,8 +109,9 @@ Perform ownership changes in the purchaser accounts, then verify them from a pur
    and Runtime credentials independently, and prove Hyperdrive uses only the Runtime role. The
    Runtime role has no DDL, `BYPASSRLS`, role/database creation, replication, or migration-ledger
    write authority, and neither credential remains accessible to the seller after handover.
-3. Git: purchaser administrators can clone, review submodule state, run CI, create protected
-   releases, and recover deleted local workstations.
+3. Source: purchaser administrators can reinstall from the retained signed package with no seller
+   network. If they use a private Git host, they can also clone, review the pinned Cloudflare OS
+   state, run CI, create protected releases, and recover deleted local workstations.
 4. Domain: purchaser controls registrar, DNS ownership, and renewal.
 5. Providers: purchaser owns model, MCP, Webhook, OAuth, and any external storage accounts.
 6. Operations vault: purchaser can decrypt configuration, resource locks, evidence, and backup
@@ -131,8 +135,10 @@ the handover record.
 
 The purchaser, not the seller, performs the final exercise:
 
-1. Clone into a clean directory from the purchaser-owned Git URL, initialize the pinned submodule,
-   install the lockfile, and pass local gates.
+1. Extract the exact Core and Cloudflare OS commits from the purchaser-retained signed package into
+   a clean directory, without seller-network access, install the lockfile, and pass local gates.
+   Importing that source into a purchaser-owned Git URL is optional and must preserve licenses and
+   provenance.
 2. Verify the database without mutation and verify the deployed Worker release.
 3. Sign in through Access as Root and as a least-privileged member; confirm denied Space data is not
    returned.

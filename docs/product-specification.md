@@ -62,6 +62,12 @@ The Distribution contains, at minimum, Installer, Updater, release bundle, deplo
 diagnostics, entitlement, templates, docs, legal drafts, third-party notices, trademarks,
 copyright records, and SBOM artifacts.
 
+Every acquired commercial release contains complete local Git source archives for the exact Core
+commit and its pinned Cloudflare OS gitlink, together with the Distribution source, built tools,
+dependency lock, notices, SBOM, migration inventory, and signed manifest. Installer and Updater may
+not clone or fetch required source from a seller repository after acquisition. Release staging must
+prove that both source archives can be cloned at their expected commits with complete object graphs.
+
 ## 6. Legal and compliance artifacts
 
 Distribution includes an EULA draft, trademark policy, contribution policy, third-party notices,
@@ -275,22 +281,25 @@ ownership. A purchaser creates the Access application and one smoke Service Toke
 the Installer verifies their exact audience/domain/token and creates only the narrowly scoped Human
 administrator and Service Auth policies. It then performs preflight and dry-run, migrates the
 database, deploys exact Workers, runs authenticated smoke, records the generated deployment lock,
-stores recovery information, and emits sanitized v3 installation evidence plus handover. Root
-initialization remains an explicit Human first-run action. A nonfunctional one-click button is
-prohibited.
+stores recovery information, archives the signed local Core and Cloudflare OS source, and emits
+sanitized v4 installation evidence plus installed state v3 and handover. The evidence binds source
+hashes to the signed manifest and states that acquisition needs no seller network. Root initialization
+remains an explicit Human first-run action. A nonfunctional one-click button is prohibited.
 
 ## 30. Updater
 
-Updater fetches a release, verifies its signature and exact commit, checks dependency and database
-compatibility, and restores the installed deployment lock. It checks out the currently installed
-Core to create and verify the backup against active Worker release annotations, then prepares the
-candidate Core separately. Only releases declaring backward-compatible additive migrations are
-eligible for automatic update; the candidate preflights and applies those migrations before Worker
-deployment, then runs authenticated smoke and captures the next lock and Worker Version IDs. A
-post-deployment failure restores every recorded prior Worker Version. Additive schema may remain and
-is identified explicitly in evidence; purchaser data is never deleted as rollback. It enforces
-manifest signatures, lockfiles, migration hashes, compatibility windows, and release evidence.
-Expired update entitlement blocks only new release acquisition.
+Updater receives an acquired release, verifies its signature, exact commits, and local source hashes,
+checks dependency and database compatibility, and restores the installed deployment lock. It uses
+the archived source from the currently installed release to create and verify the backup against
+active Worker release annotations, then prepares the candidate from the newly signed local source
+archives. It never fetches required source from a seller repository. Only releases declaring
+backward-compatible additive migrations are eligible for automatic update; the candidate preflights
+and applies those migrations before Worker deployment, then runs authenticated smoke and captures
+the next lock and Worker Version IDs. A post-deployment failure restores every recorded prior Worker
+Version. Additive schema may remain and is identified explicitly in v3 evidence; purchaser data is
+never deleted as rollback. It enforces manifest signatures, source and lockfile hashes, migration
+hashes, compatibility windows, and release evidence. Expired update entitlement blocks only new
+release acquisition.
 
 ## 31. Commercial offering
 
@@ -304,7 +313,8 @@ tax review; unlimited manual updates and perpetual free support are prohibited.
 
 The standard product must not depend on a seller API, database, license server, AI proxy, Secrets,
 monthly runtime check, kill switch, domain, or backup. An installed release continues operating if
-the seller disappears.
+the seller disappears. An already acquired signed release also remains installable and updatable
+from its purchaser-retained local source archives if the seller repository disappears.
 
 ## 33. Security baseline
 

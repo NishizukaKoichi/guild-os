@@ -76,7 +76,8 @@ subject to Apache requirements and ships with its license and notices.
 The separate distribution product may contain newly authored, separable assets such as:
 
 - a self-service installation experience that orchestrates documented core interfaces;
-- signed release metadata and a purchaser-verifiable update catalog;
+- source-complete signed releases containing exact local Core and Cloudflare OS Git bundles, plus a
+  purchaser-verifiable update catalog;
 - independently authored Blueprint catalogs, examples, prompts, guides, and training material;
 - Guild OS brand assets and marketplace presentation material;
 - download entitlement and update-delivery automation that is not required at runtime;
@@ -92,7 +93,9 @@ separation is necessary for a clean boundary but does not by itself decide copyr
 The recommended commercial offer is an owned release, not a hosted SaaS tenancy:
 
 1. A purchaser obtains one tested release and deploys it into purchaser-owned accounts.
-2. The installed version remains usable without an active seller account or subscription.
+2. The acquired package contains the exact local source needed to install or update without a seller
+   source repository. The installed version remains usable without an active seller account or
+   subscription.
 3. An optional time-bounded update entitlement grants access to newer tested releases and migration
    material; expiry affects new downloads only.
 4. Update installation runs in place against purchaser-owned infrastructure after backup, dry-run,
@@ -112,7 +115,8 @@ distribution ready, the separate product must provide:
 
 - preflight checks for Cloudflare, PostgreSQL, domain, Access, model, and backup prerequisites;
 - guided purchaser-owned credential entry without committing secret values;
-- deterministic installation from a signed, immutable core commit;
+- deterministic installation from signed local Core and Cloudflare OS source archives, without
+  cloning or fetching required source from a seller repository;
 - automatic generation of non-secret deployment and rollback evidence;
 - actionable failure messages and a clean retry path;
 - complete administrator handover, export, restore, migration, and AI-customization guides;
@@ -133,14 +137,16 @@ For every core release or commercial bundle:
 2. Run all repository build, test, lint, type, security, database, browser, and dry-run gates.
 3. Generate the dependency license inventory from the same lockfile and environment used to build.
 4. Record every source and object component included in the bundle.
-5. Include root and submodule licenses, third-party notices, dependency notices, and modification
+5. Clone each generated source archive in isolation, verify its exact commit, and run strict Git
+   object validation before signing.
+6. Include root and submodule licenses, third-party notices, dependency notices, and modification
    notices required by the shipped set.
-6. Verify that customer-facing assets do not imply Cloudflare endorsement or ownership.
-7. Verify that the bundle contains no seller credential, purchaser data, local instance file, or
+7. Verify that customer-facing assets do not imply Cloudflare endorsement or ownership.
+8. Verify that the bundle contains no seller credential, purchaser data, local instance file, or
    runtime call-home dependency.
-8. Have the first public commercial terms and every material boundary change reviewed by qualified
+9. Have the first public commercial terms and every material boundary change reviewed by qualified
    counsel.
-9. Preserve the reviewed manifest and artifact checksums with release evidence.
+10. Preserve the reviewed manifest and artifact checksums with release evidence.
 
 Commercial readiness is blocked if component provenance is unknown, a required notice is missing,
 or the commercial license attempts to restrict rights already granted for an Apache component.

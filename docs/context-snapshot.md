@@ -62,14 +62,19 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
   token-specific Service Auth policies.
 - Fresh install refuses pre-existing configured Worker names. Failure removes only Workers and
   Access policies created by that attempt; additive database schema and purchaser data are retained
-  and identified in v3 installation evidence.
-- Installed state v2 stores the exact Core pin, Worker Version inventory, and purchaser-bound
-  deployment lock without Secret values.
-- Updater uses the installed Core for backup verification, the candidate Core for preflight and
-  deployment, applies only declared backward-compatible additive migrations, and restores recorded
-  Worker Versions after a post-deployment failure.
+  and identified in v4 installation evidence.
+- Signed release format v2 contains complete local Git bundles for the exact Core and Cloudflare OS
+  commits. Staging proves both bundles with an isolated clone, exact-commit assertion, and strict
+  object verification. Installer and Updater do not clone or fetch source from a seller repository.
+- Installed state v3 stores the exact Core pin, signed local-source hashes, Worker Version inventory,
+  and purchaser-bound deployment lock without Secret values.
+- Updater v3 verifies the purchaser-retained source for the installed release before contacting
+  purchaser services, uses that installed Core for backup verification, archives and verifies the
+  candidate source before mutation, applies only declared backward-compatible additive migrations,
+  and restores recorded Worker Versions after a post-deployment failure.
 - Installer and Updater require real Core production-smoke evidence and bind its SHA-256 into their
-  own evidence. Synthetic fixture smoke cannot pass commercial readiness.
+  own evidence. Commercial readiness also binds their candidate-source hashes to the exact signed
+  manifest and rejects seller-network acquisition. Synthetic fixture smoke cannot pass.
 - The fail-closed readiness verifier keeps local rehearsal, independent purchaser deployment,
   signing custody, hosted CI, restore, and professional approval as separate evidence classes. Its
   authenticated CI capture command writes only an exact successful GitHub Actions run to evidence
@@ -88,25 +93,26 @@ audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-ba
 files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
 credentials were skipped and remain separate gates.
 
-The Distribution passed typecheck, 44 tests, lint, compliance, build, dependency audit, and a
+The source-complete Distribution candidate passed typecheck, 46 tests, lint, compliance, build,
+dependency audit, real Git-bundle clone/object verification, and a
 deterministic clean-room chain covering install, update, backup, isolated restore preparation,
 expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
 evidence and is not an independent purchaser-account installation.
 
-The pushed functional baselines also passed exact-SHA hosted CI: Core run
-[`32701111385`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32701111385) at
-`1ac5d838fc66dbb46940f51331f9b988feffcb27`, and Distribution run
-[`32701195480`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32701195480)
-at `8199f22e9671623d0af4376daa561dcae91c00d6`. Authenticated capture records are stored outside
+The immediately preceding pushed baselines passed exact-SHA hosted CI: Core run
+[`32705629578`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32705629578) at
+`4380893a4f86660d134a1b640bdbb74bd2e00458`, and Distribution run
+[`32706956442`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32706956442)
+at `04e743b870ece37fab9374e54f8e970c3c89e58d`. Authenticated capture records are stored outside
 both repositories with SHA-256
-`5ab1d4360b921fe4df5ef41b61871481e1c0a893197ebf52683321d9e1286e2b` and
-`6358c60097d613778008f63809efb4cab50d6966ebd8dc678b6a175cdcb17a5`; future candidate SHAs
-require their own records.
+`484a624420d73483393496cb99ca4ef8e7f26350c23735ba93a4a6f84d7f042f` and
+`57e6ba85308a0d616ddb86edf2c70300d249b988d94bb43dad08ae8683316d5f`. These are predecessor
+records, not evidence for a later candidate; every new exact SHA requires its own hosted-CI capture.
 
 ## Remaining completion gates
 
 - Install into a genuinely independent purchaser-owned Cloudflare, PostgreSQL, AI, Access, backup,
-  and domain boundary; capture live v3 Installer evidence and Human first-run initialization.
+  and domain boundary; capture live v4 Installer evidence and Human first-run initialization.
 - Run one successful live update and one deliberately failed authenticated-smoke update proving all
   previous Worker Versions were restored.
 - Execute the generated two-phase restore verifier against a full independent purchaser-owned
