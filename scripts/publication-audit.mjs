@@ -233,6 +233,7 @@ async function main() {
 
   const temporary = await mkdtemp(resolve(tmpdir(), "guild-os-publication-audit-"));
   try {
+    const mirror = resolve(temporary, "repository.git");
     const emptyIgnore = resolve(temporary, "empty.gitleaksignore");
     const unfilteredReport = resolve(temporary, "unfiltered.json");
     const filteredReport = resolve(temporary, "filtered.json");
@@ -248,13 +249,18 @@ async function main() {
       "--log-level=error",
       "--log-opts=--all",
     ];
-    // Gitleaks resolves its default .gitleaksignore from the process working directory.
-    // Run the baseline from the isolated directory so the repository allowlist cannot hide it.
+    execFileSync("git", ["clone", "--mirror", "--no-local", repositoryRoot, mirror], {
+      cwd: temporary,
+      encoding: "utf8",
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    // A worktree target loads its own .gitleaksignore even when the scanner starts elsewhere.
+    // The complete bare mirror has the same refs and objects but no worktree-level allowlist.
     const unfiltered = runScanner(scanner, [
       ...common,
       `--gitleaks-ignore-path=${emptyIgnore}`,
       `--report-path=${unfilteredReport}`,
-      repositoryRoot,
+      mirror,
     ], temporary);
     if (![0, 1].includes(unfiltered.status)) {
       throw new Error(`Unfiltered Gitleaks history scan failed with exit ${unfiltered.status}.`);
