@@ -660,6 +660,39 @@ export function deploymentSecretsFromEnvironment(config, env) {
   return secrets;
 }
 
+export function requiredSecretBindings(generated) {
+  return Object.fromEntries(Object.entries(generated)
+    .filter(([, config]) => config && Array.isArray(config.secrets?.required) &&
+      config.secrets.required.length)
+    .map(([name, config]) => [name, [...new Set(config.secrets.required)].sort()]));
+}
+
+export function parseWranglerSecretList(output) {
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error("Wrangler returned an invalid Secret binding list.");
+  }
+  if (!Array.isArray(parsed) || parsed.some((entry) =>
+    typeof entry?.name !== "string" || !entry.name)) {
+    throw new Error("Wrangler returned an invalid Secret binding list.");
+  }
+  return [...new Set(parsed.map((entry) => entry.name))].sort();
+}
+
+export function assertExistingSecretBindings(required, existing) {
+  for (const [worker, names] of Object.entries(required)) {
+    const available = new Set(existing[worker] ?? []);
+    const missing = names.filter((name) => !available.has(name));
+    if (missing.length) {
+      throw new Error(
+        `${worker} is missing required existing Secret bindings: ${missing.join(", ")}.`,
+      );
+    }
+  }
+}
+
 function routeConfig(route) {
   return route.workersDev
     ? { workers_dev: true, routes: undefined }
@@ -957,6 +990,33 @@ function capture(command, args) {
   return String(result.stdout ?? "");
 }
 
+function captureAt(command, args, cwd) {
+  const result = spawnSync(command, args, {
+    cwd,
+    env: sanitizedChildEnv(process.env),
+    encoding: "utf8",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed before deployment.`);
+  }
+  return String(result.stdout ?? "");
+}
+
+function verifyExistingDeploymentSecrets(generated) {
+  const required = requiredSecretBindings(generated);
+  const existing = {};
+  for (const name of Object.keys(required)) {
+    existing[name] = parseWranglerSecretList(captureAt(
+      "pnpm",
+      ["exec", "wrangler", "secret", "list", "--config", generatedName, "--format", "json"],
+      dirname(generatedPaths[name]),
+    ));
+  }
+  assertExistingSecretBindings(required, existing);
+  return Object.fromEntries(Object.entries(required).map(([name, names]) => [name, names.length]));
+}
+
 export function assertDeployableGitState(status, submodules) {
   if (status.trim()) {
     throw new Error("Commit every source change before a production deployment.");
@@ -1026,7 +1086,16 @@ async function main() {
   const configPath = resolveDeploymentConfigPath();
   const deployment = await readDeployment(configPath);
   const config = applyProvisioningLock(deployment, await readDeploymentLock());
-  const check = process.argv.includes("--check");
+  const arguments_ = process.argv.slice(2).filter((argument) => argument !== "--");
+  const knownArguments = new Set(["--check", "--preserve-existing-secrets"]);
+  for (const argument of arguments_) {
+    if (!knownArguments.has(argument)) throw new Error(`Unknown deployment option: ${argument}`);
+  }
+  const check = arguments_.includes("--check");
+  const preserveExistingSecrets = arguments_.includes("--preserve-existing-secrets");
+  if (check && preserveExistingSecrets) {
+    throw new Error("Existing Secret preservation is only available for a live deployment.");
+  }
   if (!check) assertPrivateDeploymentConfig(configPath);
   const releaseCommit = check ? null : releaseSource();
   if (!check) {
@@ -1040,7 +1109,7 @@ async function main() {
     console.log(JSON.stringify({ event: "guild.database.preflight", ...result }));
   }
   // Validate every secret before any Worker is deployed. Dry runs intentionally remain secret-free.
-  const deploymentSecrets = check
+  const deploymentSecrets = check || preserveExistingSecrets
     ? undefined
     : deploymentSecretsFromEnvironment(config, process.env);
   const generated = generateConfigs(config, {
@@ -1065,6 +1134,11 @@ async function main() {
     run(["test:cloudflare-os"]);
     run(["lint"]);
     build(config);
+
+    if (preserveExistingSecrets) {
+      const preserved = verifyExistingDeploymentSecrets(generated);
+      console.log(JSON.stringify({ event: "guild.deployment.secrets.preserved", workers: preserved }));
+    }
 
     if (deploymentSecrets) {
       secretsDirectory = await mkdtemp(join(tmpdir(), "guild-os-secrets-"));

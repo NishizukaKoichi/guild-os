@@ -220,6 +220,51 @@ The preflight rejects PostgreSQL below 17, unverified remote TLS, superuser or `
 database/schema creation authority, unavailable `vector`, `pg_trgm`, or `pgcrypto`, ledger hash
 drift, and Guild schema objects without a trusted ledger.
 
+### Upgrade a legacy single-owner database
+
+Deployments created before ADR 0039 can have the Runtime login as the owner of application tables,
+sequences, types, and `guild_runtime` functions. Do not work around the new preflight by granting
+Runtime more authority or by using a provider role in Hyperdrive.
+
+First create a provider snapshot and a verified backup of the active release. Then create a new
+login named for schema management at the PostgreSQL provider. It must be a non-superuser with no
+`BYPASSRLS`, `CREATEROLE`, `CREATEDB`, or replication authority. With the provider administrator URL
+in `DATABASE_URL`, run the bounded ownership transfer:
+
+On Neon, create this login with SQL, not the Console, CLI, or API. Neon grants its
+`neon_superuser` membership to control-plane-created roles, while a SQL-created role starts with
+normal PostgreSQL privileges. Generate its password into purchaser-owned encrypted custody, then
+use an owner session to execute the equivalent of:
+
+```sql
+CREATE ROLE guild_schema_manager LOGIN PASSWORD '<owner-supplied-secret>'
+  NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOREPLICATION;
+```
+
+Do not place that statement with a real password in shell history, Git, logs, or this configuration.
+Other providers can use their supported least-privilege role-creation path.
+
+```sh
+read -r -s DATABASE_URL
+export DATABASE_URL
+export GUILD_MANAGEMENT_DATABASE_ROLE=guild_schema_manager
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
+pnpm db:separate-legacy-roles
+unset DATABASE_URL GUILD_MANAGEMENT_DATABASE_ROLE GUILD_RUNTIME_DATABASE_ROLE
+```
+
+The command fails closed when an unexpected owner exists or Runtime owns anything outside the
+bounded Guild OS schemas, current database, default privileges, and required extensions. In one
+transaction it transfers the legacy role's owned database objects, grants schema-management
+authority to the new role, restores Runtime DML and function access, makes the migration ledger
+read-only to Runtime, revokes Runtime schema creation, and installs default privileges for future
+migrations. It is idempotent after a successful transfer.
+
+Obtain the new management role URL from the provider and run `db:preflight`, `db:migrate`,
+`db:provision-runtime`, and `db:verify` in that order. Keep Hyperdrive on the unchanged Runtime
+credential. If the transaction fails, it rolls back. If a later migration fails, restore the
+provider snapshot; never roll back by returning schema ownership to Runtime.
+
 ## 5. Supply secrets and deploy
 
 Store the Webhook HMAC secret in the purchaser's secret manager and in the receiver. Paste it into a
@@ -265,6 +310,23 @@ validates every required secret before
 the first update, creates restricted temporary secret files for Wrangler, deletes them in all exit
 paths, and removes database, Webhook, AI, and Access smoke credentials from unrelated child
 processes.
+
+For an in-place update where every required Secret binding already exists on the exact configured
+Worker, do not rotate or re-enter those values. Use:
+
+```sh
+read -r -s DATABASE_URL
+export DATABASE_URL
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
+pnpm deploy -- --preserve-existing-secrets
+unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE
+```
+
+This mode calls `wrangler secret list` for every Worker with a required binding and validates exact
+Secret names before the first deployment. It never reads a Secret value. Wrangler preserves
+existing Secrets when a new Version is deployed without a replacement Secret file. A missing
+required name fails the entire pre-deployment phase; use the hidden-input flow above to create or
+intentionally rotate a Secret.
 
 `pnpm deploy` installs only the Secret values understood by `scripts/deploy.mjs`:
 `GUILD_WEBHOOK_SIGNING_SECRET`, external-provider `GUILD_MODEL_PROVIDER_TOKEN`, and, when enabled,

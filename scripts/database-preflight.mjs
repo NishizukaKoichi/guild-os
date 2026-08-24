@@ -37,6 +37,45 @@ export function assertRuntimeRoleName(roleName) {
   }
 }
 
+export function assertLegacyRoleSeparationSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") {
+    throw new Error("Legacy role separation could not inspect the database roles.");
+  }
+  if (!snapshot.adminRole || snapshot.adminRole === snapshot.managementRole ||
+      snapshot.adminRole === snapshot.runtimeRole || !snapshot.adminCreateRole) {
+    throw new Error("Legacy role separation requires a distinct provider administrator with CREATEROLE.");
+  }
+  for (const [label, role] of [
+    ["management", snapshot.management],
+    ["Runtime", snapshot.runtime],
+  ]) {
+    if (!role?.exists || !role.canLogin) {
+      throw new Error(`The ${label} database role does not exist or cannot log in.`);
+    }
+    if (role.superuser || role.bypassRls || role.createRole || role.createDatabase ||
+        role.replication || !Array.isArray(role.memberships) || role.memberships.length) {
+      throw new Error(`The ${label} database role has privileged PostgreSQL authority.`);
+    }
+  }
+  if (!snapshot.migrationLedgerExists || !snapshot.guildTableExists) {
+    throw new Error("Legacy role separation requires an initialized Guild OS migration ledger.");
+  }
+  if (!Number.isSafeInteger(snapshot.applicationObjectCount) ||
+      snapshot.applicationObjectCount < 1) {
+    throw new Error("Legacy role separation found no Guild OS schema objects.");
+  }
+  if (!Number.isSafeInteger(snapshot.runtimeOwnedObjectCount) ||
+      !Number.isSafeInteger(snapshot.managementOwnedObjectCount) ||
+      snapshot.runtimeOwnedObjectCount + snapshot.managementOwnedObjectCount !==
+        snapshot.applicationObjectCount) {
+    throw new Error("Guild OS schema objects have an unexpected owner; no ownership was changed.");
+  }
+  if (!Number.isSafeInteger(snapshot.unexpectedRuntimeOwnedObjectCount) ||
+      snapshot.unexpectedRuntimeOwnedObjectCount !== 0) {
+    throw new Error("The legacy Runtime role owns objects outside the bounded Guild OS upgrade scope.");
+  }
+}
+
 function quoteIdentifier(identifier) {
   if (typeof identifier !== "string" || !identifier) {
     throw new Error("PostgreSQL identifier is required.");
@@ -120,6 +159,232 @@ export async function provisionRuntimeDatabaseRole(connectionString, roleName, o
       throw error;
     }
     return { ok: true, runtimeRole: roleName };
+  } finally {
+    await client.end();
+  }
+}
+
+export async function separateLegacyDatabaseRoles(
+  connectionString,
+  managementRoleName,
+  runtimeRoleName,
+  options = {},
+) {
+  assertRuntimeRoleName(managementRoleName);
+  assertRuntimeRoleName(runtimeRoleName);
+  if (managementRoleName === runtimeRoleName) {
+    throw new Error("Management and Runtime database roles must be different.");
+  }
+  assertVerifiedTlsConfiguration(connectionString, options);
+  const client = options.client ?? new Client({
+    connectionString,
+    connectionTimeoutMillis: 10_000,
+  });
+  await client.connect();
+  try {
+    await client.query("SET statement_timeout = '30s'");
+    const roleResult = await client.query(`SELECT
+        current_user AS admin_role,
+        current_database() AS database_name,
+        admin.rolcreaterole AS admin_create_role,
+        management.rolname IS NOT NULL AS management_exists,
+        COALESCE(management.rolcanlogin, false) AS management_can_login,
+        COALESCE(management.rolsuper, false) AS management_superuser,
+        COALESCE(management.rolbypassrls, false) AS management_bypass_rls,
+        COALESCE(management.rolcreaterole, false) AS management_create_role,
+        COALESCE(management.rolcreatedb, false) AS management_create_database,
+        COALESCE(management.rolreplication, false) AS management_replication,
+        COALESCE((SELECT array_agg(parent.rolname::text ORDER BY parent.rolname::text)
+          FROM pg_auth_members membership
+          JOIN pg_roles parent ON parent.oid = membership.roleid
+          WHERE membership.member = management.oid), '{}'::text[]) AS management_memberships,
+        runtime.rolname IS NOT NULL AS runtime_exists,
+        COALESCE(runtime.rolcanlogin, false) AS runtime_can_login,
+        COALESCE(runtime.rolsuper, false) AS runtime_superuser,
+        COALESCE(runtime.rolbypassrls, false) AS runtime_bypass_rls,
+        COALESCE(runtime.rolcreaterole, false) AS runtime_create_role,
+        COALESCE(runtime.rolcreatedb, false) AS runtime_create_database,
+        COALESCE(runtime.rolreplication, false) AS runtime_replication,
+        COALESCE((SELECT array_agg(parent.rolname::text ORDER BY parent.rolname::text)
+          FROM pg_auth_members membership
+          JOIN pg_roles parent ON parent.oid = membership.roleid
+          WHERE membership.member = runtime.oid), '{}'::text[]) AS runtime_memberships,
+        COALESCE(pg_has_role(current_user, management.oid, 'MEMBER'), false)
+          AS admin_member_management,
+        COALESCE(pg_has_role(current_user, runtime.oid, 'MEMBER'), false)
+          AS admin_member_runtime,
+        COALESCE(pg_has_role(current_user, management.oid, 'SET'), false)
+          AS admin_set_management,
+        COALESCE(pg_has_role(current_user, runtime.oid, 'SET'), false)
+          AS admin_set_runtime,
+        to_regclass('public.guild_schema_migrations') IS NOT NULL AS migration_ledger_exists,
+        to_regclass('public.guilds') IS NOT NULL AS guild_table_exists
+      FROM pg_roles admin
+      LEFT JOIN pg_roles management ON management.rolname = $1
+      LEFT JOIN pg_roles runtime ON runtime.rolname = $2
+      WHERE admin.rolname = current_user`, [managementRoleName, runtimeRoleName]);
+    const roles = roleResult.rows[0];
+    if (!roles) throw new Error("Legacy role separation could not inspect the provider administrator.");
+    const ownerResult = await client.query(`WITH application_objects AS (
+        SELECT pg_get_userbyid(relation.relowner) AS owner
+          FROM pg_class relation
+          JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+         WHERE namespace.nspname IN ('public', 'guild_runtime')
+           AND relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        UNION ALL
+        SELECT pg_get_userbyid(procedure.proowner) AS owner
+          FROM pg_proc procedure
+          JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'guild_runtime'
+        UNION ALL
+        SELECT pg_get_userbyid(type.typowner) AS owner
+          FROM pg_type type
+          JOIN pg_namespace namespace ON namespace.oid = type.typnamespace
+         WHERE namespace.nspname IN ('public', 'guild_runtime')
+           AND type.typtype IN ('c', 'd', 'e', 'm', 'r')
+           AND type.typisdefined
+        UNION ALL
+        SELECT pg_get_userbyid(namespace.nspowner) AS owner
+          FROM pg_namespace namespace
+         WHERE namespace.nspname = 'guild_runtime'
+      )
+      SELECT count(*)::integer AS application_object_count,
+             count(*) FILTER (WHERE owner = $1)::integer AS management_owned_object_count,
+             count(*) FILTER (WHERE owner = $2)::integer AS runtime_owned_object_count
+        FROM application_objects`, [managementRoleName, runtimeRoleName]);
+    const owners = ownerResult.rows[0];
+    const ownershipScopeResult = await client.query(`WITH runtime_role AS (
+        SELECT oid FROM pg_roles WHERE rolname = $1
+      ), current_database_record AS (
+        SELECT oid FROM pg_database WHERE datname = current_database()
+      )
+      SELECT count(*) FILTER (WHERE NOT (
+        (dependency.classid = 'pg_class'::regclass AND EXISTS (
+          SELECT 1 FROM pg_class relation
+          JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+          WHERE relation.oid = dependency.objid
+            AND namespace.nspname IN ('public', 'guild_runtime', 'pg_toast')
+        )) OR
+        (dependency.classid = 'pg_proc'::regclass AND EXISTS (
+          SELECT 1 FROM pg_proc procedure
+          JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
+          WHERE procedure.oid = dependency.objid
+            AND namespace.nspname = 'guild_runtime'
+        )) OR
+        (dependency.classid = 'pg_type'::regclass AND EXISTS (
+          SELECT 1 FROM pg_type type
+          JOIN pg_namespace namespace ON namespace.oid = type.typnamespace
+          WHERE type.oid = dependency.objid
+            AND namespace.nspname IN ('public', 'guild_runtime', 'pg_toast')
+        )) OR
+        (dependency.classid = 'pg_namespace'::regclass AND EXISTS (
+          SELECT 1 FROM pg_namespace namespace
+          WHERE namespace.oid = dependency.objid
+            AND namespace.nspname = 'guild_runtime'
+        )) OR
+        (dependency.classid = 'pg_extension'::regclass AND EXISTS (
+          SELECT 1 FROM pg_extension extension
+          WHERE extension.oid = dependency.objid
+            AND extension.extname IN ('vector', 'pg_trgm', 'pgcrypto')
+        )) OR
+        (dependency.classid = 'pg_database'::regclass AND
+          dependency.objid = (SELECT oid FROM current_database_record)) OR
+        dependency.classid = 'pg_default_acl'::regclass
+      ))::integer AS unexpected_runtime_owned_object_count
+      FROM pg_shdepend dependency
+      WHERE dependency.refobjid = (SELECT oid FROM runtime_role)
+        AND dependency.deptype = 'o'
+        AND (dependency.dbid = 0 OR
+          dependency.dbid = (SELECT oid FROM current_database_record))`, [runtimeRoleName]);
+    const ownershipScope = ownershipScopeResult.rows[0];
+    const snapshot = {
+      adminRole: roles.admin_role,
+      adminCreateRole: roles.admin_create_role,
+      adminMemberManagement: roles.admin_member_management,
+      adminMemberRuntime: roles.admin_member_runtime,
+      adminSetManagement: roles.admin_set_management,
+      adminSetRuntime: roles.admin_set_runtime,
+      databaseName: roles.database_name,
+      managementRole: managementRoleName,
+      runtimeRole: runtimeRoleName,
+      management: {
+        exists: roles.management_exists,
+        canLogin: roles.management_can_login,
+        superuser: roles.management_superuser,
+        bypassRls: roles.management_bypass_rls,
+        createRole: roles.management_create_role,
+        createDatabase: roles.management_create_database,
+        replication: roles.management_replication,
+        memberships: roles.management_memberships,
+      },
+      runtime: {
+        exists: roles.runtime_exists,
+        canLogin: roles.runtime_can_login,
+        superuser: roles.runtime_superuser,
+        bypassRls: roles.runtime_bypass_rls,
+        createRole: roles.runtime_create_role,
+        createDatabase: roles.runtime_create_database,
+        replication: roles.runtime_replication,
+        memberships: roles.runtime_memberships,
+      },
+      migrationLedgerExists: roles.migration_ledger_exists,
+      guildTableExists: roles.guild_table_exists,
+      applicationObjectCount: owners?.application_object_count,
+      managementOwnedObjectCount: owners?.management_owned_object_count,
+      runtimeOwnedObjectCount: owners?.runtime_owned_object_count,
+      unexpectedRuntimeOwnedObjectCount:
+        ownershipScope?.unexpected_runtime_owned_object_count,
+    };
+    assertLegacyRoleSeparationSnapshot(snapshot);
+
+    const managementRole = quoteIdentifier(managementRoleName);
+    const runtimeRole = quoteIdentifier(runtimeRoleName);
+    const adminRole = quoteIdentifier(snapshot.adminRole);
+    const databaseName = quoteIdentifier(snapshot.databaseName);
+    await client.query("BEGIN");
+    try {
+      if (!snapshot.adminSetManagement) {
+        await client.query(`GRANT ${managementRole} TO ${adminRole} WITH SET TRUE`);
+      }
+      if (!snapshot.adminSetRuntime) {
+        await client.query(`GRANT ${runtimeRole} TO ${adminRole} WITH SET TRUE`);
+      }
+      await client.query(`REASSIGN OWNED BY ${runtimeRole} TO ${managementRole}`);
+      await client.query(`GRANT CONNECT, CREATE ON DATABASE ${databaseName} TO ${managementRole}`);
+      await client.query(`GRANT USAGE, CREATE ON SCHEMA public, guild_runtime TO ${managementRole}`);
+      await client.query(`GRANT CONNECT ON DATABASE ${databaseName} TO ${runtimeRole}`);
+      await client.query(`GRANT USAGE ON SCHEMA public, guild_runtime TO ${runtimeRole}`);
+      await client.query(`REVOKE CREATE ON SCHEMA public, guild_runtime FROM ${runtimeRole}`);
+      await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${runtimeRole}`);
+      await client.query(`REVOKE ALL PRIVILEGES ON TABLE public.guild_schema_migrations FROM ${runtimeRole}`);
+      await client.query(`GRANT SELECT ON TABLE public.guild_schema_migrations TO ${runtimeRole}`);
+      await client.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${runtimeRole}`);
+      await client.query(`GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA guild_runtime TO ${runtimeRole}`);
+      await client.query(`ALTER DEFAULT PRIVILEGES FOR ROLE ${managementRole} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${runtimeRole}`);
+      await client.query(`ALTER DEFAULT PRIVILEGES FOR ROLE ${managementRole} IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${runtimeRole}`);
+      await client.query(`ALTER DEFAULT PRIVILEGES FOR ROLE ${managementRole} IN SCHEMA guild_runtime GRANT EXECUTE ON FUNCTIONS TO ${runtimeRole}`);
+      if (!snapshot.adminMemberManagement) {
+        await client.query(`REVOKE ${managementRole} FROM ${adminRole}`);
+      } else if (!snapshot.adminSetManagement) {
+        await client.query(`GRANT ${managementRole} TO ${adminRole} WITH SET FALSE`);
+      }
+      if (!snapshot.adminMemberRuntime) {
+        await client.query(`REVOKE ${runtimeRole} FROM ${adminRole}`);
+      } else if (!snapshot.adminSetRuntime) {
+        await client.query(`GRANT ${runtimeRole} TO ${adminRole} WITH SET FALSE`);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+    return {
+      ok: true,
+      managementRole: managementRoleName,
+      runtimeRole: runtimeRoleName,
+      transferredObjectCount: snapshot.runtimeOwnedObjectCount,
+      alreadySeparated: snapshot.runtimeOwnedObjectCount === 0,
+    };
   } finally {
     await client.end();
   }
@@ -401,7 +666,12 @@ export async function verifyProductionDatabase(connectionString, options = {}) {
 }
 
 async function main() {
-  const known = new Set(["--allow-insecure-localhost", "--pre-migration", "--provision-runtime"]);
+  const known = new Set([
+    "--allow-insecure-localhost",
+    "--pre-migration",
+    "--provision-runtime",
+    "--separate-legacy-roles",
+  ]);
   for (const argument of process.argv.slice(2).filter((value) => value !== "--")) {
     if (!known.has(argument)) throw new Error(`Unknown database verification option: ${argument}`);
   }
@@ -409,8 +679,20 @@ async function main() {
     allowInsecureLocalhost: process.argv.includes("--allow-insecure-localhost"),
     runtimeRoleName: process.env.GUILD_RUNTIME_DATABASE_ROLE,
   };
-  if (process.argv.includes("--pre-migration") && process.argv.includes("--provision-runtime")) {
-    throw new Error("Run migration readiness and Runtime role provisioning as separate operations.");
+  const operationFlags = ["--pre-migration", "--provision-runtime", "--separate-legacy-roles"]
+    .filter((flag) => process.argv.includes(flag));
+  if (operationFlags.length > 1) {
+    throw new Error("Run migration readiness, legacy role separation, and Runtime provisioning as separate operations.");
+  }
+  if (process.argv.includes("--separate-legacy-roles")) {
+    const separated = await separateLegacyDatabaseRoles(
+      process.env.DATABASE_URL,
+      process.env.GUILD_MANAGEMENT_DATABASE_ROLE,
+      process.env.GUILD_RUNTIME_DATABASE_ROLE,
+      options,
+    );
+    console.log(JSON.stringify(separated));
+    return;
   }
   if (process.argv.includes("--pre-migration")) {
     const readiness = await verifyDatabaseMigrationReadiness(process.env.DATABASE_URL, options);

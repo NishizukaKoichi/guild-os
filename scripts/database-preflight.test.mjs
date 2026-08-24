@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertDatabasePreflight,
+  assertLegacyRoleSeparationSnapshot,
   assertMigrationReadiness,
   assertRuntimeRoleName,
   assertRuntimeRolePreflight,
   assertVerifiedTlsConfiguration,
   hasVerifiedClientTls,
   provisionRuntimeDatabaseRole,
+  separateLegacyDatabaseRoles,
   verifyDatabaseMigrationReadiness,
 } from "./database-preflight.mjs";
 
@@ -49,6 +51,41 @@ function runtimeSnapshot() {
     applicationTableCount: 10,
     applicationDml: true,
     runtimeFunctionExecute: true,
+  };
+}
+
+function legacyRoleSeparationSnapshot() {
+  return {
+    adminRole: "provider_admin",
+    adminCreateRole: true,
+    managementRole: "guild_schema_manager",
+    runtimeRole: "guild_runtime_app",
+    management: {
+      exists: true,
+      canLogin: true,
+      superuser: false,
+      bypassRls: false,
+      createRole: false,
+      createDatabase: false,
+      replication: false,
+      memberships: [],
+    },
+    runtime: {
+      exists: true,
+      canLogin: true,
+      superuser: false,
+      bypassRls: false,
+      createRole: false,
+      createDatabase: false,
+      replication: false,
+      memberships: [],
+    },
+    migrationLedgerExists: true,
+    guildTableExists: true,
+    applicationObjectCount: 12,
+    managementOwnedObjectCount: 0,
+    runtimeOwnedObjectCount: 12,
+    unexpectedRuntimeOwnedObjectCount: 0,
   };
 }
 
@@ -231,6 +268,117 @@ test("Runtime provisioning applies least-privilege grants in one transaction", a
   assert.equal(statements.some((statement) => statement.includes(
     "ALTER DEFAULT PRIVILEGES FOR ROLE \"guild_app\"",
   )), true);
+});
+
+test("legacy role separation rejects privileged or unexpectedly owned targets", () => {
+  assert.doesNotThrow(() => assertLegacyRoleSeparationSnapshot(
+    legacyRoleSeparationSnapshot(),
+  ));
+  assert.throws(() => assertLegacyRoleSeparationSnapshot({
+    ...legacyRoleSeparationSnapshot(),
+    management: { ...legacyRoleSeparationSnapshot().management, bypassRls: true },
+  }), /privileged/i);
+  assert.throws(() => assertLegacyRoleSeparationSnapshot({
+    ...legacyRoleSeparationSnapshot(),
+    management: {
+      ...legacyRoleSeparationSnapshot().management,
+      memberships: ["provider_superuser"],
+    },
+  }), /privileged/i);
+  assert.throws(() => assertLegacyRoleSeparationSnapshot({
+    ...legacyRoleSeparationSnapshot(),
+    managementOwnedObjectCount: 1,
+    runtimeOwnedObjectCount: 10,
+  }), /unexpected owner/i);
+  assert.throws(() => assertLegacyRoleSeparationSnapshot({
+    ...legacyRoleSeparationSnapshot(),
+    unexpectedRuntimeOwnedObjectCount: 1,
+  }), /outside the bounded Guild OS upgrade scope/i);
+});
+
+test("legacy role separation transfers ownership and preserves Runtime access atomically", async () => {
+  const statements = [];
+  const client = {
+    async connect() {},
+    async end() {},
+    async query(statement) {
+      statements.push(statement);
+      if (statement.includes("current_user AS admin_role")) {
+        return { rows: [{
+          admin_role: "provider_admin",
+          database_name: "guild_os",
+          admin_create_role: true,
+          management_exists: true,
+          management_can_login: true,
+          management_superuser: false,
+          management_bypass_rls: false,
+          management_create_role: false,
+          management_create_database: false,
+          management_replication: false,
+          management_memberships: [],
+          runtime_exists: true,
+          runtime_can_login: true,
+          runtime_superuser: false,
+          runtime_bypass_rls: false,
+          runtime_create_role: false,
+          runtime_create_database: false,
+          runtime_replication: false,
+          runtime_memberships: [],
+          admin_member_management: false,
+          admin_member_runtime: true,
+          admin_set_management: false,
+          admin_set_runtime: false,
+          migration_ledger_exists: true,
+          guild_table_exists: true,
+        }] };
+      }
+      if (statement.includes("WITH application_objects AS")) {
+        return { rows: [{
+          application_object_count: 120,
+          management_owned_object_count: 0,
+          runtime_owned_object_count: 120,
+        }] };
+      }
+      if (statement.includes("WITH runtime_role AS")) {
+        return { rows: [{ unexpected_runtime_owned_object_count: 0 }] };
+      }
+      return { rows: [] };
+    },
+  };
+  const result = await separateLegacyDatabaseRoles(
+    "postgresql://provider_admin:secret@127.0.0.1/guild_os",
+    "guild_schema_manager",
+    "guild_runtime_app",
+    { allowInsecureLocalhost: true, client },
+  );
+  assert.deepEqual(result, {
+    ok: true,
+    managementRole: "guild_schema_manager",
+    runtimeRole: "guild_runtime_app",
+    transferredObjectCount: 120,
+    alreadySeparated: false,
+  });
+  assert.equal(statements.includes("BEGIN"), true);
+  assert.equal(statements.includes("COMMIT"), true);
+  assert.equal(statements.includes("ROLLBACK"), false);
+  assert.equal(statements.some((statement) => statement.includes(
+    'REASSIGN OWNED BY "guild_runtime_app" TO "guild_schema_manager"',
+  )), true);
+  assert.equal(statements.some((statement) => statement.includes(
+    'REVOKE CREATE ON SCHEMA public, guild_runtime FROM "guild_runtime_app"',
+  )), true);
+  assert.equal(statements.some((statement) => statement.includes(
+    'ALTER DEFAULT PRIVILEGES FOR ROLE "guild_schema_manager"',
+  )), true);
+  assert.equal(statements.some((statement) => statement.includes(
+    'REVOKE "guild_schema_manager" FROM "provider_admin"',
+  )), true);
+  assert.equal(statements.some((statement) => statement.includes(
+    'GRANT "guild_runtime_app" TO "provider_admin" WITH SET FALSE',
+  )), true);
+  assert.equal(statements.some((statement) => statement.includes(
+    'REVOKE "guild_runtime_app" FROM "provider_admin"',
+  )), false);
 });
 
 test("client TLS evidence requires encryption and certificate authorization", () => {

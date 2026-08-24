@@ -15,6 +15,7 @@
     "test:cloudflare-os": "pnpm --filter @gadgets/backend-utils build && pnpm --filter @gadgets/typed-storage build && pnpm --filter @gadgets/backend-utils test && pnpm --filter @gadgets/typed-storage test && pnpm --filter @gadgets/error-reporting test && pnpm --filter @gadgets/gatekeeper-context test && pnpm exec vitest run --config vitest.cloudflare-os-frontend.config.mjs && pnpm --filter @gadgets/workshop-backend test",
     "db:migrate": "pnpm --filter @guild-os/postgres migrate",
     "db:preflight": "node scripts/database-preflight.mjs --pre-migration",
+    "db:separate-legacy-roles": "node scripts/database-preflight.mjs --separate-legacy-roles",
     "db:provision-runtime": "node scripts/database-preflight.mjs --provision-runtime",
     "db:verify": "node scripts/database-preflight.mjs",
     "check": "node scripts/deploy.mjs --check",

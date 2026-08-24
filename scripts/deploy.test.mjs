@@ -4,12 +4,15 @@ import test from "node:test";
 import { parse } from "jsonc-parser";
 import {
   applyProvisioningLock,
+  assertExistingSecretBindings,
   assertDeployableGitState,
   deploymentVersionArgs,
   deploymentSecretsFromEnvironment,
   generateConfigs,
+  parseWranglerSecretList,
   provisioningLockFromGenerated,
   provisioningLockFromWorkerVersions,
+  requiredSecretBindings,
   validateConfig,
 } from "./deploy.mjs";
 
@@ -262,6 +265,32 @@ test("returns only secrets required by the active deployment", () => {
     guildGatekeeper: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
     webhookReceiver: { GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32) },
   });
+});
+
+test("verifies existing required Secret names without reading Secret values", async () => {
+  const generated = generateConfigs(validConfig, await baseConfigs());
+  const required = requiredSecretBindings(generated);
+  assert.deepEqual(required, {
+    workshop: ["CF_AI_GATEWAY_API_TOKEN"],
+    guildGatekeeper: ["GUILD_WEBHOOK_SIGNING_SECRET"],
+    webhookReceiver: ["GUILD_WEBHOOK_SIGNING_SECRET"],
+  });
+  const listed = parseWranglerSecretList(JSON.stringify([
+    { name: "GUILD_WEBHOOK_SIGNING_SECRET", type: "secret_text" },
+    { name: "GUILD_WEBHOOK_SIGNING_SECRET", type: "secret_text" },
+  ]));
+  assert.deepEqual(listed, ["GUILD_WEBHOOK_SIGNING_SECRET"]);
+  assert.doesNotThrow(() => assertExistingSecretBindings(required, {
+    workshop: ["CF_AI_GATEWAY_API_TOKEN"],
+    guildGatekeeper: listed,
+    webhookReceiver: listed,
+  }));
+  assert.throws(() => assertExistingSecretBindings(required, {
+    workshop: ["CF_AI_GATEWAY_API_TOKEN"],
+    guildGatekeeper: listed,
+    webhookReceiver: [],
+  }), /webhookReceiver.*GUILD_WEBHOOK_SIGNING_SECRET/i);
+  assert.throws(() => parseWranglerSecretList("not-json"), /invalid Secret binding list/i);
 });
 
 test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", async () => {
