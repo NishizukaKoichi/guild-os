@@ -32,6 +32,19 @@ Publication evidence is owner-only JSON outside Git. It records the exact Core C
 scanner binary checksum, review-registry checksum, reviewed fingerprints, and zero unreviewed
 findings. It never contains candidate Secret values.
 
+## Initial publication record
+
+On 2026-08-24 the repository owner explicitly authorized public Apache-2.0 visibility for
+`NishizukaKoichi/guild-os`. Immediately before the change, Core
+`126dd6c079e7b0f1df412b8954ea363729844426` passed the complete-history gate over 88 commits with
+four exact reviewed synthetic fixtures and zero unreviewed or effective findings. After the change,
+an anonymous recursive HTTPS clone independently passed strict Git verification, frozen install,
+typecheck, and build. The commercial Distribution remained private and no production Runtime was
+deployed.
+
+This record authorizes no later release by implication. Every new reachable Core commit must pass the
+history audit, exact-SHA hosted CI, and anonymous acquisition gate again.
+
 ## Alternatives
 
 - Scanning only `HEAD` was rejected because publication exposes historical objects.

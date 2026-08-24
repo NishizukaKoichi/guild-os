@@ -24,8 +24,9 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 ## Repository and ownership boundaries
 
 - `guild-os` is the Apache-2.0 Core and includes the pinned Cloudflare OS submodule.
-- The Core GitHub repository is currently private. Public Open Core acquisition is an explicit
-  external publication gate, not an achieved property of the license file alone.
+- The Core GitHub repository is public under Apache-2.0. Distribution readiness verifies this
+  boundary through a credential-free recursive clone, frozen install, typecheck, and build for the
+  exact release commit; a license file or authenticated checkout alone is not sufficient.
 - Publication additionally requires a clean, complete-history Gitleaks 8.30.1 audit. Four
   historical generic-key matches are line-hash-bound synthetic test fixtures; any changed or new
   finding fails closed and audit evidence contains no candidate Secret values.
@@ -89,7 +90,8 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 - Commercial readiness request/report v2 additionally requires machine-generated Open Core
   acquisition evidence and re-executes the complete credential-free HTTPS clone, exact Core and
   Cloudflare OS checkout, strict object verification, frozen install, typecheck, and build. It fails
-  while Core remains private; no checksum-only or hand-authored record can bypass the live recheck.
+  if anonymous acquisition stops working; no checksum-only or hand-authored record can bypass the
+  live recheck.
 - Core now generates the independent restore proof through a two-phase, read-only verifier. The
   pre-recovery artifact compares live PostgreSQL, KV, R2, Worker inventory, and authenticated smoke
   against the selected backup and target; the post-recovery artifact adds Break Glass consumption,
@@ -110,21 +112,13 @@ deterministic clean-room chain covering install, update, backup, isolated restor
 expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
 evidence and is not an independent purchaser-account installation.
 
-The last externally captured source-complete baseline before this document update passed exact-SHA
-hosted CI: Core run [`32715346943`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32715346943)
-at `41bdaba1b7b52477fd0bb2bc595afe35ac87ce25`, and Distribution run
-[`32715716653`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32715716653)
-at `00eecd64e6c6c5385e8f76f02f9acf8c37e873ea`. Authenticated capture records are stored outside
-both repositories with SHA-256
-`ef837c0ba80cf08f112f2885b112b332fb1586bfa5ab33bc2ed7a359c9ba7c33` and
-`52bc3bab80d07517803f71ab4f3c5a8f490285608627dc9079c8811857480a7f`. These records prove only
-those SHAs; every later candidate requires a new hosted-CI capture rather than a document edit.
+Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
+owner-controlled evidence outside both repositories. This snapshot deliberately does not substitute
+a document claim for those machine records: every later candidate requires new CI and anonymous
+acquisition evidence for its exact Core, Distribution, and Cloudflare OS commits.
 
 ## Remaining completion gates
 
-- With explicit owner authorization, publish the Apache Core repository or an equivalent source
-  release, then capture readiness v2 evidence from the complete credential-free acquisition and
-  self-installation recheck.
 - Install into a genuinely independent purchaser-owned Cloudflare, PostgreSQL, AI, Access, backup,
   and domain boundary; capture live v4 Installer evidence and Human first-run initialization.
 - Run one successful live update and one deliberately failed authenticated-smoke update proving all

@@ -15,8 +15,8 @@ contradictory proprietary header, or represent this checkout as closed source wi
 
 ## Publication-history preflight
 
-Do not change the Core repository to public based only on the current checkout. Publication exposes
-reachable Git history, so first run the pinned, redacted history audit from a clean full clone:
+The Core repository is public, so every pushed commit extends its reachable history. Before treating
+any commit as a release candidate, run the pinned, redacted history audit from a clean full clone:
 
 ```bash
 pnpm audit:publication -- \
@@ -30,9 +30,10 @@ The command rejects shallow history, dirty source, scanner-version drift, rule o
 file broader than the reviewed fingerprint registry, changed historical lines, unredacted output,
 and every new finding. Evidence is written outside Git without candidate Secret values.
 
-Passing this preflight does not authorize publication. Repository visibility remains an explicit
-owner decision. After authorization and publication, Distribution readiness must independently clone
-the exact Core anonymously and repeat install, typecheck, and build.
+The initial visibility change required an explicit owner decision. Passing this preflight does not
+authorize a future repository transfer, alternate public release, or visibility change. Distribution
+readiness must independently clone the exact public Core anonymously and repeat install, typecheck,
+and build for every candidate.
 
 ## Product promise
 
