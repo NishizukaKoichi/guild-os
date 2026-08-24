@@ -66,9 +66,9 @@ function scannerEnvironment() {
   return environment;
 }
 
-function runScanner(binary, args) {
+function runScanner(binary, args, cwd = repositoryRoot) {
   return spawnSync(binary, args, {
-    cwd: repositoryRoot,
+    cwd,
     encoding: "utf8",
     env: scannerEnvironment(),
     maxBuffer: 32 * 1024 * 1024,
@@ -248,12 +248,14 @@ async function main() {
       "--log-level=error",
       "--log-opts=--all",
     ];
+    // Gitleaks resolves its default .gitleaksignore from the process working directory.
+    // Run the baseline from the isolated directory so the repository allowlist cannot hide it.
     const unfiltered = runScanner(scanner, [
       ...common,
       `--gitleaks-ignore-path=${emptyIgnore}`,
       `--report-path=${unfilteredReport}`,
-      ".",
-    ]);
+      repositoryRoot,
+    ], temporary);
     if (![0, 1].includes(unfiltered.status)) {
       throw new Error(`Unfiltered Gitleaks history scan failed with exit ${unfiltered.status}.`);
     }
