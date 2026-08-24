@@ -10,6 +10,7 @@
     "types:check": "pnpm --filter @guild-os/domain types:check && pnpm --filter @guild-os/postgres types:check && pnpm --filter @guild-os/gatekeeper types:check && pnpm --filter @guild-os/webhook-receiver types:check && pnpm --filter error-reporter types:check",
     "lint": "pnpm types:check",
     "audit:dependencies": "pnpm audit --audit-level high",
+    "audit:publication": "node scripts/publication-audit.mjs",
     "peers:check": "pnpm peers check",
     "test:cloudflare-os": "pnpm --filter @gadgets/backend-utils build && pnpm --filter @gadgets/typed-storage build && pnpm --filter @gadgets/backend-utils test && pnpm --filter @gadgets/typed-storage test && pnpm --filter @gadgets/error-reporting test && pnpm --filter @gadgets/gatekeeper-context test && pnpm exec vitest run --config vitest.cloudflare-os-frontend.config.mjs && pnpm --filter @gadgets/workshop-backend test",
     "db:migrate": "pnpm --filter @guild-os/postgres migrate",

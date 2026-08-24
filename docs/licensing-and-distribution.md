@@ -13,6 +13,27 @@ artifact set before any public commercial release.
 The current repository remains Apache-2.0. Do not replace [the existing license](../LICENSE), add a
 contradictory proprietary header, or represent this checkout as closed source without that review.
 
+## Publication-history preflight
+
+Do not change the Core repository to public based only on the current checkout. Publication exposes
+reachable Git history, so first run the pinned, redacted history audit from a clean full clone:
+
+```bash
+pnpm audit:publication -- \
+  --gitleaks-bin /ABSOLUTE/PATH/TO/GITLEAKS-8.30.1 \
+  --output /OWNER-CONTROLLED-EVIDENCE/core-publication-audit.json
+```
+
+Obtain Gitleaks from its official GitHub release and verify the platform archive against the pinned
+release checksum before running it. CI performs that download and checksum verification for Linux.
+The command rejects shallow history, dirty source, scanner-version drift, rule overrides, an ignore
+file broader than the reviewed fingerprint registry, changed historical lines, unredacted output,
+and every new finding. Evidence is written outside Git without candidate Secret values.
+
+Passing this preflight does not authorize publication. Repository visibility remains an explicit
+owner decision. After authorization and publication, Distribution readiness must independently clone
+the exact Core anonymously and repeat install, typecheck, and build.
+
 ## Product promise
 
 Guild OS uses a purchaser-owned deployment model:

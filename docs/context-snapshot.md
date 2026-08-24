@@ -26,6 +26,9 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 - `guild-os` is the Apache-2.0 Core and includes the pinned Cloudflare OS submodule.
 - The Core GitHub repository is currently private. Public Open Core acquisition is an explicit
   external publication gate, not an achieved property of the license file alone.
+- Publication additionally requires a clean, complete-history Gitleaks 8.30.1 audit. Four
+  historical generic-key matches are line-hash-bound synthetic test fixtures; any changed or new
+  finding fails closed and audit evidence contains no candidate Secret values.
 - `guild-os-distribution` is a separate commercial repository containing Installer, Updater,
   entitlement, signed-release, diagnostics, compliance, readiness, and handover packages.
 - One Runtime deployment represents one independently owned Collective.
