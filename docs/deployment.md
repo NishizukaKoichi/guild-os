@@ -205,6 +205,21 @@ The command must print `readiness marker verified` before deployment. A new migr
 the source marker, exact checksum, and migration-order test in the same reviewed change. Never
 bypass a failure by weakening `/readyz` or by changing the target database's migration ledger.
 
+Before the management role changes the target, verify that it is either fresh or an exact migration
+prefix of this release:
+
+```sh
+read -r -s DATABASE_URL
+export DATABASE_URL
+pnpm db:preflight
+pnpm db:migrate
+unset DATABASE_URL
+```
+
+The preflight rejects PostgreSQL below 17, unverified remote TLS, superuser or `BYPASSRLS`, missing
+database/schema creation authority, unavailable `vector`, `pg_trgm`, or `pgcrypto`, ledger hash
+drift, and Guild schema objects without a trusted ledger.
+
 ## 5. Supply secrets and deploy
 
 Store the Webhook HMAC secret in the purchaser's secret manager and in the receiver. Paste it into a
@@ -226,11 +241,20 @@ read -r -s CF_AI_GATEWAY_API_TOKEN
 export CF_AI_GATEWAY_API_TOKEN
 ```
 
+When `guild.modelProvider.kind` is `openai_compatible`, also provide the purchaser-owned endpoint
+token. The binding name is fixed so deployment configuration cannot redirect secret lookup:
+
+```sh
+read -r -s GUILD_MODEL_PROVIDER_TOKEN
+export GUILD_MODEL_PROVIDER_TOKEN
+```
+
 Deploy and clear the shell environment:
 
 ```sh
 pnpm deploy
-unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE GUILD_WEBHOOK_SIGNING_SECRET CF_AI_GATEWAY_API_TOKEN
+unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE GUILD_WEBHOOK_SIGNING_SECRET \
+  GUILD_MODEL_PROVIDER_TOKEN CF_AI_GATEWAY_API_TOKEN
 ```
 
 The deploy script rejects uncommitted source or an unpinned submodule, verifies the management
@@ -243,9 +267,10 @@ paths, and removes database, Webhook, AI, and Access smoke credentials from unre
 processes.
 
 `pnpm deploy` installs only the Secret values understood by `scripts/deploy.mjs`:
-`GUILD_WEBHOOK_SIGNING_SECRET` and, when enabled, `CF_AI_GATEWAY_API_TOKEN`. External model-provider
-and Connection Secret references are ordinary Guild Gatekeeper Worker bindings. Install each value
-interactively, then verify only the binding names:
+`GUILD_WEBHOOK_SIGNING_SECRET`, external-provider `GUILD_MODEL_PROVIDER_TOKEN`, and, when enabled,
+`CF_AI_GATEWAY_API_TOKEN`. Additional purchaser Connection Secret references are ordinary Guild
+Gatekeeper Worker bindings. Install each additional value interactively, then verify only the
+binding names:
 
 ```sh
 read -r SECRET_REFERENCE

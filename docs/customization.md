@@ -215,16 +215,29 @@ processes. This also supports the first deployment, before either Worker exists.
 
 For Workers AI through the default gateway, current Cloudflare guidance calls for Account permissions `AI Gateway - Read`, `AI Gateway - Edit`, and `Workers AI - Read`. Recheck the linked guidance when enabling other providers.
 
-Ask Guild has a separate Workers AI binding on the Guild Gatekeeper. Configure it independently:
+Guild OS always keeps a purchaser-owned Workers AI binding for Purpose-first setup and embeddings.
+Operational Ask, Plan, Act, and review may use that binding or one OpenAI-compatible endpoint:
 
 ```jsonc
 "guild": {
+  "bootstrapModel": "@cf/meta/llama-3.1-8b-instruct-fast",
+  "modelProvider": {
+    "kind": "workers_ai",
+    "name": "Cloudflare Workers AI",
+    "endpoint": null
+  },
   "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
   "aiGatewayId": "default",
   "askRequestsPerMinute": 20,
   "recoveryAttemptsPerMinute": 5
 }
 ```
+
+For an external operational provider, set `kind` to `openai_compatible`, provide a credential-free
+HTTPS base endpoint, select its model ID in `askModel`, and supply only
+`GUILD_MODEL_PROVIDER_TOKEN` to the live deploy process. The fixed binding name prevents purchaser
+configuration from selecting an arbitrary environment secret. Blueprint setup and embeddings do
+not use that external token.
 
 The Ask limit and emergency-recovery limit are applied per opaque Cloudflare OS account and
 Cloudflare location. They limit bursts and are not a billing budget; Guild- and Agent-level monetary

@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertDatabasePreflight,
+  assertMigrationReadiness,
   assertRuntimeRoleName,
   assertRuntimeRolePreflight,
   assertVerifiedTlsConfiguration,
   hasVerifiedClientTls,
   provisionRuntimeDatabaseRole,
+  verifyDatabaseMigrationReadiness,
 } from "./database-preflight.mjs";
 
 const migrations = [
@@ -87,6 +89,88 @@ test("database preflight rejects privileged, old, or plaintext production connec
     ...snapshot(),
     ssl: false,
   }, migrations, { allowInsecureLocalhost: true, localDatabase: true }));
+});
+
+function migrationReadinessSnapshot(overrides = {}) {
+  return {
+    serverVersionNum: 170_004,
+    ssl: true,
+    superuser: false,
+    bypassRls: false,
+    databaseCreate: true,
+    publicUsage: true,
+    publicCreate: true,
+    migrationLedgerExists: true,
+    guildTableExists: true,
+    runtimeSchemaExists: true,
+    migrations: [structuredClone(migrations[0])],
+    availableExtensions: ["pg_trgm", "pgcrypto", "vector"],
+    ...overrides,
+  };
+}
+
+test("migration readiness accepts fresh databases and exact migration prefixes", () => {
+  assert.doesNotThrow(() => assertMigrationReadiness(migrationReadinessSnapshot(), migrations));
+  assert.doesNotThrow(() => assertMigrationReadiness(migrationReadinessSnapshot({
+    migrationLedgerExists: false,
+    guildTableExists: false,
+    runtimeSchemaExists: false,
+    migrations: [],
+  }), migrations));
+  assert.throws(() => assertMigrationReadiness(migrationReadinessSnapshot({
+    migrations: [{ ...migrations[0], checksum: "c".repeat(64) }],
+  }), migrations), /migration mismatch/i);
+  assert.throws(() => assertMigrationReadiness(migrationReadinessSnapshot({
+    migrationLedgerExists: false,
+    migrations: [],
+  }), migrations), /without a trusted migration ledger/i);
+  assert.throws(() => assertMigrationReadiness(migrationReadinessSnapshot({
+    migrations: [],
+  }), migrations), /ledger and Core schema objects are inconsistent/i);
+  assert.throws(() => assertMigrationReadiness(migrationReadinessSnapshot({
+    guildTableExists: false,
+  }), migrations), /ledger and Core schema objects are inconsistent/i);
+  assert.throws(() => assertMigrationReadiness(migrationReadinessSnapshot({
+    availableExtensions: ["pg_trgm", "pgcrypto"],
+  }), migrations), /vector/i);
+});
+
+test("migration readiness inspects the live connection without requiring completed schema", async () => {
+  const queries = [];
+  const client = {
+    connection: { stream: { encrypted: true, authorized: true } },
+    async connect() {},
+    async end() {},
+    async query(statement) {
+      queries.push(statement);
+      if (statement.includes("current_setting('server_version_num')")) {
+        return { rows: [{
+          server_version_num: 170_004,
+          ssl: false,
+          superuser: false,
+          bypass_rls: false,
+          database_create: true,
+          public_usage: true,
+          public_create: true,
+          migration_ledger_exists: false,
+          guild_table_exists: false,
+          runtime_schema_exists: false,
+        }] };
+      }
+      if (statement.includes("pg_available_extensions")) {
+        return { rows: [{ name: "pg_trgm" }, { name: "pgcrypto" }, { name: "vector" }] };
+      }
+      return { rows: [] };
+    },
+  };
+  const result = await verifyDatabaseMigrationReadiness(
+    "postgresql://guild_app@127.0.0.1/guild_os",
+    { allowInsecureLocalhost: true, client },
+  );
+  assert.equal(result.freshDatabase, true);
+  assert.equal(result.appliedMigrationCount, 0);
+  assert.equal(result.pendingMigrationCount > 0, true);
+  assert.equal(queries.some((statement) => statement.includes("guild_schema_migrations\n")), false);
 });
 
 test("Runtime role preflight enforces least privilege and application access", () => {

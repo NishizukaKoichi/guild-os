@@ -2,6 +2,7 @@ import type { ModelProvider, ModelRoute } from "@guild-os/domain";
 import type { ResolvedModelRoute } from "@guild-os/postgres";
 import { GuildOperationsRepository, withGuildTransaction } from "@guild-os/postgres";
 import type { GuildEnv } from "./config.js";
+import { deploymentModelConfiguration } from "./deployment-model.js";
 
 const MAX_MODEL_RESPONSE_BYTES = 2_000_000;
 type ModelPurpose = ModelRoute["purpose"];
@@ -120,17 +121,17 @@ export async function resolveConfiguredModel(
     if (!(error instanceof Error) ||
         !error.message.includes("No active Model route is configured")) throw error;
     const now = new Date(0).toISOString();
-    const primaryModel = purpose === "embedding" ? "@cf/baai/bge-m3" : env.GUILD_ASK_MODEL;
+    const configured = deploymentModelConfiguration(env, purpose);
     console.warn(JSON.stringify({ event: "guild.model.deployment_fallback", purpose }));
     return {
       provider: {
         id: env.GUILD_ID,
         guildId: env.GUILD_ID,
-        name: "Cloudflare Workers AI deployment fallback",
-        kind: "workers_ai",
-        endpointUrl: null,
-        secretReference: null,
-        allowedModels: [env.GUILD_ASK_MODEL, "@cf/baai/bge-m3"],
+        name: `${configured.name} deployment fallback`,
+        kind: configured.kind,
+        endpointUrl: configured.endpointUrl,
+        secretReference: configured.secretReference,
+        allowedModels: [configured.model],
         status: "active",
         deploymentManaged: true,
         createdByActorId: env.GUILD_ID,
@@ -143,9 +144,9 @@ export async function resolveConfiguredModel(
         guildId: env.GUILD_ID,
         purpose,
         providerId: env.GUILD_ID,
-        primaryModel,
+        primaryModel: configured.model,
         fallbackModel: null,
-        maxTokens: purpose === "plan" ? 4_096 : 2_048,
+        maxTokens: purpose === "plan" ? 4_096 : purpose === "embedding" ? 512 : 2_048,
         dailyBudgetMinor: 0,
         cacheEnabled: purpose === "embedding",
         status: "active",

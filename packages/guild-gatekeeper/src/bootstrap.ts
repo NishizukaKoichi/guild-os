@@ -22,6 +22,10 @@ import APP_HTML from "./generated/app.txt";
 import { makeChronicleEvent } from "./chronicle.js";
 import type { GuildEnv } from "./config.js";
 import {
+  deploymentModelConfiguration,
+  type DeploymentModelConfiguration,
+} from "./deployment-model.js";
+import {
   buildTemplateProvisioningPlan,
   provisionBlueprintSpaces,
   provisionTemplateDefaults,
@@ -118,18 +122,23 @@ async function ensureDefaultModelRoutes(
   rootActorId: string,
 ): Promise<void> {
   const repository = new GuildOperationsRepository(connection, env.GUILD_ID);
-  const askModel = env.GUILD_ASK_MODEL?.trim() || "@cf/meta/llama-3.1-8b-instruct-fast";
-  let provider = (await repository.listModelProviders()).find((candidate) =>
-    candidate.kind === "workers_ai" && candidate.deploymentManaged);
-  if (!provider) {
+  const providers = await repository.listModelProviders();
+  const ensureProvider = async (configured: DeploymentModelConfiguration, models: readonly string[]) => {
+    let provider = providers.find((candidate) =>
+      candidate.kind === configured.kind &&
+      candidate.endpointUrl === configured.endpointUrl &&
+      candidate.secretReference === configured.secretReference &&
+      candidate.deploymentManaged &&
+      models.every((model) => candidate.allowedModels.includes(model)));
+    if (provider) return provider;
     const providerId = crypto.randomUUID();
     provider = await repository.createModelProvider({
       id: providerId,
-      name: "Cloudflare Workers AI",
-      kind: "workers_ai",
-      endpointUrl: null,
-      secretReference: null,
-      allowedModels: [...new Set([askModel, "@cf/baai/bge-m3"])],
+      name: configured.name,
+      kind: configured.kind,
+      endpointUrl: configured.endpointUrl,
+      secretReference: configured.secretReference,
+      allowedModels: [...new Set(models)],
       deploymentManaged: true,
       createdByActorId: rootActorId,
       actorId: rootActorId,
@@ -138,14 +147,29 @@ async function ensureDefaultModelRoutes(
         { source: "deployment-config" },
       ),
     });
-  }
+    providers.push(provider);
+    return provider;
+  };
+
+  const operational = deploymentModelConfiguration(env, "ask");
+  const embedding = deploymentModelConfiguration(env, "embedding");
+  const sameProvider = operational.kind === embedding.kind &&
+    operational.endpointUrl === embedding.endpointUrl &&
+    operational.secretReference === embedding.secretReference;
+  const operationalProvider = await ensureProvider(
+    operational,
+    sameProvider ? [operational.model, embedding.model] : [operational.model],
+  );
+  const embeddingProvider = sameProvider
+    ? operationalProvider
+    : await ensureProvider(embedding, [embedding.model]);
   const routes = await repository.listModelRoutes();
   const defaults = [
-    { purpose: "ask" as const, model: askModel, maxTokens: 2_048, cache: false },
-    { purpose: "plan" as const, model: askModel, maxTokens: 4_096, cache: false },
-    { purpose: "act" as const, model: askModel, maxTokens: 2_048, cache: false },
-    { purpose: "review" as const, model: askModel, maxTokens: 2_048, cache: false },
-    { purpose: "embedding" as const, model: "@cf/baai/bge-m3", maxTokens: 512, cache: true },
+    { purpose: "ask" as const, provider: operationalProvider, model: operational.model, maxTokens: 2_048, cache: false },
+    { purpose: "plan" as const, provider: operationalProvider, model: operational.model, maxTokens: 4_096, cache: false },
+    { purpose: "act" as const, provider: operationalProvider, model: operational.model, maxTokens: 2_048, cache: false },
+    { purpose: "review" as const, provider: operationalProvider, model: operational.model, maxTokens: 2_048, cache: false },
+    { purpose: "embedding" as const, provider: embeddingProvider, model: embedding.model, maxTokens: 512, cache: true },
   ];
   for (const item of defaults) {
     if (routes.some((route) => route.purpose === item.purpose)) continue;
@@ -153,7 +177,7 @@ async function ensureDefaultModelRoutes(
     await repository.createModelRoute({
       id: routeId,
       purpose: item.purpose,
-      providerId: provider.id,
+      providerId: item.provider.id,
       primaryModel: item.model,
       fallbackModel: null,
       maxTokens: item.maxTokens,

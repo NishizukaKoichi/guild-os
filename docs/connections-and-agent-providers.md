@@ -68,17 +68,20 @@ provider-specific protocol needs a reviewed adapter; changing only the provider 
 1. Decide which model purposes the Guild needs and create a separate budget boundary for each.
 2. For Workers AI, confirm the deploy-created `AI` binding and the `guild.askModel` and
    `guild.aiGatewayId` values in the purchaser configuration.
-3. For an external provider, install its value as a Worker Secret and record only the reference
-   name.
+3. For the deployment-managed external operational provider, set the credential-free endpoint and
+   model in purchaser configuration and supply its value only as `GUILD_MODEL_PROVIDER_TOKEN` during
+   deploy. Additional administrator-created provider rows may use reviewed Secret references.
 4. In **Operations > AI models**, register the provider and list only approved model IDs.
 5. Configure one route at a time, starting with `ask`; set a conservative token limit and budget.
 6. Exercise the route with synthetic, non-sensitive content, inspect provider-side usage, and
    inspect Chronicle evidence for the provider and route configuration before admitting real data.
 7. Disable or revoke the route before rotating or removing its Secret binding.
 
-If no active database route exists, the runtime falls back to the deployment-managed Workers AI
-provider: `guild.askModel` for text purposes and `@cf/baai/bge-m3` for embeddings. This is an
-availability fallback, not proof that a purchaser budget or model policy has been reviewed.
+If no active database route exists, the runtime falls back to the deployment-managed provider:
+`guild.modelProvider` plus `guild.askModel` for text purposes and purchaser Workers AI
+`@cf/baai/bge-m3` for embeddings. Purpose-first Blueprint generation independently uses the
+purchaser Workers AI `guild.bootstrapModel`. These are availability fallbacks, not proof that a
+purchaser budget or model policy has been reviewed.
 
 ### Provider administration
 

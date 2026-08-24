@@ -75,6 +75,18 @@ const referenceWebhookPaths = [
   "workers.webhookReceiver.name",
 ];
 
+function guildModelProvider(config) {
+  return config.guild.modelProvider ?? {
+    kind: "workers_ai",
+    name: "Cloudflare Workers AI",
+    endpoint: null,
+  };
+}
+
+function guildBootstrapModel(config) {
+  return config.guild.bootstrapModel ?? "@cf/meta/llama-3.1-8b-instruct-fast";
+}
+
 const resourcePaths = [
   "context.kvNamespaceId",
   "resources.blueprintsKvNamespaceId",
@@ -432,8 +444,31 @@ export function validateConfig(config) {
       webhookUrl.search || webhookUrl.hash || config.guild.webhook.url.length > 2048) {
     throw new Error("Guild Webhook URL must be a credential-free HTTPS URL without query or hash.");
   }
-  if (!/^@cf\/[a-z0-9._-]+\/[a-z0-9._-]+$/i.test(config.guild.askModel)) {
-    throw new Error("Guild Ask model must be a Workers AI @cf/provider/model identifier.");
+  const modelProvider = guildModelProvider(config);
+  if (!modelProvider || typeof modelProvider !== "object" || Array.isArray(modelProvider) ||
+      !["workers_ai", "openai_compatible"].includes(modelProvider.kind)) {
+    throw new Error("Guild Model provider kind must be workers_ai or openai_compatible.");
+  }
+  if (typeof modelProvider.name !== "string" || !modelProvider.name.trim() ||
+      modelProvider.name.length > 200) {
+    throw new Error("Guild Model provider name must contain 1-200 characters.");
+  }
+  if (modelProvider.kind === "workers_ai") {
+    if (modelProvider.endpoint !== null && modelProvider.endpoint !== undefined) {
+      throw new Error("Workers AI cannot use an external Model endpoint.");
+    }
+    if (!/^@cf\/[a-z0-9._-]+\/[a-z0-9._-]+$/i.test(config.guild.askModel)) {
+      throw new Error("Guild Ask model must be a Workers AI @cf/provider/model identifier.");
+    }
+  } else {
+    const endpoint = new URL(modelProvider.endpoint);
+    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password ||
+        endpoint.search || endpoint.hash) {
+      throw new Error("External Guild Model endpoint must be a credential-free HTTPS URL.");
+    }
+  }
+  if (!/^@cf\/[a-z0-9._-]+\/[a-z0-9._-]+$/i.test(guildBootstrapModel(config))) {
+    throw new Error("Guild bootstrap model must be a Workers AI @cf/provider/model identifier.");
   }
   if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(config.guild.aiGatewayId)) {
     throw new Error("Guild AI Gateway ID must use letters, numbers, underscores, or hyphens.");
@@ -608,6 +643,13 @@ export function deploymentSecretsFromEnvironment(config, env) {
       webhookReceiver: { GUILD_WEBHOOK_SIGNING_SECRET: webhookSigningSecret },
     } : {}),
   };
+  if (guildModelProvider(config).kind === "openai_compatible") {
+    const modelToken = env.GUILD_MODEL_PROVIDER_TOKEN;
+    if (typeof modelToken !== "string" || !modelToken.trim()) {
+      throw new Error("GUILD_MODEL_PROVIDER_TOKEN must be set for an external Guild Model provider.");
+    }
+    secrets.guildGatekeeper.GUILD_MODEL_PROVIDER_TOKEN = modelToken;
+  }
   if (config.aiGateway.enabled) {
     const aiGatewayToken = env.CF_AI_GATEWAY_API_TOKEN;
     if (typeof aiGatewayToken !== "string" || !aiGatewayToken.trim()) {
@@ -747,13 +789,22 @@ export function generateConfigs(config, bases) {
     GUILD_LEVEL3_QUORUM: String(config.guild.level3ApprovalQuorum),
     GUILD_RETENTION_DAYS: String(config.guild.dataRetentionDays),
     GUILD_ASK_MODEL: config.guild.askModel,
+    GUILD_BOOTSTRAP_MODEL: guildBootstrapModel(config),
+    GUILD_MODEL_PROVIDER_KIND: guildModelProvider(config).kind,
+    GUILD_MODEL_PROVIDER_NAME: guildModelProvider(config).name,
+    GUILD_MODEL_PROVIDER_ENDPOINT: guildModelProvider(config).endpoint ?? "",
     GUILD_AI_GATEWAY_ID: config.guild.aiGatewayId,
     GUILD_WEBHOOK_CONNECTOR_ID: config.guild.webhook.connectorId,
     GUILD_WEBHOOK_CONNECTOR_NAME: config.guild.webhook.name,
     GUILD_WEBHOOK_URL: config.guild.webhook.url,
   };
   guildGatekeeper.secrets = {
-    required: ["GUILD_WEBHOOK_SIGNING_SECRET"],
+    required: [
+      "GUILD_WEBHOOK_SIGNING_SECRET",
+      ...(guildModelProvider(config).kind === "openai_compatible"
+        ? ["GUILD_MODEL_PROVIDER_TOKEN"]
+        : []),
+    ],
   };
   guildGatekeeper.hyperdrive = [{
     binding: "HYPERDRIVE",

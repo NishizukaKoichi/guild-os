@@ -51,6 +51,12 @@ const validConfig = {
     level3ApprovalQuorum: 2,
     dataRetentionDays: 2555,
     hyperdriveId: "abcdef0123456789abcdef0123456789",
+    bootstrapModel: "@cf/meta/llama-3.1-8b-instruct-fast",
+    modelProvider: {
+      kind: "workers_ai",
+      name: "Cloudflare Workers AI",
+      endpoint: null,
+    },
     askModel: "@cf/meta/llama-3.1-8b-instruct-fast",
     aiGatewayId: "default",
     askRequestsPerMinute: 20,
@@ -175,6 +181,19 @@ test("rejects destructive or malformed deployment values", () => {
   const unsafeWebhook = structuredClone(validConfig);
   unsafeWebhook.guild.webhook.url = "http://127.0.0.1/internal";
   assert.throws(() => validateConfig(unsafeWebhook), /Webhook URL.*HTTPS/i);
+
+  const invalidExternalModel = structuredClone(validConfig);
+  invalidExternalModel.guild.modelProvider = {
+    kind: "openai_compatible",
+    name: "Purchaser Model",
+    endpoint: "http://models.example.com/v1",
+  };
+  invalidExternalModel.guild.askModel = "owned-model";
+  assert.throws(() => validateConfig(invalidExternalModel), /Model endpoint.*HTTPS/i);
+
+  const invalidWorkersModel = structuredClone(validConfig);
+  invalidWorkersModel.guild.askModel = "not-a-workers-ai-model";
+  assert.throws(() => validateConfig(invalidWorkersModel), /Workers AI.*identifier/i);
 
   const malformedWorkflow = structuredClone(validConfig);
   malformedWorkflow.guild.agentWorkflowName = "Bad Workflow";
@@ -304,6 +323,10 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     GUILD_LEVEL3_QUORUM: "2",
     GUILD_RETENTION_DAYS: "2555",
     GUILD_ASK_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+    GUILD_BOOTSTRAP_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+    GUILD_MODEL_PROVIDER_KIND: "workers_ai",
+    GUILD_MODEL_PROVIDER_NAME: "Cloudflare Workers AI",
+    GUILD_MODEL_PROVIDER_ENDPOINT: "",
     GUILD_AI_GATEWAY_ID: "default",
     GUILD_WEBHOOK_CONNECTOR_ID: validConfig.guild.webhook.connectorId,
     GUILD_WEBHOOK_CONNECTOR_NAME: "Approved operations webhook",
@@ -364,6 +387,37 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
   assert.equal(generated.workshop.services.some(
     (service) => service.binding === "FRONTEND_ERROR_REPORTER"), false);
   assert.equal(generated.workshop.ratelimits, undefined);
+});
+
+test("deploys an external OpenAI-compatible Model with a fixed Secret binding", async () => {
+  const config = structuredClone(validConfig);
+  config.guild.askModel = "purchaser-owned-model";
+  config.guild.modelProvider = {
+    kind: "openai_compatible",
+    name: "Purchaser-owned Model endpoint",
+    endpoint: "https://models.example.com/v1",
+  };
+  assert.throws(() => deploymentSecretsFromEnvironment(config, {
+    GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+    CF_AI_GATEWAY_API_TOKEN: "cloudflare-api-token",
+  }), /GUILD_MODEL_PROVIDER_TOKEN/);
+
+  const generated = generateConfigs(config, await baseConfigs());
+  assert.equal(generated.guildGatekeeper.vars.GUILD_ASK_MODEL, "purchaser-owned-model");
+  assert.equal(generated.guildGatekeeper.vars.GUILD_MODEL_PROVIDER_KIND, "openai_compatible");
+  assert.equal(generated.guildGatekeeper.vars.GUILD_MODEL_PROVIDER_ENDPOINT, "https://models.example.com/v1");
+  assert.deepEqual(generated.guildGatekeeper.secrets.required, [
+    "GUILD_WEBHOOK_SIGNING_SECRET",
+    "GUILD_MODEL_PROVIDER_TOKEN",
+  ]);
+  assert.deepEqual(deploymentSecretsFromEnvironment(config, {
+    GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+    GUILD_MODEL_PROVIDER_TOKEN: "purchaser-owned-token",
+    CF_AI_GATEWAY_API_TOKEN: "cloudflare-api-token",
+  }).guildGatekeeper, {
+    GUILD_WEBHOOK_SIGNING_SECRET: "w".repeat(32),
+    GUILD_MODEL_PROVIDER_TOKEN: "purchaser-owned-token",
+  });
 });
 
 test("omits disabled backend error reporting", async () => {

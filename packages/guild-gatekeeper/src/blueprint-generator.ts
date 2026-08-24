@@ -13,6 +13,7 @@ import {
   type PurposeBlueprintInput,
 } from "@guild-os/domain";
 import type { GuildEnv } from "./config.js";
+import { deploymentBootstrapModel } from "./deployment-model.js";
 
 const MAX_MODEL_RESPONSE_BYTES = 250_000;
 const MODEL_TIMEOUT_MS = 20_000;
@@ -292,7 +293,7 @@ export async function generatePurposeBlueprint(
 }
 
 export function createWorkersAiBlueprintRunner(env: GuildEnv): BlueprintModelRunner {
-  return (prompt) => env.AI.run(env.GUILD_ASK_MODEL, prompt, {
+  return (prompt) => env.AI.run(deploymentBootstrapModel(env), prompt, {
     gateway: env.GUILD_AI_GATEWAY_ID
       ? {
           id: env.GUILD_AI_GATEWAY_ID,

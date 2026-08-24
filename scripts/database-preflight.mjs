@@ -156,6 +156,123 @@ export function assertDatabasePreflight(snapshot, expectedMigrations, options = 
   }
 }
 
+const requiredExtensions = ["pg_trgm", "pgcrypto", "vector"];
+
+export function assertMigrationReadiness(snapshot, expectedMigrations, options = {}) {
+  if (!Number.isSafeInteger(snapshot.serverVersionNum) || snapshot.serverVersionNum < 170_000) {
+    throw new Error("Production requires PostgreSQL 17 or newer.");
+  }
+  if (!snapshot.ssl && !(options.allowInsecureLocalhost && options.localDatabase)) {
+    throw new Error("Production PostgreSQL must use TLS.");
+  }
+  if (snapshot.superuser || snapshot.bypassRls) {
+    throw new Error("Migration readiness requires a non-superuser role without BYPASSRLS.");
+  }
+  if (!snapshot.databaseCreate || !snapshot.publicUsage || !snapshot.publicCreate) {
+    throw new Error("Migration role is missing database or public schema creation privileges.");
+  }
+  if (!Array.isArray(snapshot.availableExtensions) ||
+      requiredExtensions.some((name) => !snapshot.availableExtensions.includes(name))) {
+    throw new Error("PostgreSQL must make pg_trgm, pgcrypto, and vector available before migration.");
+  }
+  if (!Array.isArray(snapshot.migrations) || snapshot.migrations.length > expectedMigrations.length) {
+    throw new Error("The existing migration ledger is not a compatible prefix of this release.");
+  }
+  for (let index = 0; index < snapshot.migrations.length; index += 1) {
+    const actual = snapshot.migrations[index];
+    const expected = expectedMigrations[index];
+    if (actual?.name !== expected?.name || actual?.checksum !== expected?.checksum) {
+      throw new Error(`Existing migration mismatch at ${expected?.name ?? actual?.name ?? index}.`);
+    }
+  }
+  if (!snapshot.migrationLedgerExists &&
+      (snapshot.guildTableExists || snapshot.runtimeSchemaExists)) {
+    throw new Error("Guild OS schema objects exist without a trusted migration ledger.");
+  }
+  if (snapshot.migrationLedgerExists &&
+      ((snapshot.migrations.length === 0 && snapshot.guildTableExists) ||
+       (snapshot.migrations.length > 0 && !snapshot.guildTableExists))) {
+    throw new Error("Guild OS migration ledger and Core schema objects are inconsistent.");
+  }
+}
+
+export async function verifyDatabaseMigrationReadiness(connectionString, options = {}) {
+  if (typeof connectionString !== "string" || !connectionString.trim()) {
+    throw new Error("DATABASE_URL is required for migration readiness verification.");
+  }
+  let parsed;
+  try {
+    parsed = new URL(connectionString);
+  } catch {
+    throw new Error("DATABASE_URL must be a valid PostgreSQL URL.");
+  }
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+    throw new Error("DATABASE_URL must use the postgres or postgresql scheme.");
+  }
+  assertVerifiedTlsConfiguration(connectionString, options);
+  const client = options.client ?? new Client({
+    connectionString,
+    connectionTimeoutMillis: 10_000,
+  });
+  await client.connect();
+  try {
+    await client.query("SET statement_timeout = '15s'");
+    const identityResult = await client.query(`SELECT
+        current_setting('server_version_num')::integer AS server_version_num,
+        COALESCE((SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()), false) AS ssl,
+        role.rolsuper AS superuser,
+        role.rolbypassrls AS bypass_rls,
+        has_database_privilege(current_user, current_database(), 'CREATE') AS database_create,
+        has_schema_privilege(current_user, 'public', 'USAGE') AS public_usage,
+        has_schema_privilege(current_user, 'public', 'CREATE') AS public_create,
+        to_regclass('public.guild_schema_migrations') IS NOT NULL AS migration_ledger_exists,
+        to_regclass('public.guilds') IS NOT NULL AS guild_table_exists,
+        EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'guild_runtime') AS runtime_schema_exists
+      FROM pg_roles role
+      WHERE role.rolname = current_user`);
+    const identity = identityResult.rows[0];
+    if (!identity) throw new Error("The migration database role could not be inspected.");
+    const migrationResult = identity.migration_ledger_exists
+      ? await client.query(`SELECT name, checksum
+          FROM public.guild_schema_migrations
+          ORDER BY name`)
+      : { rows: [] };
+    const extensionResult = await client.query(`SELECT name
+        FROM pg_available_extensions
+        WHERE name = ANY($1::text[])
+        ORDER BY name`, [requiredExtensions]);
+    const expectedMigrations = await loadMigrations();
+    const snapshot = {
+      serverVersionNum: identity.server_version_num,
+      ssl: identity.ssl || hasVerifiedClientTls(client),
+      superuser: identity.superuser,
+      bypassRls: identity.bypass_rls,
+      databaseCreate: identity.database_create,
+      publicUsage: identity.public_usage,
+      publicCreate: identity.public_create,
+      migrationLedgerExists: identity.migration_ledger_exists,
+      guildTableExists: identity.guild_table_exists,
+      runtimeSchemaExists: identity.runtime_schema_exists,
+      migrations: migrationResult.rows,
+      availableExtensions: extensionResult.rows.map((row) => row.name),
+    };
+    assertMigrationReadiness(snapshot, expectedMigrations, {
+      allowInsecureLocalhost: options.allowInsecureLocalhost === true,
+      localDatabase: isLocalDatabase(connectionString),
+    });
+    return {
+      ok: true,
+      postgresMajor: Math.floor(snapshot.serverVersionNum / 10_000),
+      tls: snapshot.ssl,
+      appliedMigrationCount: snapshot.migrations.length,
+      pendingMigrationCount: expectedMigrations.length - snapshot.migrations.length,
+      freshDatabase: !snapshot.migrationLedgerExists,
+    };
+  } finally {
+    await client.end();
+  }
+}
+
 export async function verifyProductionDatabase(connectionString, options = {}) {
   if (typeof connectionString !== "string" || !connectionString.trim()) {
     throw new Error("DATABASE_URL is required for production database verification.");
@@ -284,7 +401,7 @@ export async function verifyProductionDatabase(connectionString, options = {}) {
 }
 
 async function main() {
-  const known = new Set(["--allow-insecure-localhost", "--provision-runtime"]);
+  const known = new Set(["--allow-insecure-localhost", "--pre-migration", "--provision-runtime"]);
   for (const argument of process.argv.slice(2).filter((value) => value !== "--")) {
     if (!known.has(argument)) throw new Error(`Unknown database verification option: ${argument}`);
   }
@@ -292,6 +409,14 @@ async function main() {
     allowInsecureLocalhost: process.argv.includes("--allow-insecure-localhost"),
     runtimeRoleName: process.env.GUILD_RUNTIME_DATABASE_ROLE,
   };
+  if (process.argv.includes("--pre-migration") && process.argv.includes("--provision-runtime")) {
+    throw new Error("Run migration readiness and Runtime role provisioning as separate operations.");
+  }
+  if (process.argv.includes("--pre-migration")) {
+    const readiness = await verifyDatabaseMigrationReadiness(process.env.DATABASE_URL, options);
+    console.log(JSON.stringify(readiness));
+    return;
+  }
   if (process.argv.includes("--provision-runtime")) {
     const provisioned = await provisionRuntimeDatabaseRole(
       process.env.DATABASE_URL,

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-16
+- Implemented: 2026-08-24
 
 ## Context
 
@@ -22,11 +23,11 @@ Keep the current `guild-os` repository as the Apache-2.0 runtime core and purcha
 tooling. Do not add runtime license enforcement, seller-funded provider credentials, purchaser data,
 or proprietary-only source to this repository.
 
-Create future commercial distribution material only in a separate private repository after its
-license, contributor policy, and third-party treatment receive qualified legal review. That
-repository may package independently authored installation, update-delivery, Blueprint, educational,
-and brand assets around immutable Guild OS core releases. Any Apache component included in a paid
-bundle retains its license and notices.
+Keep commercial Distribution material in the separate `guild-os-distribution` repository. Its
+Installer, Updater, entitlement, signed-release, diagnostics, compliance, and handover packages
+consume versioned Core contracts and pin an immutable Core release. Its legal drafts, contributor
+policy, and third-party treatment still require qualified professional review before sale. Any
+Apache component included in a paid bundle retains its license and notices.
 
 An update entitlement may control access to future downloads, but it cannot disable an installed
 release, block export or recovery, or become a runtime dependency. Optional support remains a

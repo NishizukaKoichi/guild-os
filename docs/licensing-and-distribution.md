@@ -1,10 +1,11 @@
 # Licensing and Distribution
 
-Updated: 2026-08-16
+Updated: 2026-08-24
 
 ## Status
 
-This document defines the technical and product boundary selected for future Guild OS sales. It is
+This document defines the implemented technical and product boundary for Guild OS Core and the
+separate Guild OS Owned Distribution. It is
 not a commercial license and is not legal advice. A qualified open-source licensing professional
 must review the final commercial terms, contributor rights, notices, trademarks, and shipped
 artifact set before any public commercial release.
@@ -42,9 +43,9 @@ their inclusion in this repository does not create a proprietary boundary. Exist
 must be treated as continuing for versions already distributed under those terms. See
 [Third-Party Notices](../THIRD_PARTY_NOTICES.md) for the direct provenance snapshot.
 
-## Target repository topology
+## Repository topology
 
-Future commercial distribution work must use separate repositories and credentials:
+Commercial Distribution work uses separate repositories and credentials:
 
 ```text
 guild-os
@@ -52,10 +53,10 @@ guild-os
   No purchaser data, commercial entitlement logic, or seller runtime dependency
 
 guild-os-distribution
-  Separate private product repository, not yet created
-  Seller-authored installer shell, signed release catalog, independently authored Blueprint packs,
-  product documentation, brand assets, and download/update delivery
-  Final license is counsel-reviewed before content is offered
+  Separate commercial product repository
+  Installer, Updater, signed release bundles, compliance inventory, diagnostics, handover,
+  product documentation, and draft commercial terms
+  Final license and transitive LGPL obligations require professional review before sale
 
 purchaser-instance
   Purchaser-owned private configuration and operations record
@@ -119,8 +120,10 @@ distribution ready, the separate product must provide:
 - a support boundary that routes product defects to releases and documentation rather than promising
   per-purchaser customization.
 
-Until this exists, sales language must describe the product as a source distribution with a reviewed
-deployment runbook, not as one-click installation.
+The self-service implementation now exists and passes deterministic local rehearsal. That rehearsal
+does not prove an independent purchaser-account installation, activated production signing custody,
+or professional sale review. Those remain fail-closed evidence gates and must not be replaced by a
+"one-click" claim.
 
 ## Release compliance gate
 
@@ -145,7 +148,7 @@ or the commercial license attempts to restrict rights already granted for an Apa
 ## Change rules for developers and AI agents
 
 - Put reusable runtime fixes in `guild-os` and accept that they follow its current Apache license.
-- Put future commercial-only material in the separate distribution repository only after its license
+- Put commercial-only material in the separate distribution repository only after its license
   and contributor policy exist.
 - Communicate through versioned files, schemas, commands, and network contracts; do not import private
   distribution source into the core.

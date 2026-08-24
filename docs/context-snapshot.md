@@ -1,148 +1,107 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-16
+Updated: 2026-08-24
 
 ## Current goal
 
-Build Guild OS as a self-owned Actor-neutral Collective OS where Humans, Agents, Services, and
-other Guilds share Memory, Activity, Roles, Decisions, and append-only History.
+Guild OS is an Actor-neutral Collective OS whose Apache Core and purchaser-owned commercial
+Distribution remain operationally independent from the seller. Humans, Agents, Services, and other
+Guilds share governed Memory, Activity, Roles, Decisions, Connections, and append-only History.
 
-## Authoritative sources
+## Authority
 
-- Product requirements: the Guild OS v1.0 specification agreed in the project conversation.
-- Runtime behavior: the pinned `cloudflare-os` submodule and its source code.
-- Deployment behavior: the tracked `deployment.jsonc` template, ignored or external purchaser
-  configuration, `scripts/deploy.mjs`, and tests.
-- Architecture decisions: `docs/adr/`.
+1. [Product specification](product-specification.md) is the requirement authority.
+2. [Full-spec acceptance](full-spec-acceptance.md) defines executable release evidence.
+3. [Product completion matrix](product-completion-matrix.md) records verified and blocked state.
+4. Code, migrations, tests, deployment configuration, and accepted ADRs define actual behavior.
 
-When these disagree, executable code and a newer accepted ADR take precedence. A conflicting
-product requirement must be resolved explicitly rather than silently weakened.
+`v1-completion.md` is only a compatibility index. It cannot narrow the specification or turn a
+local, Core-only, synthetic, or seller-owned rehearsal into product completion.
 
-## Confirmed decisions
+This document deliberately does not name its own Git SHA. Release automation must obtain the exact
+commit from Git, bind it to Worker versions and signed manifests, and verify hosted CI for that SHA.
 
-- Guild OS extends Cloudflare OS instead of rebuilding its agent workspace, Gadgets, Blueprints,
-  Dynamic Worker isolation, or Gatekeeper approval model.
-- The upstream Cloudflare OS commit is pinned as a Git submodule. Deployment-owned Workers and
-  Gatekeepers live outside that submodule.
-- One purchaser-controlled deployment represents one Guild. Spaces provide internal segmentation;
-  later federation connects separate Guild deployments explicitly.
-- PostgreSQL is the system of record for relational Guild data and Chronicle events. Workers reach
-  it through Hyperdrive. R2 stores files; search indexes are derived data, never the source of truth.
-- Cloudflare Access authenticates humans before application code. Guild authorization is still
-  enforced on every data operation and is not delegated to frontend visibility controls.
-- Cloudflare OS Gatekeepers remain the only path from agents and Gadgets to Guild data or external
-  side effects.
-- No central seller-operated API, licensing server, database, or mandatory subscription is allowed.
-- The current repository remains Apache-2.0. Future commercial distribution assets belong in a
-  separate, counsel-reviewed repository and may gate access to new downloads, never continued use,
-  export, or recovery of an installed release.
-- Company is one Template. Personal with AI is the guided first-run default, Other builds a
-  reviewed Purpose-first Blueprint, and Blank remains an advanced neutral Profile. Guilds and
-  Spaces may reuse built-in or purchaser-saved Profiles without forking the neutral core or
-  changing the authorization engine.
+## Repository and ownership boundaries
 
-## Security invariants
+- `guild-os` is the Apache-2.0 Core and includes the pinned Cloudflare OS submodule.
+- `guild-os-distribution` is a separate commercial repository containing Installer, Updater,
+  entitlement, signed-release, diagnostics, compliance, readiness, and handover packages.
+- One Runtime deployment represents one independently owned Collective.
+- Purchasers own Cloudflare, PostgreSQL, model-provider, domain, Secret, backup, and data resources.
+- Runtime has no seller API, license server, AI proxy, telemetry, backup, domain, or kill dependency.
+- Expired update access may reject a new package; it cannot stop an installed Runtime.
 
-- A Root Owner is always a human.
-- An active Guild must retain at least one active Root Owner.
-- An agent cannot grant permissions, change the Constitution, transfer ownership, or invoke Break
-  Glass.
-- Effective agent authority is the intersection of agent, requester, workflow, and connector
-  authority.
-- Context is permission-filtered before any text or metadata is supplied to a model.
-- Every material mutation and every approved external action produces a Chronicle event.
-- Level 2 actions require human approval by default. Level 3 actions require reauthentication and
-  the Constitution's approval quorum.
-- Every run has budget, model-token, duration, step, retry, and delegation limits plus a kill switch.
+## Core implementation state
 
-## Current implementation state
+- Cloudflare OS is pinned at `bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5`.
+- PostgreSQL 17+ is supported. The current immutable inventory contains migrations `0001` through
+  `0051`; management and Runtime roles remain separate and Runtime uses forced RLS.
+- Human, Agent, Service, and Guild use one Actor/Membership/Role/Capability/Space substrate.
+- Personal + AI is the guided default. Company, Research, Community, advanced presets, Blank, and
+  the Purpose-first Other Builder use the same neutral Core.
+- Family, school, sports team, NPO, DAO, cooperative, and civic-community Blueprints are generated
+  without code or Blank fallback and are covered in browser acceptance.
+- Memory, recursive Activity, Decisions, Conversations, onboarding/offboarding, Contribution,
+  Connections, Automation, Federation, export, retention, backup, restore preparation, Ask/Plan/Act,
+  Agent limits, approval, Kill, and Chronicle are implemented behind database authorization.
+- Purpose-first Blueprint generation and embeddings use purchaser-owned Workers AI. Operational
+  Ask, Plan, Act, and review may use Workers AI or one purchaser-owned OpenAI-compatible endpoint.
+  The only deployment-level external-model token binding is `GUILD_MODEL_PROVIDER_TOKEN`.
+- Deployment exposes `db:preflight` for a fresh database or an exact migration-prefix upgrade. It
+  checks PostgreSQL version, TLS, role privileges, required extensions, migration hashes, and
+  schema/ledger consistency before mutation.
 
-- Cloudflare OS is pinned as the `cloudflare-os` Git submodule at
-  `bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5`, including the verified reauthentication boundary
-  required by Guild OS Level 3 actions.
-- Node.js 24 is the supported development, CI, and release target.
-- Guild domain policy, PostgreSQL persistence, migration tooling, and Guild Gatekeeper are
-  implemented. The Gatekeeper requires explicit Workshop-admin initialization, serializes the
-  first-Root claim in PostgreSQL, minimizes bootstrap data for nonmembers, supports one-time Human
-  invitations and Membership lifecycle writes, and provides a sandboxed responsive management UI.
-- The canonical substrate now persists global Actors, Guild-scoped neutral Memberships, Actor Role
-  bindings and kind profiles, broad versioned Memory, recursive Activity, eight built-in Templates,
-  Guild settings, and per-Space Context Profiles. Human, Agent, Service, and Guild appear in one
-  Members surface. Root is a separate Human Custodian boundary.
-- Migrations 0026-0046 preserve legacy UUIDs, grants, security boundaries, versions, file links,
-  Work relationships, and Chronicle history. Identity, Knowledge, and fixed Work writes mirror to
-  Actor, Memory, and Activity during the explicit compatibility window. Later migrations add the
-  Context Graph, Memory custody and semantic index, lifecycle, private communication, Contribution,
-  Connections, Automation, Federation, risk-level execution, portability, and retention.
-- Production supports PostgreSQL 17 or newer and currently runs PostgreSQL 18. CI enables `vector`
-  and `pg_trgm` as an administrator, then applies all migrations twice on PostgreSQL 18 using a
-  non-superuser application owner before running the PostgreSQL and Gatekeeper integration suites.
-- Role/Space editors and governed Knowledge are implemented. Knowledge includes immutable
-  versions, human approval, multilingual content, R2 files, acknowledgement, retirement, citations,
-  locale-aware SQL-before-model authorization, rate limiting, and durable file cleanup. Ask Guild
-  now searches all authorized active Memory; Canonical workflow content contributes only its
-  approved version. The legacy `searchKnowledge` capability remains available for compatibility.
-- Recursive Activity is the neutral creation path and can be assigned to any operational Actor.
-  Governed Work remains available as a compatibility workflow from Goal through Project, Quest,
-  and Step. It includes bounded
-  keyset lists, SQL-before-service authorization, legal status transitions, optimistic versions,
-  hierarchical Space containment, active Human/Agent assignment, Inbox notification writes,
-  Chronicle evidence, and responsive browser flows.
-- Governed Decisions are implemented with bounded SQL-prefiltered reads, draft versioning,
-  immutable proposals, Constitution-defined human quorum, evidence references, dissent,
-  security-boundary-preserving supersession, Inbox fan-out, Chronicle evidence, and responsive
-  browser flows.
-- Governed Announcements, Inbox read state, Knowledge-update notifications, and Chronicle queries
-  are implemented with SQL-before-service authorization, current-authority revocation, set-based
-  fan-out, immutable payloads, keyset pagination, and responsive browser flows.
-- Governed Agent execution supports Risk Levels 0 through 3 and multiple purchaser-owned typed
-  Connections, including Cloudflare OS Gatekeepers/MCP and fixed HTTPS Webhooks. It includes
-  verified reauthentication for Level 3, Cloudflare OS action approval, Guild Human quorum,
-  permission-filtered discovery,
-  immutable plans and authority snapshots, execution-time rechecks, HMAC and idempotency, hard
-  limits, Cloudflare Workflows, transactional dispatch, Kill/offboarding cancellation, late-race
-  audit evidence, management UI, and integration/browser tests.
-- A purchaser-owned reference receiver provides HMAC verification, replay-window enforcement, and
-  strongly consistent per-idempotency-key Durable Object storage for that Webhook.
-- Constitution management is implemented as a Root-only, versioned, reason-required transaction.
-  Role delegation, stale writes, forged SQL actors, invalid policy, and deletion are rejected at
-  the database boundary; the responsive Settings UI exposes read-only policy to non-Root members.
-- Root ownership handover is implemented as an expiring two-party transaction between active
-  Humans. Proposal terms and the outgoing Role are frozen, direct Root replacement and unaudited
-  transitions fail in PostgreSQL, and desktop/mobile browser tests cover propose, cancel, and
-  acceptance from the successor's separate session.
-- Purchaser-owned Break Glass recovery is implemented with one-time 192-bit offline codes,
-  SHA-256-only storage, irreversible generation rotation/revocation, per-account rate limiting,
-  active-Human enforcement, prior-Root Role preservation, pending-transfer supersession, mandatory
-  disclosure/change Chronicle evidence, and desktop/mobile browser coverage.
-- Context-bound Conversations are implemented for Knowledge, Work, Decisions, Announcements, and
-  Agent Runs. Current subject authorization is applied before message text leaves PostgreSQL;
-  Human mentions, Inbox delivery, append-only messages, audited lock/unlock, and redaction have
-  PostgreSQL and Gatekeeper integration coverage. Knowledge, Quest, and Decision expose the shared
-  responsive comments panel in the v1 UI.
-- The Gatekeeper now separates liveness from database/schema readiness, denies unrelated HTTP
-  paths, and emits bounded maintenance counts without Guild content or exception messages.
-- Production operations are implemented as executable tools: exact database/TLS/RLS preflight,
-  partial-to-complete Cloudflare resource locking, Git-annotated clean-source deploys, redacted
-  release evidence, Access/receiver smoke evidence, Guild-scoped forced-RLS PostgreSQL export,
-  binary-safe KV export, Cloudflare REST R2 export, Access snapshot validation, checksum
-  verification, and non-destructive restore preparation. ADRs 0016 and 0027 record the
-  purchaser-owned recovery boundary and default R2 transfer path.
-- The root pnpm workspace and lockfile are the release dependency authority for the selected
-  Cloudflare OS packages and Guild-owned packages. Supply-chain age policy, patched transitive
-  overrides, peer validation, and high-severity audit are enforced before deployment without
-  changing the pinned upstream submodule.
-- The purchaser-owned production deployment is live behind Cloudflare Access. Root initialization,
-  canonical Knowledge, comments, and cited Ask Guild answers have been verified against production.
+## Distribution implementation state
 
-## Release sequence
+- The deployment wizard stores Secret reference names, exact purchaser IDs, ownership confirmations,
+  an absolute encrypted backup destination, and either Workers AI or an external model endpoint.
+- Interactive Installer and Updater prompts collect only missing Secrets without echo and retain
+  them in process memory. Dry-run remains Secret-free.
+- The purchaser creates the Cloudflare Access application and smoke Service Token. The Installer
+  verifies exact audience, domain, token, and creates only exact Human administrator and
+  token-specific Service Auth policies.
+- Fresh install refuses pre-existing configured Worker names. Failure removes only Workers and
+  Access policies created by that attempt; additive database schema and purchaser data are retained
+  and identified in v3 installation evidence.
+- Installed state v2 stores the exact Core pin, Worker Version inventory, and purchaser-bound
+  deployment lock without Secret values.
+- Updater uses the installed Core for backup verification, the candidate Core for preflight and
+  deployment, applies only declared backward-compatible additive migrations, and restores recorded
+  Worker Versions after a post-deployment failure.
+- Installer and Updater require real Core production-smoke evidence and bind its SHA-256 into their
+  own evidence. Synthetic fixture smoke cannot pass commercial readiness.
+- The fail-closed readiness verifier keeps local rehearsal, independent purchaser deployment,
+  signing custody, hosted CI, restore, and professional approval as separate evidence classes.
 
-1. Produce a clean commit with all local, PostgreSQL, E2E, build, lint, type, dependency, and visual
-   gates green. Database evidence must use a separate schema-management role for migration and a
-   least-privileged Runtime role for integration tests and Hyperdrive.
-2. Capture and verify a purchaser-owned encrypted production backup before any migration.
-3. Run migration dry-run, apply the forward-only migration set, and reconcile legacy/canonical
-   counts.
-4. Push and deploy only the tested commit; verify every Worker identifies that exact SHA.
-5. Record checksummed release and production-smoke evidence outside the source repository, then
-   prepare an isolated restore and compare Guild table counts plus Chronicle sequence.
+## Verified local baseline
+
+On 2026-08-24 the current release candidate passed Core typecheck, tests, build, lint, dependency
+audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-backed integration
+files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
+credentials were skipped and remain separate gates.
+
+The Distribution passed typecheck, 38 tests, lint, compliance, build, dependency audit, and a
+deterministic clean-room chain covering install, update, backup, isolated restore preparation,
+expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
+evidence and is not an independent purchaser-account installation.
+
+## Remaining completion gates
+
+- Push the exact Core and Distribution release-candidate commits and obtain green hosted CI for
+  each exact SHA.
+- Install into a genuinely independent purchaser-owned Cloudflare, PostgreSQL, AI, Access, backup,
+  and domain boundary; capture live v3 Installer evidence and Human first-run initialization.
+- Run one successful live update and one deliberately failed authenticated-smoke update proving all
+  previous Worker Versions were restored.
+- Perform a full restore into an independent purchaser-owned target, not only owner-controlled or
+  synthetic restore preparation.
+- Activate production release and entitlement signing custody with two physically independent
+  offline devices and named Human approval.
+- Obtain professional approval for commercial license, trademark, contribution rights, privacy,
+  tax/billing, customer agreement, support, pricing, refund, incident response, and transitive LGPL
+  obligations.
+- Deploy production only with explicit authorization, a verified pre-deploy backup, exact-commit
+  evidence, and authenticated post-deploy smoke.
+
+Guild OS remains incomplete while any of these required matrix rows is not `Implemented and
+verified`.

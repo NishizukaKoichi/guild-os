@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { withGuildTransaction } from "@guild-os/postgres";
+import { GuildOperationsRepository, withGuildTransaction } from "@guild-os/postgres";
 import type { GuildEnv } from "../src/config.js";
 import { prepareGuildAccount } from "../src/bootstrap.js";
 import { GuildManagementApiImpl } from "../src/management-api.js";
@@ -17,6 +17,11 @@ function guildEnv(guildId: string): GuildEnv {
     GUILD_LEVEL2_QUORUM: "1",
     GUILD_LEVEL3_QUORUM: "2",
     GUILD_RETENTION_DAYS: "365",
+    GUILD_ASK_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+    GUILD_BOOTSTRAP_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+    GUILD_MODEL_PROVIDER_KIND: "workers_ai",
+    GUILD_MODEL_PROVIDER_NAME: "Cloudflare Workers AI",
+    GUILD_MODEL_PROVIDER_ENDPOINT: "",
     GUILD_WEBHOOK_CONNECTOR_ID: randomUUID(),
     GUILD_WEBHOOK_CONNECTOR_NAME: "Approved test webhook",
     GUILD_WEBHOOK_URL: "https://hooks.example.com/guild-events",
@@ -37,6 +42,47 @@ const collectiveSetup = {
 };
 
 integration("Guild bootstrap boundary", () => {
+  it("provisions external operational routes without moving embedding off purchaser Workers AI", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const base = guildEnv(randomUUID());
+    const env = {
+      ...base,
+      GUILD_ASK_MODEL: "purchaser-model",
+      GUILD_MODEL_PROVIDER_KIND: "openai_compatible",
+      GUILD_MODEL_PROVIDER_NAME: "Purchaser endpoint",
+      GUILD_MODEL_PROVIDER_ENDPOINT: "https://models.example.test/v1",
+      GUILD_MODEL_PROVIDER_TOKEN: "not-read-during-provisioning",
+    } as GuildEnv;
+    const rootId = randomUUID();
+    await new GuildManagementApiImpl(env, rootId, true).initializeGuild({
+      ...collectiveSetup,
+      displayName: "Model Custodian",
+      preferredLocale: "en",
+      rootOwnershipAccepted: true,
+    });
+
+    await withGuildTransaction(connectionString, env.GUILD_ID, async (connection) => {
+      const repository = new GuildOperationsRepository(connection, env.GUILD_ID);
+      const providers = await repository.listModelProviders();
+      const routes = await repository.listModelRoutes();
+      const ask = routes.find((route) => route.purpose === "ask");
+      const embedding = routes.find((route) => route.purpose === "embedding");
+      expect(providers.find((provider) => provider.id === ask?.providerId)).toMatchObject({
+        kind: "openai_compatible",
+        endpointUrl: "https://models.example.test/v1",
+        secretReference: "GUILD_MODEL_PROVIDER_TOKEN",
+        allowedModels: ["purchaser-model"],
+        deploymentManaged: true,
+      });
+      expect(providers.find((provider) => provider.id === embedding?.providerId)).toMatchObject({
+        kind: "workers_ai",
+        secretReference: null,
+        allowedModels: ["@cf/baai/bge-m3"],
+        deploymentManaged: true,
+      });
+    });
+  });
+
   it("requires an explicit Workshop administrator and minimizes pre-membership state", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
     const env = guildEnv(randomUUID());

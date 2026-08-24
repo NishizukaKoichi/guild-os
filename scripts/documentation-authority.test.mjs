@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+async function document(path) {
+  return readFile(resolve(root, path), "utf8");
+}
+
+test("product documents keep one authority and the implemented Distribution boundary", async () => {
+  const [readme, architecture, licensing, adr, specification, acceptance, v1] = await Promise.all([
+    document("README.md"),
+    document("docs/architecture.md"),
+    document("docs/licensing-and-distribution.md"),
+    document("docs/adr/0038-separate-commercial-distribution-from-apache-core.md"),
+    document("docs/product-specification.md"),
+    document("docs/full-spec-acceptance.md"),
+    document("docs/v1-completion.md"),
+  ]);
+
+  assert.match(specification, /^Status: Authoritative$/m);
+  assert.match(acceptance, /authoritative requirements are in \[the product specification\]/i);
+  assert.match(v1, /not a completion authority/i);
+  assert.match(readme, /separate Guild OS Owned Distribution/);
+  assert.match(architecture, /`guild-os-distribution` repository/);
+  assert.match(licensing, /Separate commercial product repository/);
+  assert.match(adr, /Implemented: 2026-08-24/);
+
+  for (const [name, contents] of [
+    ["README", readme],
+    ["architecture", architecture],
+    ["licensing", licensing],
+    ["ADR 0038", adr],
+  ]) {
+    assert.doesNotMatch(contents, /distribution repository,? not yet created/i, `${name} is stale`);
+    assert.doesNotMatch(contents, /future commercial (?:packaging|distribution|installation)/i,
+      `${name} incorrectly describes the implemented Distribution as future work`);
+  }
+});

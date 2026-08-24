@@ -10,8 +10,8 @@ This repository is self-hosted. Each purchaser deploys it to their own Cloudflar
 their own PostgreSQL database and model providers, and owns every stored object and credential.
 There is no seller-operated API, licensing server, or required subscription.
 
-This checkout is currently distributed under Apache License 2.0. Future commercial packaging is a
-separate product boundary; it does not relicense this source tree or add a runtime call-home
+This checkout is distributed under Apache License 2.0. The separate Guild OS Owned Distribution
+packages exact Core releases without relicensing this source tree or adding a runtime call-home
 dependency. Read [Licensing and distribution](docs/licensing-and-distribution.md) and
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) before creating or selling a bundle.
 
@@ -162,7 +162,7 @@ Purchaser operations documentation:
 | [Data ownership and retention](docs/data-ownership-and-retention.md) | Custody classes, export scope, retention dry-runs, evidence, and purge boundaries |
 | [Backup and recovery](docs/backup-and-recovery.md) | Complete backup, isolated restore, disaster recovery, and migration |
 | [Administrator handover](docs/admin-handover.md) | Asset transfer, Root succession, offboarding, and acceptance record |
-| [Licensing and distribution](docs/licensing-and-distribution.md) | Apache core provenance, future commercial boundary, self-service updates, and release compliance |
+| [Licensing and distribution](docs/licensing-and-distribution.md) | Apache Core provenance, implemented Distribution boundary, self-service updates, and release compliance |
 
 ## Prerequisites
 
@@ -222,6 +222,7 @@ connection string supplied only through the process environment:
 ```sh
 read -r -s DATABASE_URL
 export DATABASE_URL
+pnpm db:preflight
 pnpm db:migrate
 export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
 pnpm db:provision-runtime
@@ -235,8 +236,11 @@ To inspect migration filenames and hashes without connecting:
 pnpm --filter @guild-os/postgres migrate --dry-run
 ```
 
-The runner records SHA-256 hashes in `public.guild_schema_migrations` and refuses to continue if an
-already-applied migration was modified.
+`db:preflight` accepts a fresh database or an exact applied prefix of this release. It rejects a
+privileged role, missing TLS, unavailable `vector`/`pg_trgm`/`pgcrypto`, incompatible hashes, or
+Guild schema objects without a trusted ledger before migration. The runner records SHA-256 hashes
+in `public.guild_schema_migrations` and refuses to continue if an already-applied migration was
+modified.
 
 Before production deploy, verify the actual target without changing it:
 
@@ -285,8 +289,9 @@ chmod 600 deployment.local.jsonc
 3. Set the Cloudflare Access issuer, audience, and narrow administrator list.
 4. Generate a stable Guild UUID with `node -e "console.log(crypto.randomUUID())"`.
 5. Set the Guild name, purpose, first Space, approval quorums, retention period, and Hyperdrive ID.
-6. Select the Workers AI model, AI Gateway ID, per-Identity Ask Guild rate limit, and emergency
-   recovery attempt limit.
+6. Select the purchaser Workers AI bootstrap model, operational Workers AI or OpenAI-compatible
+   provider and model, AI Gateway ID, per-Identity Ask Guild rate limit, and emergency recovery
+   attempt limit.
 7. Set a unique Agent Workflow name and a new Webhook Connector UUID, name, and fixed HTTPS URL.
 8. Leave the Knowledge R2 bucket `null` for automatic provisioning or provide an owned bucket name.
 
@@ -299,14 +304,19 @@ read -r -s GUILD_WEBHOOK_SIGNING_SECRET
 export GUILD_WEBHOOK_SIGNING_SECRET
 read -r -s DATABASE_URL
 export DATABASE_URL
+export GUILD_RUNTIME_DATABASE_ROLE=guild_runtime_app
 pnpm deploy
-unset DATABASE_URL GUILD_WEBHOOK_SIGNING_SECRET
+unset DATABASE_URL GUILD_RUNTIME_DATABASE_ROLE GUILD_WEBHOOK_SIGNING_SECRET
 ```
+
+When `guild.modelProvider.kind` is `openai_compatible`, also enter
+`GUILD_MODEL_PROVIDER_TOKEN` before deploy and unset it afterward.
 
 `scripts/deploy.mjs` validates every required secret before deploying any Worker, writes only the
 required values to mode-`0600` temporary files for Wrangler's `--secrets-file` option, removes the
-files in a `finally` block, and strips those values from child-process environments. When AI Gateway
-is enabled, provide `CF_AI_GATEWAY_API_TOKEN` the same way. `pnpm check` never requires secrets.
+files in a `finally` block, and strips those values from child-process environments. The external
+operational model uses only the fixed `GUILD_MODEL_PROVIDER_TOKEN` binding. When AI Gateway is
+enabled, provide `CF_AI_GATEWAY_API_TOKEN` the same way. `pnpm check` never requires secrets.
 
 Commands prefer `deployment.local.jsonc`. For an encrypted configuration stored elsewhere, set
 `GUILD_OS_DEPLOYMENT_CONFIG` to its absolute path. A live deploy refuses the tracked template so

@@ -2,7 +2,7 @@
 
 Status: Authoritative
 
-Updated: 2026-08-20
+Updated: 2026-08-24
 
 This document is the canonical product and implementation contract for Guild OS. When code,
 README text, an ADR, a completion matrix, or an older acceptance document is narrower, this
@@ -196,6 +196,11 @@ email, calendar, file storage, Git, external API, and model provider. Every Conn
 Capability allowlist, scope, health, Secret reference, revocation, and History. Plain Secrets are
 never stored in PostgreSQL or Git. Both Connection permission and Guild Capability must pass.
 
+Purpose-first Blueprint generation and semantic embeddings use purchaser-owned Workers AI so first
+run does not depend on an unconfigured external route. Operational Ask, Plan, Act, and review routes
+may instead use one purchaser-owned OpenAI-compatible HTTPS endpoint. The deployment layer binds
+its token only as `GUILD_MODEL_PROVIDER_TOKEN`; endpoint URLs remain credential-free configuration.
+
 ## 20. Automation
 
 Automation supports scheduled Runs, event triggers, durable approval waits, bounded retry,
@@ -264,17 +269,26 @@ WCAG 2.2 AA expectations.
 ## 29. Commercial Installer
 
 The official Installer runs locally or in a purchaser-owned environment and never sends Secrets to
-the seller. It authenticates to purchaser Cloudflare, selects Account and Zone, verifies PostgreSQL
-and required extensions, selects AI provider, stores Secrets safely, configures domain or
-Workers.dev and Access, captures purpose, performs preflight and dry-run, deploys, initializes,
-smoke-tests, stores recovery information, and emits a handover report. A nonfunctional one-click
-button is prohibited.
+the seller. It authenticates to purchaser Cloudflare, verifies the exact Account, PostgreSQL role,
+extensions, AI provider, encrypted backup destination, Workers.dev or custom domain, and purchaser
+ownership. A purchaser creates the Access application and one smoke Service Token in its account;
+the Installer verifies their exact audience/domain/token and creates only the narrowly scoped Human
+administrator and Service Auth policies. It then performs preflight and dry-run, migrates the
+database, deploys exact Workers, runs authenticated smoke, records the generated deployment lock,
+stores recovery information, and emits sanitized v3 installation evidence plus handover. Root
+initialization remains an explicit Human first-run action. A nonfunctional one-click button is
+prohibited.
 
 ## 30. Updater
 
 Updater fetches a release, verifies its signature and exact commit, checks dependency and database
-compatibility, verifies backup, dry-runs migrations, builds and deploys Workers, migrates the
-database, runs authenticated smoke, stores evidence, and rolls back on failure. It enforces
+compatibility, and restores the installed deployment lock. It checks out the currently installed
+Core to create and verify the backup against active Worker release annotations, then prepares the
+candidate Core separately. Only releases declaring backward-compatible additive migrations are
+eligible for automatic update; the candidate preflights and applies those migrations before Worker
+deployment, then runs authenticated smoke and captures the next lock and Worker Version IDs. A
+post-deployment failure restores every recorded prior Worker Version. Additive schema may remain and
+is identified explicitly in evidence; purchaser data is never deleted as rollback. It enforces
 manifest signatures, lockfiles, migration hashes, compatibility windows, and release evidence.
 Expired update entitlement blocks only new release acquisition.
 

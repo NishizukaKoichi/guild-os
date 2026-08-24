@@ -76,7 +76,17 @@
     "dataRetentionDays": 2555,
     "hyperdriveId": "<HYPERDRIVE_ID>",
 
-    // Ask Guild uses the Worker AI binding. The default gateway is created on first use.
+    // Purpose-first setup always uses this purchaser-owned Workers AI bootstrap model.
+    "bootstrapModel": "@cf/meta/llama-3.1-8b-instruct-fast",
+
+    // Operational Ask / Plan / Act routes. For an external provider, set kind to
+    // "openai_compatible", provide a credential-free HTTPS endpoint, and supply
+    // GUILD_MODEL_PROVIDER_TOKEN to `pnpm deploy`.
+    "modelProvider": {
+      "kind": "workers_ai",
+      "name": "Cloudflare Workers AI",
+      "endpoint": null
+    },
     "askModel": "@cf/meta/llama-3.1-8b-instruct-fast",
     "aiGatewayId": "default",
     "askRequestsPerMinute": 20,
