@@ -71,7 +71,9 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 - Installer and Updater require real Core production-smoke evidence and bind its SHA-256 into their
   own evidence. Synthetic fixture smoke cannot pass commercial readiness.
 - The fail-closed readiness verifier keeps local rehearsal, independent purchaser deployment,
-  signing custody, hosted CI, restore, and professional approval as separate evidence classes.
+  signing custody, hosted CI, restore, and professional approval as separate evidence classes. Its
+  authenticated CI capture command writes only an exact successful GitHub Actions run to evidence
+  storage outside Git.
 
 ## Verified local baseline
 
@@ -80,15 +82,20 @@ audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-ba
 files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
 credentials were skipped and remain separate gates.
 
-The Distribution passed typecheck, 38 tests, lint, compliance, build, dependency audit, and a
+The Distribution passed typecheck, 43 tests, lint, compliance, build, dependency audit, and a
 deterministic clean-room chain covering install, update, backup, isolated restore preparation,
 expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
 evidence and is not an independent purchaser-account installation.
 
+The pushed functional baselines also passed exact-SHA hosted CI: Core run
+[`32699266927`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32699266927) at
+`a9096e7224ce7e46704016587208c7bb72539b3f`, and Distribution run
+[`32699370616`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32699370616)
+at `50b5ca635248844b77b8924e91c53b2995e4e00d`. Authenticated capture records are stored outside
+both repositories; future candidate SHAs require their own records.
+
 ## Remaining completion gates
 
-- Push the exact Core and Distribution release-candidate commits and obtain green hosted CI for
-  each exact SHA.
 - Install into a genuinely independent purchaser-owned Cloudflare, PostgreSQL, AI, Access, backup,
   and domain boundary; capture live v3 Installer evidence and Human first-run initialization.
 - Run one successful live update and one deliberately failed authenticated-smoke update proving all
