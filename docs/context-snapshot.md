@@ -24,6 +24,8 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 ## Repository and ownership boundaries
 
 - `guild-os` is the Apache-2.0 Core and includes the pinned Cloudflare OS submodule.
+- The Core GitHub repository is currently private. Public Open Core acquisition is an explicit
+  external publication gate, not an achieved property of the license file alone.
 - `guild-os-distribution` is a separate commercial repository containing Installer, Updater,
   entitlement, signed-release, diagnostics, compliance, readiness, and handover packages.
 - One Runtime deployment represents one independently owned Collective.
@@ -66,6 +68,8 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 - Signed release format v2 contains complete local Git bundles for the exact Core and Cloudflare OS
   commits. Staging proves both bundles with an isolated clone, exact-commit assertion, and strict
   object verification. Installer and Updater do not clone or fetch source from a seller repository.
+- Staging generates seven required executable CLI launchers. The signed manifest verifies their
+  presence and mode, and CI installs the acquired release directory before starting every launcher.
 - Installed state v3 stores the exact Core pin, signed local-source hashes, Worker Version inventory,
   and purchaser-bound deployment lock without Secret values.
 - Updater v3 verifies the purchaser-retained source for the installed release before contacting
@@ -93,24 +97,26 @@ audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-ba
 files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
 credentials were skipped and remain separate gates.
 
-The source-complete Distribution candidate passed typecheck, 46 tests, lint, compliance, build,
+The source-complete Distribution candidate passed typecheck, 49 tests, lint, compliance, build,
 dependency audit, real Git-bundle clone/object verification, and a
 deterministic clean-room chain covering install, update, backup, isolated restore preparation,
 expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
 evidence and is not an independent purchaser-account installation.
 
-The immediately preceding pushed baselines passed exact-SHA hosted CI: Core run
-[`32705629578`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32705629578) at
-`4380893a4f86660d134a1b640bdbb74bd2e00458`, and Distribution run
-[`32706956442`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32706956442)
-at `04e743b870ece37fab9374e54f8e970c3c89e58d`. Authenticated capture records are stored outside
+The last externally captured source-complete baseline before this document update passed exact-SHA
+hosted CI: Core run [`32711005802`](https://github.com/NishizukaKoichi/guild-os/actions/runs/32711005802)
+at `c9d875461c4cc4c8ca16b76a861cf2d76aec271d`, and Distribution run
+[`32713696163`](https://github.com/NishizukaKoichi/guild-os-distribution/actions/runs/32713696163)
+at `1304fbee8e4a1fe81f45e037961c3ae648521710`. Authenticated capture records are stored outside
 both repositories with SHA-256
-`484a624420d73483393496cb99ca4ef8e7f26350c23735ba93a4a6f84d7f042f` and
-`57e6ba85308a0d616ddb86edf2c70300d249b988d94bb43dad08ae8683316d5f`. These are predecessor
-records, not evidence for a later candidate; every new exact SHA requires its own hosted-CI capture.
+`dd4005388cd811790b06fe68cb804a8500d895e3f3583b6133826aa6e4e5ff74` and
+`034a59c230af13b4ef70001464d7f6dbb7da2128b349d94828c1b14b7a0f2fce`. These records prove only
+those SHAs; every later candidate requires a new hosted-CI capture rather than a document edit.
 
 ## Remaining completion gates
 
+- With explicit owner authorization, publish the Apache Core repository or an equivalent source
+  release and prove unauthenticated clean acquisition plus self-installation.
 - Install into a genuinely independent purchaser-owned Cloudflare, PostgreSQL, AI, Access, backup,
   and domain boundary; capture live v4 Installer evidence and Human first-run initialization.
 - Run one successful live update and one deliberately failed authenticated-smoke update proving all

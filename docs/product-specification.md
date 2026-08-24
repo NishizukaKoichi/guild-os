@@ -36,6 +36,12 @@ Lab, Studio, Household, Collective, or a purchaser-defined term rather than an i
 - **Guild OS Care** is optional support and update service. Ending Care must not stop an installed
   runtime.
 
+Open Core availability requires more than an Apache license file in a private repository. Before
+this product line is complete, a technical user must be able to obtain the exact Core source without
+seller approval, preserve its license/notices, and complete a documented clean self-install. Making
+the repository public or publishing an equivalent source release is an explicit owner-controlled
+external action.
+
 ## 3. Ownership and costs
 
 The purchaser owns and pays providers directly for Cloudflare, PostgreSQL, AI providers, domain,
@@ -67,6 +73,8 @@ commit and its pinned Cloudflare OS gitlink, together with the Distribution sour
 dependency lock, notices, SBOM, migration inventory, and signed manifest. Installer and Updater may
 not clone or fetch required source from a seller repository after acquisition. Release staging must
 prove that both source archives can be cloned at their expected commits with complete object graphs.
+It also generates signed executable launchers for every shipped CLI. CI installs the staged release
+as an acquired package and starts those launchers; source-level library tests alone are insufficient.
 
 ## 6. Legal and compliance artifacts
 
@@ -371,6 +379,8 @@ Unit, integration, PostgreSQL, and E2E evidence covers Personal + AI, Company, R
 unknown Collectives, Agent Collective, per-Space context, Ask/Plan/Act, Actor-neutral permissions,
 commercial separation, customer-owned installation, expired update entitlement, backup/restore,
 mobile, and all three locales. Existing tests cannot be removed merely to make the gate pass.
+Open Core completion additionally requires an unauthenticated clean clone or source download and a
+clean self-install from that public artifact.
 
 ## 39. Technical completion
 

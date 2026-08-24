@@ -16,6 +16,10 @@ without relicensing this source tree or adding a runtime call-home or seller-rep
 Read [Licensing and distribution](docs/licensing-and-distribution.md) and
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) before creating or selling a bundle.
 
+The GitHub repository is currently private. Apache licensing and source-complete purchaser bundles
+preserve the code rights, but the Open Core public-access promise is not complete until an explicitly
+authorized public repository or equivalent unauthenticated source release passes a clean-clone gate.
+
 > [!IMPORTANT]
 > Cloudflare OS is early-access software. This repository pins a reviewed upstream commit and never
 > follows an unpinned branch in production.
