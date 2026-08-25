@@ -252,7 +252,7 @@ Cloudflare OS bridge, or sandbox boundary was weakened.
 | UX-09 | Shared Notice semantics announce state; primary create operations validate inline, focus errors, lock synchronously against double submit, confirm success, and preserve recoverable input | Validation, single-flight, success, empty, and partial-failure cases |
 | UX-10 | Shared controls use a 44px minimum, mobile navigation respects safe areas, and dialogs remain bounded at 320px | Target-size and five-viewport overflow cases |
 | UX-11 | Added `@axe-core/playwright`; critical and serious violations are release failures on primary, access, initialization, and dialog surfaces | Two automated axe cases in `experience-quality.spec.ts` |
-| UX-12 | Added an objective experience suite without removing existing workflows; CI already runs the full gatekeeper E2E suite | 73 browser tests after implementation, including existing governance and sandbox regressions |
+| UX-12 | Added an objective experience suite without removing existing workflows; CI already runs the full gatekeeper E2E suite | 74 browser tests after implementation, including existing governance and sandbox regressions |
 
 ### Browser evidence
 
@@ -286,7 +286,7 @@ Validation was repeated against the final working tree on 2026-08-21:
 | `pnpm install --frozen-lockfile` | Passed; lockfile and supply-chain policy accepted |
 | Gatekeeper `types:check` | Passed, including the single-file application build |
 | Gatekeeper `test` | 178 passed |
-| Gatekeeper `test:e2e` | 73 passed in Chromium |
+| Gatekeeper `test:e2e` | 74 passed in Chromium |
 | Repository `types:check` | Passed |
 | Repository `test` | Passed; 321 executed tests passed, 72 PostgreSQL integration tests skipped because no safe integration database was configured |
 | Repository `build` | Passed; final single-file application is 1,226.37 kB, 290.95 kB gzip |
@@ -296,6 +296,18 @@ Validation was repeated against the final working tree on 2026-08-21:
 | `test:cloudflare-os` | Passed; 491 executed tests passed, four database-backed integration tests skipped |
 | Browser capture audit | 35 full matrix captures plus four current requirement-specific captures; zero horizontal-overflow, console-error, or page-error findings |
 
-No production deployment or production data operation was performed. This audit certifies the local
-UX implementation and regression evidence only; the repository production release gate still
-requires its separately authorized deployment, CI, backup, and authenticated production smoke.
+The original audit did not perform a production deployment or production data operation. Its local
+evidence therefore remained separate from the repository production release gate.
+
+## Production responsive follow-up
+
+The authorized production review on 2026-08-25 found one additional 320 px defect after opening
+Inbox through the global action entry. The two Inbox tabs used intrinsic grid-track minimums, so the
+second tab extended 22 px beyond the viewport even though Home, Ask, Members, Memory, and Activity
+were correctly bounded.
+
+The Inbox tab tracks now use `minmax(0, 1fr)`, their labels can shrink and wrap safely, and the
+mobile spacing is bounded. `communications.spec.ts` now opens both Inbox and History at 320 x 568
+and compares the document scroll width with its client width. The complete browser suite passes 74
+tests after this follow-up. Production release evidence remains outside Git and is generated only
+from the exact deployed commit.

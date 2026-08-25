@@ -231,11 +231,11 @@ export function InboxPage({
 
       <div className="inbox-tabs segmented-control" role="tablist" aria-label={t("inbox.title")}>
         <button className={tab === "notifications" ? "segment-active" : ""} type="button" role="tab" aria-selected={tab === "notifications"} onClick={() => setTab("notifications")}>
-          <Bell size={16} />{t("inbox.notifications")}
+          <Bell size={16} /><span className="inbox-tab-label">{t("inbox.notifications")}</span>
           {inboxPage?.unreadCount ? <span className="inbox-tab-count">{inboxPage.unreadCount}</span> : null}
         </button>
         <button className={tab === "announcements" ? "segment-active" : ""} type="button" role="tab" aria-selected={tab === "announcements"} onClick={() => setTab("announcements")}>
-          <Megaphone size={16} />{t("inbox.announcements")}
+          <Megaphone size={16} /><span className="inbox-tab-label">{t("inbox.announcements")}</span>
         </button>
       </div>
 

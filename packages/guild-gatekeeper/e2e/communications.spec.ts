@@ -70,3 +70,20 @@ test("keeps Inbox, announcement editing, and Chronicle usable on mobile", async 
   expect(viewport.scrollWidth).toBe(viewport.clientWidth);
   expect(errors).toEqual([]);
 });
+
+test("keeps Inbox and Chronicle within a 320px viewport", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("?standalone=root");
+
+  for (const destination of ["Inbox", "History"] as const) {
+    await navigateToMore(page, destination);
+    const viewport = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(viewport.scrollWidth).toBe(viewport.clientWidth);
+  }
+
+  expect(errors).toEqual([]);
+});

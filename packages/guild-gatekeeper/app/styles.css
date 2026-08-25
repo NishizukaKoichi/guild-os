@@ -4083,8 +4083,18 @@ body.modal-open {
 }
 
 .inbox-tabs {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   width: min(100%, 440px);
   margin-bottom: 18px;
+}
+
+.inbox-tabs > button,
+.inbox-tab-label {
+  min-width: 0;
+}
+
+.inbox-tab-label {
+  overflow-wrap: anywhere;
 }
 
 .inbox-tab-count {
@@ -6958,7 +6968,13 @@ body.modal-open {
   }
 
   .inbox-tabs {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .inbox-tabs > button {
+    gap: 5px;
+    padding-right: 6px;
+    padding-left: 6px;
   }
 
   .inbox-toolbar,
