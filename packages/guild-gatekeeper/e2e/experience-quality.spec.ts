@@ -277,9 +277,13 @@ test("keeps all supported viewports and languages free of horizontal overflow", 
     await page.goto("?standalone=root#/home");
     await page.locator(".language-control select").selectOption(locale);
     await expect(page.getByRole("heading", { name: homeTitle, exact: true, level: 1 })).toBeVisible();
-    const mobileLabelsFit = await page.locator(".mobile-tabbar .mobile-tab span").evaluateAll((elements) =>
-      elements.every((element) => element.scrollWidth <= element.clientWidth));
-    expect(mobileLabelsFit).toBe(true);
+    const clippedMobileLabels = await page.locator(".mobile-tabbar .mobile-tab span").evaluateAll((elements) =>
+      elements.map((element) => ({
+        label: element.textContent,
+        availableWidth: element.clientWidth,
+        requiredWidth: element.scrollWidth,
+      })).filter((label) => label.requiredWidth > label.availableWidth));
+    expect(clippedMobileLabels).toEqual([]);
     await expectNoHorizontalOverflow(page);
     await page.keyboard.press("Control+K");
     await expect(page.getByRole("dialog")).toBeVisible();

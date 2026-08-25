@@ -312,5 +312,8 @@ a word. The bottom navigation keeps contextual terms in the full sidebar and pag
 using the contract's short Home, Ask, Members, Memory, Activity, and More labels in its constrained
 six-column surface. `communications.spec.ts` opens both Inbox and History at 320 x 568, while the
 collective and experience suites assert that every mobile label fits for every profile and all
-three locales. The complete browser suite passes 74 tests after this follow-up. Production release
-evidence remains outside Git and is generated only from the exact deployed commit.
+three locales. Hosted Linux font metrics exposed a remaining one-pixel class of clipping that was
+not visible with the local system font, so the 320 px layout now dedicates the full grid track to
+each label and uses a fixed compact type size; failed assertions report the exact label and measured
+widths. The complete browser suite passes 74 tests after this follow-up. Production release evidence
+remains outside Git and is generated only from the exact deployed commit.

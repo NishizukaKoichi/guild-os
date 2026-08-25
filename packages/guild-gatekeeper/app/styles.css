@@ -8492,6 +8492,22 @@ body.modal-open {
 }
 
 @media (max-width: 360px) {
+  .mobile-tabbar {
+    padding-right: 2px;
+    padding-left: 2px;
+  }
+
+  .mobile-tab {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .mobile-tab span {
+    font-size: 9.5px;
+    font-weight: 600;
+    text-overflow: clip;
+  }
+
   .inbox-tabs > button {
     gap: 4px;
     padding-right: 4px;

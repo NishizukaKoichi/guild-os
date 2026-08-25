@@ -426,9 +426,13 @@ for (const width of [390, 320] as const) {
         "Activity",
         "More",
       ]);
-      const mobileLabelsFit = await page.locator(".mobile-tabbar .mobile-tab span").evaluateAll((elements) =>
-        elements.every((element) => element.scrollWidth <= element.clientWidth));
-      expect(mobileLabelsFit).toBe(true);
+      const clippedMobileLabels = await page.locator(".mobile-tabbar .mobile-tab span").evaluateAll((elements) =>
+        elements.map((element) => ({
+          label: element.textContent,
+          availableWidth: element.clientWidth,
+          requiredWidth: element.scrollWidth,
+        })).filter((label) => label.requiredWidth > label.availableWidth));
+      expect(clippedMobileLabels).toEqual([]);
       await page.getByRole("button", { name: "Open navigation", exact: true }).click();
       const sidebar = page.locator(".sidebar");
       await expect(sidebar.getByRole("button", { name: members, exact: true })).toBeVisible();
