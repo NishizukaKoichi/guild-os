@@ -418,6 +418,17 @@ for (const width of [390, 320] as const) {
       await page.locator("#collective-template").selectOption(`template:${value}`);
       await page.locator(".collective-settings")
         .getByRole("button", { name: "Apply profile", exact: true }).click();
+      expect(await page.locator(".mobile-tabbar .mobile-tab span").allTextContents()).toEqual([
+        "Home",
+        "Ask",
+        "Members",
+        "Memory",
+        "Activity",
+        "More",
+      ]);
+      const mobileLabelsFit = await page.locator(".mobile-tabbar .mobile-tab span").evaluateAll((elements) =>
+        elements.every((element) => element.scrollWidth <= element.clientWidth));
+      expect(mobileLabelsFit).toBe(true);
       await page.getByRole("button", { name: "Open navigation", exact: true }).click();
       const sidebar = page.locator(".sidebar");
       await expect(sidebar.getByRole("button", { name: members, exact: true })).toBeVisible();

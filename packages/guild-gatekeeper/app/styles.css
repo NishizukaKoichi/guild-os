@@ -8491,6 +8491,31 @@ body.modal-open {
   }
 }
 
+@media (max-width: 360px) {
+  .inbox-tabs > button {
+    gap: 4px;
+    padding-right: 4px;
+    padding-left: 4px;
+    font-size: 13px;
+  }
+
+  .inbox-tabs > button > svg {
+    display: none;
+  }
+
+  .inbox-tab-label {
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+
+  .inbox-tab-count {
+    min-width: 20px;
+    min-height: 20px;
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

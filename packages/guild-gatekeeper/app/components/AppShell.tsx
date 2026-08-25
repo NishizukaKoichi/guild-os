@@ -45,6 +45,7 @@ interface AppShellProps {
 interface NavItem {
   id: AppPage;
   label: string;
+  mobileLabel?: string;
   icon: LucideIcon;
 }
 
@@ -87,14 +88,14 @@ export function AppShell({
   const mainRef = useRef<HTMLElement>(null);
   const pageFocusReadyRef = useRef(false);
 
-  const item = (id: AppPage, label: string, icon: LucideIcon): NavItem | null =>
-    availablePages.has(id) ? { id, label, icon } : null;
+  const item = (id: AppPage, label: string, icon: LucideIcon, mobileLabel?: string): NavItem | null =>
+    availablePages.has(id) ? { id, label, mobileLabel, icon } : null;
   const primaryItems = compact([
     item("home", t("nav.home"), Home),
     item("ask", t("nav.ask"), MessageCircleQuestion),
-    item("members", collective.labels.members, Users),
-    item("memory", collective.labels.memory, BookOpen),
-    item("activity", collective.labels.activity, ListTodo),
+    item("members", collective.labels.members, Users, t("nav.members")),
+    item("memory", collective.labels.memory, BookOpen, t("nav.memory")),
+    item("activity", collective.labels.activity, ListTodo, t("nav.activity")),
   ]);
   const workspaceItems: readonly NavItem[] = [];
   const collaborationItems = compact([
@@ -326,7 +327,7 @@ export function AppShell({
       >
         {primaryItems.map((entry) => {
           const Icon = entry.icon;
-          return <button key={entry.id} data-app-page={entry.id} className={page === entry.id ? "mobile-tab mobile-tab-active" : "mobile-tab"} type="button" aria-current={page === entry.id ? "page" : undefined} onClick={() => navigate(entry.id)}><Icon size={20} aria-hidden="true" /><span>{entry.label}</span></button>;
+          return <button key={entry.id} data-app-page={entry.id} className={page === entry.id ? "mobile-tab mobile-tab-active" : "mobile-tab"} type="button" aria-current={page === entry.id ? "page" : undefined} onClick={() => navigate(entry.id)}><Icon size={20} aria-hidden="true" /><span>{entry.mobileLabel ?? entry.label}</span></button>;
         })}
         <button className={workspacePage || morePage ? "mobile-tab mobile-tab-active" : "mobile-tab"} type="button" aria-current={workspacePage || morePage ? "page" : undefined} aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu size={20} aria-hidden="true" /><span>{t("nav.more")}</span></button>
       </nav>

@@ -306,8 +306,11 @@ Inbox through the global action entry. The two Inbox tabs used intrinsic grid-tr
 second tab extended 22 px beyond the viewport even though Home, Ask, Members, Memory, and Activity
 were correctly bounded.
 
-The Inbox tab tracks now use `minmax(0, 1fr)`, their labels can shrink and wrap safely, and the
-mobile spacing is bounded. `communications.spec.ts` now opens both Inbox and History at 320 x 568
-and compares the document scroll width with its client width. The complete browser suite passes 74
-tests after this follow-up. Production release evidence remains outside Git and is generated only
-from the exact deployed commit.
+The Inbox tab tracks now use `minmax(0, 1fr)` and bounded mobile spacing. At 360 px and below,
+decorative tab icons are removed and complete labels remain on one line instead of breaking inside
+a word. The bottom navigation keeps contextual terms in the full sidebar and page headings while
+using the contract's short Home, Ask, Members, Memory, Activity, and More labels in its constrained
+six-column surface. `communications.spec.ts` opens both Inbox and History at 320 x 568, while the
+collective and experience suites assert that every mobile label fits for every profile and all
+three locales. The complete browser suite passes 74 tests after this follow-up. Production release
+evidence remains outside Git and is generated only from the exact deployed commit.
