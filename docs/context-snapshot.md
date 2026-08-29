@@ -120,9 +120,13 @@ non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact candi
 `2ae4f50751b907cf0e6aad817d675bc368dd8382`. The successful exact-SHA capture is retained outside
 Git in the owner-controlled incident evidence set.
 
-Distribution `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` pins application-equivalent Core
-`5f34c793c34864344c559206f8ccbe0149d671ff` and Cloudflare OS
-`546c784d8401b832114f03bc52600b392bb31827`. Its single local/hosted release-gate implementation
+The current Distribution-pinned Core successor `e34e2a01bfd596c55ca32430b097347839299391`
+adds the exact outage deployment record and documentation-authority regression without changing
+the deployed Runtime. GitHub Actions run `33258923163` repeated the full gate successfully for that
+exact successor.
+
+Distribution `5452d35536505fd9c1efb7f650ccd9678c4442ad` pins that Core successor and Cloudflare OS
+`2328903878b8bb3d8e29af6187abe935a5738482`. Its single local/hosted release-gate implementation
 passed typecheck, 55 tests, lint, compliance, reproducible SBOM drift detection, build, dependency
 audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup and
 restore preparation, ephemeral release signing, staged-package installation, and all seven acquired
@@ -130,7 +134,7 @@ CLI launchers. Mode-`0600` external evidence binds the exact three commits and m
 synthetic evidence and is not an independent purchaser-account installation or production signing
 record.
 
-Distribution GitHub Actions run `33254963232` at that exact commit started zero workflow steps.
+Distribution GitHub Actions run `33259701128` at that exact commit started zero workflow steps.
 GitHub reports recent account-payment failure or an insufficient spending limit. The shared gate
 therefore did not execute on GitHub. This remains an external hosted-CI gate; it is not presented as
 a source-test result.
@@ -180,7 +184,7 @@ existing database resumes service.
   complete backup, and capture exact-release authenticated Guild smoke. Do not replace it with an
   empty database.
 - Resolve the GitHub account billing/spending gate and rerun Distribution CI at exact Distribution
-  `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` or its reviewed successor.
+  `5452d35536505fd9c1efb7f650ccd9678c4442ad` or its reviewed successor.
 
 Guild OS remains incomplete while any of these required matrix rows is not `Implemented and
 verified`.
