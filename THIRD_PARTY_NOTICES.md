@@ -35,7 +35,7 @@ Guild OS changes do not erase the provenance of retained or modified starter fil
 - Path: `cloudflare-os/` Git submodule
 - License: Apache License 2.0; see `cloudflare-os/LICENSE`
 - Reviewed upstream base: `bf7f762d7fa73553284d731ab6a978d3ea17be24`
-- Current pinned fork commit: `546c784d8401b832114f03bc52600b392bb31827`
+- Current pinned fork commit: `2328903878b8bb3d8e29af6187abe935a5738482`
 
 The fork currently adds these Guild OS security-boundary commits:
 
@@ -43,6 +43,8 @@ The fork currently adds these Guild OS security-boundary commits:
 - `bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5` - bind step-up evidence to the Access login event
 - `546c784d8401b832114f03bc52600b392bb31827` - replace raw management-app infrastructure errors
   with an accessible, retryable unavailable state while retaining private issue reporting
+- `2328903878b8bb3d8e29af6187abe935a5738482` - keep handled Gatekeeper load failures out of the
+  browser console while retaining bounded private issue reporting
 
 Those modifications remain inside the Apache-licensed Cloudflare OS fork. A release must ship the
 submodule license and must not describe the fork as exclusively proprietary Guild OS code.

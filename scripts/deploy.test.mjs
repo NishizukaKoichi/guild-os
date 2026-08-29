@@ -809,14 +809,14 @@ test("database-outage releases are limited to the reviewed recovery surfaces", (
   );
   assert.deepEqual(assertDatabaseOutageRuntimePatchHashes({
     guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
-    workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+    workshopFrontend: "6b7a873b9349413725784ec93cb9809969eff7e35331db6b68edef270b0bd12c",
   }), {
     guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
-    workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+    workshopFrontend: "6b7a873b9349413725784ec93cb9809969eff7e35331db6b68edef270b0bd12c",
   });
   assert.throws(() => assertDatabaseOutageRuntimePatchHashes({
     guildGatekeeper: "0".repeat(64),
-    workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+    workshopFrontend: "6b7a873b9349413725784ec93cb9809969eff7e35331db6b68edef270b0bd12c",
   }), /unreviewed guildGatekeeper runtime patch/i);
 });
 

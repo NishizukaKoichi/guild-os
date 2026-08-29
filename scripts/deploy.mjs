@@ -40,7 +40,7 @@ const databaseOutageAllowedCloudflareChanges = [
 ];
 const databaseOutageRuntimePatchSha256 = {
   guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
-  workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+  workshopFrontend: "6b7a873b9349413725784ec93cb9809969eff7e35331db6b68edef270b0bd12c",
 };
 
 const requiredPaths = [

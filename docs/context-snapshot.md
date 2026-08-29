@@ -1,6 +1,6 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-29
+Updated: 2026-08-30
 
 ## Current goal
 
@@ -39,7 +39,7 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Core implementation state
 
-- Cloudflare OS is pinned at `546c784d8401b832114f03bc52600b392bb31827`.
+- Cloudflare OS is pinned at `2328903878b8bb3d8e29af6187abe935a5738482`.
 - PostgreSQL 17+ is supported. The current immutable inventory contains migrations `0001` through
   `0051`; management and Runtime roles remain separate and Runtime uses forced RLS.
 - Human, Agent, Service, and Guild use one Actor/Membership/Role/Capability/Space substrate.
