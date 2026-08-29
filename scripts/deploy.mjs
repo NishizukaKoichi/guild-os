@@ -39,7 +39,7 @@ const databaseOutageAllowedCloudflareChanges = [
   "packages/workshop-frontend/src/GatekeeperAppPage.tsx",
 ];
 const databaseOutageRuntimePatchSha256 = {
-  guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
+  guildGatekeeper: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   workshopFrontend: "6b7a873b9349413725784ec93cb9809969eff7e35331db6b68edef270b0bd12c",
 };
 
