@@ -4,14 +4,18 @@ import test from "node:test";
 import { parse } from "jsonc-parser";
 import {
   applyProvisioningLock,
+  assertDatabaseOutageReleaseChanges,
+  assertDatabaseOutageRuntimePatchHashes,
   assertExistingSecretBindings,
   assertDeployableGitState,
   deploymentVersionArgs,
   deploymentSecretsFromEnvironment,
   generateConfigs,
+  outageRollbackArgs,
   parseWranglerSecretList,
   provisioningLockFromGenerated,
   provisioningLockFromWorkerVersions,
+  releaseCommitFromWorkerVersion,
   requiredSecretBindings,
   validateConfig,
 } from "./deploy.mjs";
@@ -760,5 +764,82 @@ test("production deploys require a clean pinned Git source and annotate every Wo
       "--message", "Guild OS 0123456789abcdef0123456789abcdef01234567",
       "--tag", "guild-os-0123456789ab",
     ],
+  );
+});
+
+test("database-outage releases are limited to the reviewed recovery surfaces", () => {
+  const rootChanges = [
+    "THIRD_PARTY_NOTICES.md",
+    "cloudflare-os",
+    "deployment.jsonc",
+    "docs/deployment.md",
+    "fixtures/deployment.ci.jsonc",
+    "packages/guild-gatekeeper/__tests__/health.test.ts",
+    "packages/guild-gatekeeper/src/index.ts",
+    "scripts/deploy.mjs",
+  ];
+  const cloudflareChanges = [
+    "packages/workshop-frontend/src/GatekeeperAppPage.test.tsx",
+    "packages/workshop-frontend/src/GatekeeperAppPage.tsx",
+  ];
+  assert.deepEqual(
+    assertDatabaseOutageReleaseChanges(rootChanges, cloudflareChanges),
+    { rootChanges, cloudflareChanges },
+  );
+  assert.throws(
+    () => assertDatabaseOutageReleaseChanges(
+      [...rootChanges, "packages/guild-postgres/src/schema.ts"],
+      cloudflareChanges,
+    ),
+    /protected source/i,
+  );
+  assert.throws(
+    () => assertDatabaseOutageReleaseChanges(rootChanges, [
+      ...cloudflareChanges,
+      "packages/workshop-backend/src/index.ts",
+    ]),
+    /protected Cloudflare OS surface/i,
+  );
+  assert.throws(
+    () => assertDatabaseOutageReleaseChanges(
+      rootChanges.filter((path) => path !== "cloudflare-os"),
+      [],
+    ),
+    /recovery UI release/i,
+  );
+  assert.deepEqual(assertDatabaseOutageRuntimePatchHashes({
+    guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
+    workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+  }), {
+    guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
+    workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+  });
+  assert.throws(() => assertDatabaseOutageRuntimePatchHashes({
+    guildGatekeeper: "0".repeat(64),
+    workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+  }), /unreviewed guildGatekeeper runtime patch/i);
+});
+
+test("database-outage rollback points require exact release evidence", () => {
+  const commit = "0123456789abcdef0123456789abcdef01234567";
+  const versionId = "31aa25f1-8bad-4583-b51f-deb71f9d1748";
+  assert.equal(releaseCommitFromWorkerVersion({
+    id: versionId,
+    annotations: { "workers/message": `Guild OS ${commit}` },
+  }), commit);
+  assert.deepEqual(outageRollbackArgs(versionId, "guild-os", commit), [
+    "exec", "wrangler", "rollback", versionId,
+    "--name", "guild-os",
+    "--config", "wrangler.prod.jsonc",
+    "--message", `Automatic rollback from Guild OS ${commit}`,
+    "--yes",
+  ]);
+  assert.throws(() => releaseCommitFromWorkerVersion({
+    id: versionId,
+    annotations: { "workers/message": "unreviewed build" },
+  }), /complete Guild OS release/i);
+  assert.throws(
+    () => outageRollbackArgs("not-a-version", "guild-os", commit),
+    /version ID/i,
   );
 });

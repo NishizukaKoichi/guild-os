@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
-import { chmod, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parse, printParseErrorCode } from "jsonc-parser";
 import {
   assertPrivateDeploymentConfig,
@@ -23,6 +24,24 @@ const generatedPaths = {
 };
 const defaultContextArtifactsNamespace = "gatekeeper-context-collections";
 const secretLikeKey = /(?:secret|token|password|credential|database[_-]?url|api[_-]?key)/i;
+const databaseOutageAllowedRootChanges = [
+  "THIRD_PARTY_NOTICES.md",
+  "cloudflare-os",
+  "deployment.jsonc",
+  "docs/",
+  "fixtures/deployment.ci.jsonc",
+  "packages/guild-gatekeeper/__tests__/",
+  "packages/guild-gatekeeper/src/index.ts",
+  "scripts/",
+];
+const databaseOutageAllowedCloudflareChanges = [
+  "packages/workshop-frontend/src/GatekeeperAppPage.test.tsx",
+  "packages/workshop-frontend/src/GatekeeperAppPage.tsx",
+];
+const databaseOutageRuntimePatchSha256 = {
+  guildGatekeeper: "74ab919158d9ad250d4b570374a81945c085f2ff6dfc63f8f02311aff0c40406",
+  workshopFrontend: "ba367408830456e04118c94f6ae782e5bf564a57fa756bb435da400252eeb845",
+};
 
 const requiredPaths = [
   "accountId",
@@ -982,6 +1001,7 @@ function sanitizedChildEnv(env) {
   delete childEnv.CF_ACCESS_CLIENT_ID;
   delete childEnv.CF_ACCESS_CLIENT_SECRET;
   delete childEnv.GUILD_OS_DEPLOYMENT_CONFIG;
+  delete childEnv.GUILD_OS_OUTAGE_RELEASE_EVIDENCE_DIR;
   return childEnv;
 }
 
@@ -1054,6 +1074,190 @@ export function deploymentVersionArgs(commit) {
   ];
 }
 
+function pathAllowed(path, allowlist) {
+  return allowlist.some((allowed) => allowed.endsWith("/")
+    ? path.startsWith(allowed)
+    : path === allowed);
+}
+
+export function assertDatabaseOutageReleaseChanges(rootChanges, cloudflareChanges) {
+  const invalidRoot = rootChanges.filter((path) =>
+    !pathAllowed(path, databaseOutageAllowedRootChanges));
+  if (invalidRoot.length) {
+    throw new Error(
+      `Database-outage deployment changes protected source: ${invalidRoot.join(", ")}. ` +
+      "Restore the database and use the normal release path.",
+    );
+  }
+  const invalidCloudflare = cloudflareChanges.filter((path) =>
+    !pathAllowed(path, databaseOutageAllowedCloudflareChanges));
+  if (invalidCloudflare.length) {
+    throw new Error(
+      `Database-outage deployment changes a protected Cloudflare OS surface: ` +
+      `${invalidCloudflare.join(", ")}. Restore the database and use the normal release path.`,
+    );
+  }
+  if (!rootChanges.includes("cloudflare-os") || !cloudflareChanges.length) {
+    throw new Error(
+      "Database-outage deployment is reserved for the reviewed Workshop recovery UI release.",
+    );
+  }
+  return { rootChanges, cloudflareChanges };
+}
+
+export function assertDatabaseOutageRuntimePatchHashes(actual) {
+  for (const [name, expected] of Object.entries(databaseOutageRuntimePatchSha256)) {
+    if (actual?.[name] !== expected) {
+      throw new Error(
+        `Database-outage deployment has an unreviewed ${name} runtime patch. ` +
+        "Restore the database and use the normal release path.",
+      );
+    }
+  }
+  return actual;
+}
+
+export function releaseCommitFromWorkerVersion(version) {
+  const match = /^Guild OS ([a-f0-9]{40})$/i.exec(
+    version?.annotations?.["workers/message"] ?? "",
+  );
+  if (!match || typeof version?.id !== "string") {
+    throw new Error("An active Worker version does not identify a complete Guild OS release.");
+  }
+  return match[1].toLowerCase();
+}
+
+export function outageRollbackArgs(versionId, workerName, failedRelease) {
+  if (!/^[0-9a-f-]{36}$/i.test(versionId ?? "")) {
+    throw new Error("Rollback requires a Cloudflare Worker version ID.");
+  }
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(workerName ?? "")) {
+    throw new Error("Rollback requires a configured Worker name.");
+  }
+  if (!/^[a-f0-9]{40}$/i.test(failedRelease ?? "")) {
+    throw new Error("Rollback requires the failed Guild OS release commit.");
+  }
+  return [
+    "exec", "wrangler", "rollback", versionId,
+    "--name", workerName,
+    "--config", generatedName,
+    "--message", `Automatic rollback from Guild OS ${failedRelease}`,
+    "--yes",
+  ];
+}
+
+function splitLines(output) {
+  return output.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function activeOutageRecoveryPoints(config) {
+  const releases = new Set();
+  const points = Object.entries(configuredWorkerNames(config)).map(([key, workerName]) => {
+    const version = captureActiveWorkerVersion(workerName, false);
+    releases.add(releaseCommitFromWorkerVersion(version));
+    return { key, workerName, versionId: version.id };
+  });
+  if (releases.size !== 1) {
+    throw new Error("Active Workers do not share one rollback-safe Guild OS release.");
+  }
+  return { baseRelease: [...releases][0], points };
+}
+
+function assertGitAncestor(baseRelease, releaseCommit) {
+  const result = spawnSync("git", ["merge-base", "--is-ancestor", baseRelease, releaseCommit], {
+    cwd: root,
+    env: sanitizedChildEnv(process.env),
+    encoding: "utf8",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error("The outage release must descend from the active production release.");
+  }
+}
+
+function outageReleaseChanges(baseRelease, releaseCommit) {
+  assertGitAncestor(baseRelease, releaseCommit);
+  const rootChanges = splitLines(capture("git", [
+    "diff", "--name-only", `${baseRelease}..${releaseCommit}`,
+  ]));
+  const baseCloudflare = capture("git", ["rev-parse", `${baseRelease}:cloudflare-os`]).trim();
+  const releaseCloudflare = capture("git", ["rev-parse", `${releaseCommit}:cloudflare-os`]).trim();
+  const cloudflareChanges = baseCloudflare === releaseCloudflare
+    ? []
+    : splitLines(captureAt("git", [
+      "diff", "--name-only", `${baseCloudflare}..${releaseCloudflare}`,
+    ], join(root, "cloudflare-os")));
+  assertDatabaseOutageReleaseChanges(rootChanges, cloudflareChanges);
+  const runtimePatchSha256 = {
+    guildGatekeeper: createHash("sha256").update(capture("git", [
+      "diff", "--binary", `${baseRelease}..${releaseCommit}`, "--",
+      "packages/guild-gatekeeper/src/index.ts",
+    ])).digest("hex"),
+    workshopFrontend: createHash("sha256").update(captureAt("git", [
+      "diff", "--binary", `${baseCloudflare}..${releaseCloudflare}`, "--",
+      ...databaseOutageAllowedCloudflareChanges,
+    ], join(root, "cloudflare-os"))).digest("hex"),
+  };
+  assertDatabaseOutageRuntimePatchHashes(runtimePatchSha256);
+  return {
+    rootChanges,
+    baseCloudflare,
+    releaseCloudflare,
+    cloudflareChanges,
+    runtimePatchSha256,
+  };
+}
+
+function outageEvidenceDirectory() {
+  const configured = process.env.GUILD_OS_OUTAGE_RELEASE_EVIDENCE_DIR;
+  if (!configured || !isAbsolute(configured)) {
+    throw new Error(
+      "GUILD_OS_OUTAGE_RELEASE_EVIDENCE_DIR must be an absolute purchaser-owned evidence path.",
+    );
+  }
+  const path = resolve(configured);
+  if (path === root || path.startsWith(`${root}${sep}`)) {
+    throw new Error("Outage release evidence must be stored outside the source checkout.");
+  }
+  if (existsSync(path)) {
+    throw new Error("Use a new empty evidence directory for every outage deployment attempt.");
+  }
+  return path;
+}
+
+async function writeOutageEvidence(directory, name, value) {
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await chmod(directory, 0o700);
+  await writeFile(join(directory, name), JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
+}
+
+function assertOutageRecoveryPointsUnchanged(points) {
+  for (const point of points) {
+    const current = captureActiveWorkerVersion(point.workerName, false);
+    if (current.id !== point.versionId) {
+      throw new Error(`${point.workerName} changed after outage recovery validation.`);
+    }
+  }
+}
+
+function rollbackOutageRelease(points, releaseCommit) {
+  const rolledBack = [];
+  for (const point of [...points].reverse()) {
+    const current = captureActiveWorkerVersion(point.workerName, false);
+    if (current.id === point.versionId) continue;
+    run(
+      outageRollbackArgs(point.versionId, point.workerName, releaseCommit),
+      dirname(generatedPaths[point.key]),
+    );
+    const restored = captureActiveWorkerVersion(point.workerName, false);
+    if (restored.id !== point.versionId) {
+      throw new Error(`${point.workerName} did not return to its recorded Worker version.`);
+    }
+    rolledBack.push({ workerName: point.workerName, versionId: point.versionId });
+  }
+  return rolledBack;
+}
+
 function run(args, cwd = root, env = process.env) {
   const result = spawnSync("pnpm", args, {
     cwd,
@@ -1095,18 +1299,49 @@ async function main() {
   const deployment = await readDeployment(configPath);
   const config = applyProvisioningLock(deployment, await readDeploymentLock());
   const arguments_ = process.argv.slice(2).filter((argument) => argument !== "--");
-  const knownArguments = new Set(["--check", "--preserve-existing-secrets"]);
+  const knownArguments = new Set([
+    "--check",
+    "--preserve-existing-secrets",
+    "--database-outage-recovery",
+  ]);
   for (const argument of arguments_) {
     if (!knownArguments.has(argument)) throw new Error(`Unknown deployment option: ${argument}`);
   }
   const check = arguments_.includes("--check");
   const preserveExistingSecrets = arguments_.includes("--preserve-existing-secrets");
+  const databaseOutageRecovery = arguments_.includes("--database-outage-recovery");
   if (check && preserveExistingSecrets) {
     throw new Error("Existing Secret preservation is only available for a live deployment.");
   }
+  if (check && databaseOutageRecovery) {
+    throw new Error("Database-outage recovery is only available for a live deployment.");
+  }
+  if (databaseOutageRecovery && !preserveExistingSecrets) {
+    throw new Error("Database-outage recovery must preserve every existing Worker Secret.");
+  }
   if (!check) assertPrivateDeploymentConfig(configPath);
   const releaseCommit = check ? null : releaseSource();
-  if (!check) {
+  let outageRecovery;
+  if (databaseOutageRecovery) {
+    const { baseRelease, points } = activeOutageRecoveryPoints(config);
+    const changes = outageReleaseChanges(baseRelease, releaseCommit);
+    const evidenceDirectory = outageEvidenceDirectory();
+    outageRecovery = { baseRelease, points, changes, evidenceDirectory };
+    await writeOutageEvidence(evidenceDirectory, "before.json", {
+      format: "guild-os-database-outage-release/v1",
+      recordedAt: new Date().toISOString(),
+      baseRelease,
+      releaseCommit,
+      changes,
+      rollbackPoints: points,
+    });
+    console.log(JSON.stringify({
+      event: "guild.deployment.database_outage.validated",
+      baseRelease,
+      releaseCommit,
+      workerCount: points.length,
+    }));
+  } else if (!check) {
     const { verifyProductionDatabase } = await import("./database-preflight.mjs");
     if (!process.env.GUILD_RUNTIME_DATABASE_ROLE) {
       throw new Error("GUILD_RUNTIME_DATABASE_ROLE is required for deployment.");
@@ -1132,6 +1367,8 @@ async function main() {
   const secretFiles = {};
   let deploymentError = null;
   let deploymentStarted = false;
+  let outageRollbackComplete = false;
+  let deploymentStage = "local-verification";
   try {
     for (const [name, generatedConfig] of Object.entries(generated)) {
       await writeFile(generatedPaths[name], JSON.stringify(generatedConfig, null, 2) + "\n");
@@ -1146,6 +1383,19 @@ async function main() {
     if (preserveExistingSecrets) {
       const preserved = verifyExistingDeploymentSecrets(generated);
       console.log(JSON.stringify({ event: "guild.deployment.secrets.preserved", workers: preserved }));
+    }
+
+    if (outageRecovery) {
+      assertOutageRecoveryPointsUnchanged(outageRecovery.points);
+      await writeOutageEvidence(outageRecovery.evidenceDirectory, "validated.json", {
+        format: "guild-os-database-outage-release-validation/v1",
+        validatedAt: new Date().toISOString(),
+        baseRelease: outageRecovery.baseRelease,
+        releaseCommit,
+        rollbackPoints: outageRecovery.points,
+        existingSecretsVerified: true,
+        databaseMutationAuthorized: false,
+      });
     }
 
     if (deploymentSecrets) {
@@ -1164,28 +1414,83 @@ async function main() {
       : [];
     deploymentStarted = !check;
     if (config.referenceWebhook.enabled) {
+      deploymentStage = "webhookReceiver";
       run(["exec", "wrangler", "deploy", "--config", generatedName,
         ...secretsArgs("webhookReceiver"), ...deployArgs],
       join(root, "packages/webhook-receiver"));
     }
     if (config.errorReporting.enabled) {
+      deploymentStage = "errorReporter";
       run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
         join(root, "packages/error-reporter"));
     }
+    deploymentStage = "context";
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "cloudflare-os/packages/gatekeeper-context"));
+    deploymentStage = "guildGatekeeper";
     run(["exec", "wrangler", "deploy", "--config", generatedName,
       ...secretsArgs("guildGatekeeper"), ...deployArgs],
       join(root, "packages/guild-gatekeeper"));
+    deploymentStage = "workshop";
     run(["exec", "wrangler", "deploy", "--config", generatedName,
       ...secretsArgs("workshop"), ...deployArgs],
       join(root, "cloudflare-os/packages/workshop-backend"));
+    deploymentStage = "deployment-lock";
     if (!check) await persistDeploymentLock(config, releaseCommit);
+    if (outageRecovery) {
+      const active = activeOutageRecoveryPoints(config);
+      if (active.baseRelease !== releaseCommit) {
+        throw new Error("The outage release did not become active on every Worker.");
+      }
+      await writeOutageEvidence(outageRecovery.evidenceDirectory, "after.json", {
+        format: "guild-os-database-outage-release-result/v1",
+        deployedAt: new Date().toISOString(),
+        baseRelease: outageRecovery.baseRelease,
+        releaseCommit,
+        activeVersions: active.points,
+        databaseChanged: false,
+        databaseSmokePending: true,
+      });
+    }
   } catch (error) {
     deploymentError = error;
+    if (outageRecovery) {
+      let rolledBack = [];
+      let rollbackError = null;
+      if (deploymentStarted) {
+        try {
+          rolledBack = rollbackOutageRelease(outageRecovery.points, releaseCommit);
+          await persistDeploymentLock(config, outageRecovery.baseRelease);
+          outageRollbackComplete = true;
+        } catch (caught) {
+          rollbackError = caught;
+        }
+      }
+      await writeOutageEvidence(outageRecovery.evidenceDirectory, "failure.json", {
+        format: "guild-os-database-outage-release-failure/v1",
+        failedAt: new Date().toISOString(),
+        baseRelease: outageRecovery.baseRelease,
+        releaseCommit,
+        stage: deploymentStage,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+        rolledBack,
+        rollbackComplete: outageRollbackComplete,
+        ...(rollbackError ? {
+          rollbackErrorType: rollbackError instanceof Error
+            ? rollbackError.name
+            : "UnknownError",
+        } : {}),
+      });
+      if (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          "Outage deployment failed and automatic Worker rollback did not complete.",
+        );
+      }
+    }
     throw error;
   } finally {
-    if (deploymentStarted && deploymentError) {
+    if (deploymentStarted && deploymentError && !outageRollbackComplete) {
       try {
         await persistDeploymentLock(config, releaseCommit, true);
       } catch {

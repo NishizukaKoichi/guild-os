@@ -223,6 +223,11 @@ incomplete.
 1. Protect people and external systems; stop affected Agent Runs and external actions.
 2. Restrict Cloudflare Access or set an emergency deny policy.
 3. Preserve failed resources, logs, Worker Version IDs, Chronicle events, and timestamps.
+   If PostgreSQL compute is suspended and the exact reviewed candidate contains only the bounded
+   outage UI and maintenance-cost changes, follow the database-provider outage procedure in
+   [Production deployment](deployment.md#database-provider-outage-recovery). Keep its mode-`0600`
+   evidence with the incident record. This exception changes no database state and does not replace
+   the missing database backup or smoke.
 4. Revoke exposed provider credentials and issue new Secret values under purchaser custody.
 5. Select the newest internally consistent verified backup.
 6. Restore to new resources using [Backup and recovery](backup-and-recovery.md).

@@ -331,6 +331,33 @@ existing Secrets when a new Version is deployed without a replacement Secret fil
 required name fails the entire pre-deployment phase; use the hidden-input flow above to create or
 intentionally rotate a Secret.
 
+### Database-provider outage recovery
+
+Do not bypass the database preflight for a normal release. When the existing provider has suspended
+database compute and the reviewed release contains only the bounded outage UI and maintenance-cost
+fixes defined by [ADR 0044](adr/0044-database-outage-recovery-release.md), the operator can deploy
+that exact code-only release without changing the database:
+
+```sh
+export GUILD_OS_OUTAGE_RELEASE_EVIDENCE_DIR="/Volumes/EncryptedOps/guild-os/outage-releases/$(git rev-parse HEAD)"
+pnpm deploy -- --preserve-existing-secrets --database-outage-recovery
+unset GUILD_OS_OUTAGE_RELEASE_EVIDENCE_DIR
+```
+
+Use a new absolute evidence directory outside the checkout for every attempt. The deploy tool
+refuses this mode unless every active Worker identifies one common ancestor release, only the
+hard-coded reviewed paths changed, both runtime patch hashes match, all existing Secret names are
+present, and no Worker changed
+while local verification ran. It records every current Version ID before upload. If any Worker
+update or deployment-lock write fails, it rolls changed Workers back to those versions, verifies the
+rollback, and records a non-secret failure report.
+
+This mode does not inspect, migrate, back up, restore, or claim the database is healthy. Its success
+means only that all Workers are on the code-only recovery release. As soon as the same existing
+database is available, run `pnpm db:verify`, create and verify a complete backup, run the
+authenticated production smoke in section 7, and preserve ordinary release evidence. Never use a
+fresh empty database to make the outage screen disappear.
+
 `pnpm deploy` installs only the Secret values understood by `scripts/deploy.mjs`:
 `GUILD_WEBHOOK_SIGNING_SECRET`, external-provider `GUILD_MODEL_PROVIDER_TOKEN`, and, when enabled,
 `CF_AI_GATEWAY_API_TOKEN`. Additional purchaser Connection Secret references are ordinary Guild
