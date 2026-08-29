@@ -37,8 +37,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(restoreAdr, /ownership-attestation file, live Installer-evidence file, deployment lock/);
   assert.match(publicationAdr, /repository owner explicitly authorized public Apache-2.0 visibility/);
   assert.match(publicationAdr, /anonymous recursive HTTPS clone independently passed/);
-  assert.match(matrix, /52 Distribution tests/);
-  assert.match(snapshot, /passed typecheck, 52 tests/);
+  assert.match(matrix, /55 Distribution tests/);
+  assert.match(snapshot, /passed typecheck, 55 tests/);
   assert.match(specification, /complete local Git source archives/);
   assert.match(acceptance, /No seller source fetch is allowed/);
   assert.match(acceptance, /Open Core access/);
@@ -51,8 +51,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(matrix, /current release SHA must always come from Git/);
   assert.match(matrix, /generated two-phase read-only verifier/);
   assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
-  assert.doesNotMatch(matrix, /\b(?:38|46|49|50) Distribution tests\b/);
-  assert.doesNotMatch(snapshot, /\b(?:38|46|49|50) tests\b/);
+  assert.doesNotMatch(matrix, /\b(?:38|46|49|50|52) Distribution tests\b/);
+  assert.doesNotMatch(snapshot, /\b(?:38|46|49|50|52) tests\b/);
 
   for (const [name, contents] of [
     ["README", readme],

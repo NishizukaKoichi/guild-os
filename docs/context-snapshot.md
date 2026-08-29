@@ -120,17 +120,19 @@ non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact Core 
 `5f34c793c34864344c559206f8ccbe0149d671ff`. Its only changes after the deployed Runtime commit are
 the reviewed production-status and completion records.
 
-Distribution `09ec03257eaa79c14765faaffd9726b889df91f6` pins that exact Core and Cloudflare OS
-`546c784d8401b832114f03bc52600b392bb31827`. It passed typecheck, 52 tests, lint, compliance,
-reproducible SBOM generation, build, dependency audit, real Git-bundle clone/object verification,
-and a
-deterministic clean-room chain covering install, update, backup, isolated restore preparation,
-expired-entitlement denial, Runtime continuity, and handover Secret redaction. This is synthetic
-evidence and is not an independent purchaser-account installation.
+Distribution `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` pins that exact Core and Cloudflare OS
+`546c784d8401b832114f03bc52600b392bb31827`. Its single local/hosted release-gate implementation
+passed typecheck, 55 tests, lint, compliance, reproducible SBOM drift detection, build, dependency
+audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup and
+restore preparation, ephemeral release signing, staged-package installation, and all seven acquired
+CLI launchers. Mode-`0600` external evidence binds the exact three commits and manifest hash. This is
+synthetic evidence and is not an independent purchaser-account installation or production signing
+record.
 
-Distribution GitHub Actions run `33253975608` at that exact commit started zero workflow steps.
-GitHub reports recent account-payment failure or an insufficient spending limit. This remains an
-external hosted-CI gate; it is not presented as a source-test result.
+Distribution GitHub Actions run `33254963232` at that exact commit started zero workflow steps.
+GitHub reports recent account-payment failure or an insufficient spending limit. The shared gate
+therefore did not execute on GitHub. This remains an external hosted-CI gate; it is not presented as
+a source-test result.
 
 Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
 owner-controlled evidence outside both repositories. This snapshot deliberately does not substitute
@@ -174,7 +176,7 @@ existing database resumes service.
   complete backup, and capture exact-release authenticated Guild smoke. Do not replace it with an
   empty database.
 - Resolve the GitHub account billing/spending gate and rerun Distribution CI at exact Distribution
-  `09ec03257eaa79c14765faaffd9726b889df91f6` or its reviewed successor.
+  `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` or its reviewed successor.
 
 Guild OS remains incomplete while any of these required matrix rows is not `Implemented and
 verified`.
