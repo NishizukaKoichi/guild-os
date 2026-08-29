@@ -56,6 +56,10 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 - Deployment exposes `db:preflight` for a fresh database or an exact migration-prefix upgrade. It
   checks PostgreSQL version, TLS, role privileges, required extensions, migration hashes, and
   schema/ledger consistency before mutation.
+- ADR 0044 adds a fail-closed database-outage release path for the exact reviewed recovery UI and
+  maintenance-cost patches. It preserves existing Secrets, hashes the two Runtime diffs, records all
+  prior Worker Versions, rejects database/domain/backend changes, and automatically rolls a partial
+  deployment back. It never substitutes for database backup or smoke.
 
 ## Distribution implementation state
 
@@ -101,13 +105,18 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Verified local baseline
 
-On 2026-08-29 the current local candidate passed Core typecheck, tests, build, lint, dependency
+On 2026-08-29 Core `2f5106dbbef14fd029979d3c0447458e3d7a3429` passed local typecheck, tests,
+build, lint, dependency
 audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
 74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
 Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and the
 Cloudflare OS sandbox boundary. Database-backed integration files that require a disposable
 PostgreSQL URL and Cloudflare OS external integration files without credentials were skipped and
 remain separate gates.
+
+GitHub Actions run `33252944345` independently repeated complete-history scanning, dependency
+integrity, builds, tests, lint/types, every production Worker bundle, all 74 browser journeys, and
+non-superuser PostgreSQL migration/RLS/Runtime-role verification for that exact commit.
 
 The source-complete Distribution candidate passed typecheck, 50 tests, lint, compliance, build,
 dependency audit, real Git-bundle clone/object verification, and a
@@ -125,15 +134,20 @@ acquisition evidence for its exact Core, Distribution, and Cloudflare OS commits
 The 2026-08-29 authenticated production audit reached Cloudflare Access successfully, but the Guild
 application could not open its PostgreSQL session. Private Worker and provider evidence identified a
 database compute-quota exhaustion, not an authentication, RLS, migration, or frontend failure. The
-deployed release remains the prior exact Core release, and authenticated application journeys are
-therefore blocked until database service is restored.
+existing database remains unavailable, so authenticated Guild journeys are still blocked until its
+service is restored.
 
-The current source candidate reduces recurrence risk by changing the maintenance reconciliation from
-every five minutes to a configurable hourly default and by running its database-backed jobs
-sequentially. User-requested dispatch remains immediate. The pinned Cloudflare OS frontend also
-replaces raw infrastructure errors with a retryable, accessible unavailable state. None of these
-changes is treated as deployed evidence until database preflight, exact-SHA CI, deployment, and
-authenticated smoke all succeed.
+All five production Workers now run the exact code-only recovery release
+`2f5106dbbef14fd029979d3c0447458e3d7a3429`. Its mode-`0600` external evidence records the prior
+release, exact Runtime patch hashes, existing-Secret verification, rollback points, active versions,
+and `databaseChanged: false`. Maintenance reconciliation is now hourly and its database-backed jobs
+are sequential; user-requested dispatch remains immediate. An authenticated browser verified the
+accessible unavailable state, heading focus, and working retry action without exposing the provider
+quota message.
+
+This is deployed outage evidence, not normal production acceptance. The database preflight, complete
+backup, release evidence, and end-to-end authenticated Guild smoke remain pending until the same
+existing database resumes service.
 
 ## Remaining completion gates
 
@@ -148,8 +162,9 @@ authenticated smoke all succeed.
 - Obtain professional approval for commercial license, trademark, contribution rights, privacy,
   tax/billing, customer agreement, support, pricing, refund, incident response, and transitive LGPL
   obligations.
-- Deploy production only with explicit authorization, a verified pre-deploy backup, exact-commit
-  evidence, and authenticated post-deploy smoke.
+- Restore the same existing production database service, run its preflight, create and verify a
+  complete backup, and capture exact-release authenticated Guild smoke. Do not replace it with an
+  empty database.
 
 Guild OS remains incomplete while any of these required matrix rows is not `Implemented and
 verified`.
