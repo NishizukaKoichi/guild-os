@@ -105,8 +105,8 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Verified local baseline
 
-On 2026-08-29 Core `2f5106dbbef14fd029979d3c0447458e3d7a3429` passed local typecheck, tests,
-build, lint, dependency
+On 2026-08-29 the current audited Core checkout
+`e452a6080cd5b2aac692834c5238d963c5e8939e` passed local typecheck, tests, build, lint, dependency
 audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
 74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
 Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and the
@@ -114,13 +114,15 @@ Cloudflare OS sandbox boundary. Database-backed integration files that require a
 PostgreSQL URL and Cloudflare OS external integration files without credentials were skipped and
 remain separate gates.
 
-GitHub Actions run `33253591545` independently repeated complete-history scanning, dependency
+GitHub Actions run `33255163020` independently repeated complete-history scanning, dependency
 integrity, builds, tests, lint/types, every production Worker bundle, all 74 browser journeys, and
-non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact Core successor
-`5f34c793c34864344c559206f8ccbe0149d671ff`. Its only changes after the deployed Runtime commit are
-the reviewed production-status and completion records.
+non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact audited successor
+`e452a6080cd5b2aac692834c5238d963c5e8939e`. Production application files are unchanged from the
+deployed outage Runtime `2f5106dbbef14fd029979d3c0447458e3d7a3429`; the successor changes only
+reviewed operational records and their authority test.
 
-Distribution `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` pins that exact Core and Cloudflare OS
+Distribution `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` pins application-equivalent Core
+`5f34c793c34864344c559206f8ccbe0149d671ff` and Cloudflare OS
 `546c784d8401b832114f03bc52600b392bb31827`. Its single local/hosted release-gate implementation
 passed typecheck, 55 tests, lint, compliance, reproducible SBOM drift detection, build, dependency
 audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup and

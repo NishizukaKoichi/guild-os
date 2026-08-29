@@ -39,6 +39,12 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(publicationAdr, /anonymous recursive HTTPS clone independently passed/);
   assert.match(matrix, /55 Distribution tests/);
   assert.match(snapshot, /passed typecheck, 55 tests/);
+  assert.match(matrix, /Core run `33255163020` succeeded for exact documentation\/test successor/);
+  assert.match(snapshot, /GitHub Actions run `33255163020` independently repeated/);
+  assert.match(matrix, /Distribution-pinned application-equivalent Core `5f34c79`/);
+  assert.match(snapshot, /pins application-equivalent Core/);
+  assert.doesNotMatch(matrix, /Core run `33253591545`/);
+  assert.doesNotMatch(snapshot, /GitHub Actions run `33253591545`/);
   assert.match(specification, /complete local Git source archives/);
   assert.match(acceptance, /No seller source fetch is allowed/);
   assert.match(acceptance, /Open Core access/);
@@ -48,7 +54,7 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(matrix, /live credential-free public Core capture also completed/);
   assert.doesNotMatch(readme, /GitHub repository is currently private/);
   assert.match(matrix, /source-complete signed release v2/);
-  assert.match(matrix, /current release SHA must always come from Git/);
+  assert.match(matrix, /current branch SHA must always come from Git and exact external CI evidence/);
   assert.match(matrix, /generated two-phase read-only verifier/);
   assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
   assert.doesNotMatch(matrix, /\b(?:38|46|49|50|52) Distribution tests\b/);
