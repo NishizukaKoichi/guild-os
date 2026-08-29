@@ -45,6 +45,7 @@ function config() {
       purpose: "Private organizational purpose",
       hyperdriveId: "22222222222222222222222222222222",
       agentWorkflowName: "guild-agent-workflow",
+      maintenanceCron: "0 * * * *",
       webhook: {
         connectorId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
         url: "https://hooks.example.com/guild-events",
@@ -79,6 +80,7 @@ test("encrypted recovery configuration keeps required settings and rejects unkno
   const serialized = JSON.stringify(recovery);
   assert.equal(recovery.access.admins[0], "owner@example.com");
   assert.equal(recovery.guild.name, "Private Guild Name");
+  assert.equal(recovery.guild.maintenanceCron, "0 * * * *");
   assert.doesNotMatch(serialized, /must-not-be-copied/);
   assert.equal("accidentalSecret" in recovery, false);
   assert.equal("accidentalSecret" in recovery.guild, false);

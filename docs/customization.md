@@ -265,12 +265,17 @@ The implemented governed-memory path is:
 7. Canonical Knowledge can be queried through Ask Guild with source citations; drafts and denied
    rows never enter model context.
 8. R2 uploads use pending database metadata, checksum verification, and finalization. Deletions use
-   the transactional outbox and a five-minute Cron Trigger so a transient R2 failure is retried.
+   the transactional outbox and a configurable reconciliation Cron so a transient R2 failure is
+   retried without forcing an autosuspending database to remain active all day.
 9. The Workshop service binding makes the vendor available to Cloudflare OS.
 
 ### Governed Agent Webhook
 
-`guild.agentWorkflowName` names the Cloudflare Workflow. `guild.webhook` provisions the one fixed,
+`guild.agentWorkflowName` names the Cloudflare Workflow. `guild.maintenanceCron` defaults to hourly
+reconciliation. User-initiated work is dispatched immediately, so reducing this interval mainly
+reduces recovery latency while increasing PostgreSQL compute usage. A five-minute schedule can keep
+an autosuspending database continuously awake and should be used only with a reviewed paid capacity
+plan. `guild.webhook` provisions the one fixed,
 deployment-owned v1 Connector. Generate a new Connector UUID for every destination; changing an
 existing Connector's URL in place is rejected.
 

@@ -31,6 +31,7 @@
     "askRequestsPerMinute": 20,
     "recoveryAttemptsPerMinute": 5,
     "agentWorkflowName": "guild-os-ci-agent-execution",
+    "maintenanceCron": "0 * * * *",
     "webhook": {
       "connectorId": "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
       "name": "CI operations webhook",

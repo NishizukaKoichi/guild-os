@@ -95,6 +95,11 @@
     // The only v1 external write target. Runtime callers cannot replace this URL.
     // Supply GUILD_WEBHOOK_SIGNING_SECRET to `pnpm deploy`; never store it in this file.
     "agentWorkflowName": "<AGENT_WORKFLOW_NAME>",
+
+    // Reconciliation only. User-initiated work is dispatched immediately. Hourly keeps an
+    // autosuspending PostgreSQL database asleep between inactive periods; paid always-on
+    // deployments may choose a shorter interval after reviewing provider compute costs.
+    "maintenanceCron": "0 * * * *",
     "webhook": {
       "connectorId": "<WEBHOOK_CONNECTOR_UUID>",
       "name": "Approved operations webhook",

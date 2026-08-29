@@ -103,26 +103,34 @@ describe("Guild Gatekeeper operations", () => {
   it("logs bounded maintenance counts without Guild content", async () => {
     const logs: string[] = [];
     const clock = [100, 135];
+    const order: string[] = [];
     await runGuildMaintenance(env, {
       async deleteFiles() {
+        order.push("files");
         return { expired: 3, claimed: 2, completed: 1, deferred: 1 };
       },
       async drainWorkflows() {
+        order.push("workflows");
         return 4;
       },
       async drainEmbeddings() {
+        order.push("embeddings");
         return 2;
       },
       async scanMemory() {
+        order.push("memory-health");
         return { deterministic: 1, contradictions: 0 };
       },
       async drainExports() {
+        order.push("exports");
         return { processed: 1, completed: 1, failed: 0, expired: 0 };
       },
       async drainAutomation() {
+        order.push("automation");
         return [{ status: "dispatched", requestId: "request", agentRunId: "run", duplicate: false }];
       },
       async drainRetention() {
+        order.push("retention");
         return [{
           status: "completed" as const,
           runId: "run",
@@ -132,6 +140,7 @@ describe("Guild Gatekeeper operations", () => {
         }];
       },
       async drainFederation() {
+        order.push("federation");
         return { status: "sent" as const, deliveryId: "delivery", remoteStatus: "accepted" as const };
       },
       now() {
@@ -144,6 +153,17 @@ describe("Guild Gatekeeper operations", () => {
         throw new Error("unexpected error log");
       },
     });
+
+    expect(order).toEqual([
+      "files",
+      "workflows",
+      "embeddings",
+      "memory-health",
+      "exports",
+      "automation",
+      "retention",
+      "federation",
+    ]);
 
     expect(logs).toEqual([JSON.stringify({
       event: "guild.maintenance",

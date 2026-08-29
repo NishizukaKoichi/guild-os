@@ -1,6 +1,6 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-24
+Updated: 2026-08-29
 
 ## Current goal
 
@@ -39,7 +39,7 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Core implementation state
 
-- Cloudflare OS is pinned at `bba32ca8fab7b9925f5b1a3e7e36c4d37f788ff5`.
+- Cloudflare OS is pinned at `546c784d8401b832114f03bc52600b392bb31827`.
 - PostgreSQL 17+ is supported. The current immutable inventory contains migrations `0001` through
   `0051`; management and Runtime roles remain separate and Runtime uses forced RLS.
 - Human, Agent, Service, and Guild use one Actor/Membership/Role/Capability/Space substrate.
@@ -101,10 +101,13 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Verified local baseline
 
-On 2026-08-24 the current release candidate passed Core typecheck, tests, build, lint, dependency
-audit, Cloudflare OS boundary tests, and 73 Playwright E2E journeys. Database-backed integration
-files that require a disposable PostgreSQL URL and Cloudflare OS external integration files without
-credentials were skipped and remain separate gates.
+On 2026-08-29 the current local candidate passed Core typecheck, tests, build, lint, dependency
+audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
+74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
+Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and the
+Cloudflare OS sandbox boundary. Database-backed integration files that require a disposable
+PostgreSQL URL and Cloudflare OS external integration files without credentials were skipped and
+remain separate gates.
 
 The source-complete Distribution candidate passed typecheck, 50 tests, lint, compliance, build,
 dependency audit, real Git-bundle clone/object verification, and a
@@ -116,6 +119,21 @@ Exact-SHA hosted CI and anonymous Open Core acquisition records are captured fro
 owner-controlled evidence outside both repositories. This snapshot deliberately does not substitute
 a document claim for those machine records: every later candidate requires new CI and anonymous
 acquisition evidence for its exact Core, Distribution, and Cloudflare OS commits.
+
+## Current owner-production incident
+
+The 2026-08-29 authenticated production audit reached Cloudflare Access successfully, but the Guild
+application could not open its PostgreSQL session. Private Worker and provider evidence identified a
+database compute-quota exhaustion, not an authentication, RLS, migration, or frontend failure. The
+deployed release remains the prior exact Core release, and authenticated application journeys are
+therefore blocked until database service is restored.
+
+The current source candidate reduces recurrence risk by changing the maintenance reconciliation from
+every five minutes to a configurable hourly default and by running its database-backed jobs
+sequentially. User-requested dispatch remains immediate. The pinned Cloudflare OS frontend also
+replaces raw infrastructure errors with a retryable, accessible unavailable state. None of these
+changes is treated as deployed evidence until database preflight, exact-SHA CI, deployment, and
+authenticated smoke all succeed.
 
 ## Remaining completion gates
 

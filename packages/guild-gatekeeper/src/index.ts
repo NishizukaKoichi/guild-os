@@ -159,17 +159,14 @@ export async function runGuildMaintenance(
 ): Promise<void> {
   const startedAt = dependencies.now();
   try {
-    const [files, workflowMessages, embeddings, memoryHealth, dataExports, automation, retention,
-      federation] = await Promise.all([
-      dependencies.deleteFiles(env),
-      dependencies.drainWorkflows(env),
-      dependencies.drainEmbeddings(env),
-      dependencies.scanMemory(env),
-      dependencies.drainExports(env),
-      dependencies.drainAutomation(env),
-      dependencies.drainRetention(env),
-      dependencies.drainFederation(env),
-    ]);
+    const files = await dependencies.deleteFiles(env);
+    const workflowMessages = await dependencies.drainWorkflows(env);
+    const embeddings = await dependencies.drainEmbeddings(env);
+    const memoryHealth = await dependencies.scanMemory(env);
+    const dataExports = await dependencies.drainExports(env);
+    const automation = await dependencies.drainAutomation(env);
+    const retention = await dependencies.drainRetention(env);
+    const federation = await dependencies.drainFederation(env);
     dependencies.info(JSON.stringify({
       event: "guild.maintenance",
       ok: true,

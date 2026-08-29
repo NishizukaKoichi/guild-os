@@ -158,6 +158,7 @@ export function deploymentResourceSummary(config) {
       purposeSha256: sha256Text(config.guild.purpose),
       hyperdriveId: config.guild.hyperdriveId,
       agentWorkflowName: config.guild.agentWorkflowName,
+      maintenanceCron: config.guild.maintenanceCron ?? "0 * * * *",
       webhookConnectorId: config.guild.webhook.connectorId,
       webhookOrigin: new URL(config.guild.webhook.url).origin,
     },
@@ -207,6 +208,7 @@ export function deploymentRecoveryConfiguration(config) {
       askRequestsPerMinute: config.guild.askRequestsPerMinute,
       recoveryAttemptsPerMinute: config.guild.recoveryAttemptsPerMinute,
       agentWorkflowName: config.guild.agentWorkflowName,
+      maintenanceCron: config.guild.maintenanceCron ?? "0 * * * *",
       webhook: {
         connectorId: config.guild.webhook.connectorId,
         name: config.guild.webhook.name,

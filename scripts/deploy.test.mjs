@@ -65,6 +65,7 @@ const validConfig = {
     askRequestsPerMinute: 20,
     recoveryAttemptsPerMinute: 5,
     agentWorkflowName: "acme-guild-agent-execution",
+    maintenanceCron: "0 * * * *",
     webhook: {
       connectorId: "018f1f3e-7b5a-7d40-8f43-4fe1dc555a9b",
       name: "Approved operations webhook",
@@ -201,6 +202,10 @@ test("rejects destructive or malformed deployment values", () => {
   const malformedWorkflow = structuredClone(validConfig);
   malformedWorkflow.guild.agentWorkflowName = "Bad Workflow";
   assert.throws(() => validateConfig(malformedWorkflow), /Workflow name/i);
+
+  const malformedMaintenanceCron = structuredClone(validConfig);
+  malformedMaintenanceCron.guild.maintenanceCron = "@hourly\nSECRET=value";
+  assert.throws(() => validateConfig(malformedMaintenanceCron), /maintenance Cron/i);
 
   const invalidTraceSampling = structuredClone(validConfig);
   invalidTraceSampling.observability.traces.headSamplingRate = 2;
@@ -394,7 +399,7 @@ test("generates Access-mode Workshop, Context, and Guild Gatekeeper configs", as
     generated.guildGatekeeper.compatibility_flags.includes("global_fetch_strictly_public"),
     true,
   );
-  assert.deepEqual(generated.guildGatekeeper.triggers, { crons: ["*/5 * * * *"] });
+  assert.deepEqual(generated.guildGatekeeper.triggers, { crons: ["0 * * * *"] });
   assert.equal(generated.webhookReceiver.name, "acme-guild-os-webhook");
   assert.deepEqual(generated.webhookReceiver.routes, [
     { pattern: "hooks.example.com", custom_domain: true },

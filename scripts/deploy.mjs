@@ -87,6 +87,10 @@ function guildBootstrapModel(config) {
   return config.guild.bootstrapModel ?? "@cf/meta/llama-3.1-8b-instruct-fast";
 }
 
+function guildMaintenanceCron(config) {
+  return config.guild.maintenanceCron ?? "0 * * * *";
+}
+
 const resourcePaths = [
   "context.kvNamespaceId",
   "resources.blueprintsKvNamespaceId",
@@ -430,6 +434,10 @@ export function validateConfig(config) {
   }
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(config.guild.agentWorkflowName)) {
     throw new Error("Guild Agent Workflow name must use lowercase letters, numbers, and hyphens.");
+  }
+  if (!/^[0-9*/?,\-]+(?: [0-9*/?,\-]+){4}$/.test(guildMaintenanceCron(config)) ||
+      guildMaintenanceCron(config).length > 100) {
+    throw new Error("Guild maintenance Cron must be a bounded five-field Cron expression.");
   }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
       .test(config.guild.webhook.connectorId)) {
@@ -875,7 +883,7 @@ export function generateConfigs(config, bases) {
     ...(guildGatekeeper.compatibility_flags ?? []),
     "global_fetch_strictly_public",
   ])];
-  guildGatekeeper.triggers = { crons: ["*/5 * * * *"] };
+  guildGatekeeper.triggers = { crons: [guildMaintenanceCron(config)] };
 
   if (webhookReceiver) {
     setCommon(

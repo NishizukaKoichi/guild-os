@@ -77,15 +77,18 @@ unreviewed changes.
    checksums, forced RLS, and Runtime least privilege.
 3. Create Hyperdrive with the Runtime role URL and record its 32-character ID. Never give
    Hyperdrive the management credential.
-4. Choose the Workshop hostname. For an evaluation deployment, use a `workersDev` route. For
+4. Keep `guild.maintenanceCron` at the hourly default for autosuspending or free-tier PostgreSQL.
+   A five-minute reconciliation schedule can keep the database awake continuously; shorten it only
+   after confirming the provider's monthly compute allowance and budget.
+5. Choose the Workshop hostname. For an evaluation deployment, use a `workersDev` route. For
    production, use a hostname in a purchaser-owned Cloudflare zone.
-5. Create a Cloudflare Access self-hosted application for that exact hostname. Start with only the
+6. Create a Cloudflare Access self-hosted application for that exact hostname. Start with only the
    intended Root Owner in the Allow policy. Record the issuer origin and application audience.
-6. Enable the bundled purchaser-owned reference Webhook receiver, or deploy another HTTPS receiver
+7. Enable the bundled purchaser-owned reference Webhook receiver, or deploy another HTTPS receiver
    that follows [the receiver contract](agent-webhook.md), including HMAC verification, a
    five-minute replay window, and durable idempotency. The bundled receiver uses one SQLite-backed
    Durable Object per idempotency key and can use a `workersDev` or custom-domain route.
-7. Decide which purchaser-owned model and Connection paths are actually in release scope. Create
+8. Decide which purchaser-owned model and Connection paths are actually in release scope. Create
    only the provider accounts, public Gatekeepers, MCP endpoints, or Service Bindings required by
    that scope. Record Secret reference names, never values. Follow
    [Connections and Agent providers](connections-and-agent-providers.md).

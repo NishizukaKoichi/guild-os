@@ -108,7 +108,10 @@ Perform ownership changes in the purchaser accounts, then verify them from a pur
 2. PostgreSQL: purchaser administrators can restore backups, rotate the non-superuser management
    and Runtime credentials independently, and prove Hyperdrive uses only the Runtime role. The
    Runtime role has no DDL, `BYPASSRLS`, role/database creation, replication, or migration-ledger
-   write authority, and neither credential remains accessible to the seller after handover.
+   write authority, and neither credential remains accessible to the seller after handover. Record
+   the database plan, monthly compute/storage allowances, reset date, autosuspend policy, alert
+   owner, and expected maintenance schedule. The default Guild maintenance schedule is hourly and
+   its database jobs are sequential; lowering that interval requires an explicit capacity review.
 3. Source: purchaser administrators can reinstall from the retained signed package with no seller
    network. If they use a private Git host, they can also clone, review the pinned Cloudflare OS
    state, run CI, create protected releases, and recover deleted local workstations.
@@ -149,6 +152,8 @@ The purchaser, not the seller, performs the final exercise:
 7. Run the production smoke and complete its listed Human checks.
 8. Prepare a restore from the latest backup without using a seller credential.
 9. Demonstrate an Access deny-all emergency action and reverse it without changing application data.
+10. Confirm the database provider has enough remaining allowance for the acceptance window and that
+    a quota alert reaches a purchaser-controlled administrator.
 
 Generate fresh evidence paths outside the repository:
 

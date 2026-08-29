@@ -87,10 +87,29 @@ The Gatekeeper is private by default, so call these endpoints only through a pur
 internal monitor or temporary authenticated diagnostic route. Do not publish it merely for uptime
 monitoring.
 
-The five-minute maintenance trigger emits `guild.maintenance` with duration, expired/claimed/
-completed/deferred file counts, and completed Workflow-message count. A failure records only the
-error class. Knowledge text, object keys, identities, payloads, and exception messages are omitted.
-Readiness failures emit the bounded `guild.readiness` event.
+The maintenance trigger is hourly by default and emits `guild.maintenance` with duration,
+expired/claimed/completed/deferred file counts, and completed Workflow-message count. Maintenance
+jobs run sequentially so one invocation does not exceed Workers or Hyperdrive connection limits.
+User-initiated dispatch remains immediate. A failure records only the error class. Knowledge text,
+object keys, identities, payloads, and exception messages are omitted. Readiness failures emit the
+bounded `guild.readiness` event.
+
+### Database compute allowance incidents
+
+If Access succeeds but the app shows the retryable unavailable state, distinguish identity failure
+from database capacity before changing authentication or RLS:
+
+1. Check `GET /readyz` through an authenticated internal route. A generic `503` confirms that the
+   application cannot prove database readiness but deliberately does not disclose the cause.
+2. Inspect the Gatekeeper's private structured logs and the purchaser database provider's usage and
+   compute-allowance page. Keep raw provider messages, database hosts, and credentials out of user
+   interfaces and shared incident reports.
+3. Confirm that `guild.maintenanceCron` is intentional. The default is hourly; a five-minute trigger
+   can prevent an autosuspending database from sleeping and consume a free allowance continuously.
+4. Restore service through purchaser-approved capacity, an allowance reset, or a backup-verified
+   migration. Never switch Hyperdrive to a fresh empty database merely to make readiness green.
+5. After service returns, run database preflight, deploy the reviewed exact commit, and complete an
+   authenticated smoke. A healthy provider dashboard alone is not recovery evidence.
 
 The Error Reporter intentionally flattens the normalized event and trusted producer props into one object. This makes high-value fields directly queryable and preserves the upstream event's occurrence ID, timestamp, exception, truncation marker, HTTP facts, correlation IDs, and attributes.
 
