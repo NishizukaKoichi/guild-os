@@ -39,12 +39,16 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(publicationAdr, /anonymous recursive HTTPS clone independently passed/);
   assert.match(matrix, /55 Distribution tests/);
   assert.match(snapshot, /passed typecheck, 55 tests/);
-  assert.match(matrix, /Core run `33255163020` succeeded for exact documentation\/test successor/);
-  assert.match(snapshot, /GitHub Actions run `33255163020` independently repeated/);
+  assert.match(matrix, /Core run `33257911887` succeeded for exact production release/);
+  assert.match(snapshot, /GitHub Actions run `33257911887` independently repeated/);
+  assert.match(matrix, /All five Workers run exact code-only outage release `2ae4f507/);
+  assert.match(snapshot, /fresh authenticated browser verified[\s\S]*zero browser-console errors/);
   assert.match(matrix, /Distribution-pinned application-equivalent Core `5f34c79`/);
   assert.match(snapshot, /pins application-equivalent Core/);
   assert.doesNotMatch(matrix, /Core run `33253591545`/);
   assert.doesNotMatch(snapshot, /GitHub Actions run `33253591545`/);
+  assert.doesNotMatch(matrix, /Core run `33255163020`/);
+  assert.doesNotMatch(snapshot, /GitHub Actions run `33255163020`/);
   assert.match(specification, /complete local Git source archives/);
   assert.match(acceptance, /No seller source fetch is allowed/);
   assert.match(acceptance, /Open Core access/);

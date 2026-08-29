@@ -105,8 +105,8 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Verified local baseline
 
-On 2026-08-29 the current audited Core checkout
-`e452a6080cd5b2aac692834c5238d963c5e8939e` passed local typecheck, tests, build, lint, dependency
+On 2026-08-29 the current audited Core outage-release candidate
+`2ae4f50751b907cf0e6aad817d675bc368dd8382` passed local typecheck, tests, build, lint, dependency
 audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
 74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
 Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and the
@@ -114,12 +114,11 @@ Cloudflare OS sandbox boundary. Database-backed integration files that require a
 PostgreSQL URL and Cloudflare OS external integration files without credentials were skipped and
 remain separate gates.
 
-GitHub Actions run `33255163020` independently repeated complete-history scanning, dependency
+GitHub Actions run `33257911887` independently repeated complete-history scanning, dependency
 integrity, builds, tests, lint/types, every production Worker bundle, all 74 browser journeys, and
-non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact audited successor
-`e452a6080cd5b2aac692834c5238d963c5e8939e`. Production application files are unchanged from the
-deployed outage Runtime `2f5106dbbef14fd029979d3c0447458e3d7a3429`; the successor changes only
-reviewed operational records and their authority test.
+non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact candidate
+`2ae4f50751b907cf0e6aad817d675bc368dd8382`. The successful exact-SHA capture is retained outside
+Git in the owner-controlled incident evidence set.
 
 Distribution `9e9c21e6490ac82e76277c8ac6cd08ba55edbfdf` pins application-equivalent Core
 `5f34c793c34864344c559206f8ccbe0149d671ff` and Cloudflare OS
@@ -150,12 +149,15 @@ existing database remains unavailable, so authenticated Guild journeys are still
 service is restored.
 
 All five production Workers now run the exact code-only recovery release
-`2f5106dbbef14fd029979d3c0447458e3d7a3429`. Its mode-`0600` external evidence records the prior
-release, exact Runtime patch hashes, existing-Secret verification, rollback points, active versions,
-and `databaseChanged: false`. Maintenance reconciliation is now hourly and its database-backed jobs
-are sequential; user-requested dispatch remains immediate. An authenticated browser verified the
-accessible unavailable state, heading focus, and working retry action without exposing the provider
-quota message.
+`2ae4f50751b907cf0e6aad817d675bc368dd8382`. Its mode-`0600` external evidence records base release
+`2f5106dbbef14fd029979d3c0447458e3d7a3429`, exact reviewed Runtime patch hashes, existing-Secret
+verification, rollback points, five active versions, and `databaseChanged: false`. Maintenance
+reconciliation remains hourly and its database-backed jobs remain sequential; user-requested
+dispatch remains immediate. A fresh authenticated browser verified the accessible unavailable state,
+heading focus, and working retry action at desktop, 390 px, and 320 px. A fresh tab and the retry path
+both produced zero browser-console errors and did not expose the provider quota message. Anonymous
+Workshop access still redirects to Cloudflare Access and the direct Gatekeeper health URL remains
+unavailable.
 
 This is deployed outage evidence, not normal production acceptance. The database preflight, complete
 backup, release evidence, and end-to-end authenticated Guild smoke remain pending until the same
