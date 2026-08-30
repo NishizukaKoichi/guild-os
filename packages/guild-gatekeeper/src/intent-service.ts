@@ -117,6 +117,13 @@ class PlannerNoProposalError extends IntentServiceError {
   }
 }
 
+class PlannerResponseFormatError extends IntentServiceError {
+  constructor() {
+    super("invalid_plan", "Planner response is not valid JSON.");
+    this.name = "PlannerResponseFormatError";
+  }
+}
+
 class PlannerActionEnvelopeError extends IntentServiceError {
   constructor(position: number) {
     super("invalid_plan", `Plan action ${position} has missing or unsupported fields.`);
@@ -744,7 +751,7 @@ function unwrapPlannerResponse(value: unknown): unknown {
     try {
       return JSON.parse(value) as unknown;
     } catch {
-      throw new IntentServiceError("invalid_plan", "Planner response is not valid JSON.");
+      throw new PlannerResponseFormatError();
     }
   }
   if (isRecord(value) && (typeof value.response === "string" || isRecord(value.response))) {
@@ -1333,7 +1340,8 @@ export class GuildIntentService {
           source = "model";
         } catch (error) {
           if (!(error instanceof PlannerNoProposalError) &&
-              !(error instanceof PlannerActionEnvelopeError)) throw error;
+              !(error instanceof PlannerActionEnvelopeError) &&
+              !(error instanceof PlannerResponseFormatError)) throw error;
           planned = deterministicFallback(plannerInput);
         }
       }

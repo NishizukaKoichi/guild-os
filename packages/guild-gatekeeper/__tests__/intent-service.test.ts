@@ -622,6 +622,21 @@ describe("GuildIntentService", () => {
     expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
   });
 
+  it("uses the safe fallback when JSON Mode returns non-JSON text", async () => {
+    const { service, store, ports } = harness({
+      plannerResult: { response: "JSON Mode could not produce a valid response." },
+    });
+
+    const result = await service.planFromAsk(planInput());
+
+    expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
+    expect(result.proposal.actions).toHaveLength(1);
+    expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
+  });
+
   it("still rejects a malformed request inside a valid supported action envelope", async () => {
     const { service, store, ports } = harness({
       plannerResult: {

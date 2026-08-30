@@ -27,10 +27,10 @@ action envelope for each currently authorized action kind. It also includes the 
 server-derived safe Memory action as the fallback example. The adapter unwraps string and object
 forms of the Workers AI `response` envelope before validation.
 
-If the model returns an empty `actions` array, or returns a supported action with a valid risk level
-but breaks only the outer action envelope, the service discards that model action and creates its
-existing deterministic, permission-checked working Memory proposal. A malformed top-level response
-or missing `actions` array remains an error.
+If the provider returns non-JSON text, the model returns an empty `actions` array, or a supported
+action with a valid risk level breaks only the outer action envelope, the service discards that
+output and creates its existing deterministic, permission-checked working Memory proposal. A
+parsed malformed top-level object or missing `actions` array remains an error.
 
 Unsupported action kinds, excessive action counts, malformed request contents, invalid risk levels, and
 resource authorization failures continue to fail closed. The fallback creates only a pending Plan;
@@ -42,6 +42,7 @@ it never executes during Ask or Plan and still requires the normal one-at-a-time
   production journey unavailable.
 - Falling back for every invalid model response was rejected because it could conceal unsupported
   actions, malformed request content, or excessive actions that operators need to investigate.
+  Provider text that cannot represent any Action is distinct: it is discarded rather than parsed.
 
 ## Risks And Rollback
 
