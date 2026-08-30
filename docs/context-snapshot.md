@@ -120,19 +120,20 @@ non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact candi
 `2ae4f50751b907cf0e6aad817d675bc368dd8382`. The successful exact-SHA capture is retained outside
 Git in the owner-controlled incident evidence set.
 
-The current Distribution-pinned Core successor `e34e2a01bfd596c55ca32430b097347839299391`
-adds the exact outage deployment record and documentation-authority regression without changing
-the deployed Runtime. GitHub Actions run `33258923163` repeated the full gate successfully for that
-exact successor.
+An audited 2026-08-30 Core documentation successor
+`e34e2a01bfd596c55ca32430b097347839299391` added the exact outage deployment record and
+documentation-authority regression without changing the deployed Runtime. GitHub Actions run
+`33258923163` repeated the full gate successfully for that exact historical successor.
 
-Distribution `5452d35536505fd9c1efb7f650ccd9678c4442ad` pins that Core successor and Cloudflare OS
+The matching audited Distribution baseline
+`5452d35536505fd9c1efb7f650ccd9678c4442ad` pinned that Core successor and Cloudflare OS
 `2328903878b8bb3d8e29af6187abe935a5738482`. Its single local/hosted release-gate implementation
 passed typecheck, 55 tests, lint, compliance, reproducible SBOM drift detection, build, dependency
-audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup and
-restore preparation, ephemeral release signing, staged-package installation, and all seven acquired
-CLI launchers. Mode-`0600` external evidence binds the exact three commits and manifest hash. This is
-synthetic evidence and is not an independent purchaser-account installation or production signing
-record.
+audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup
+and restore preparation, ephemeral release signing, staged-package installation, and all seven
+acquired CLI launchers. Mode-`0600` external evidence binds the exact three historical commits and
+manifest hash. This is synthetic evidence and is not an independent purchaser-account installation
+or production signing record.
 
 Distribution GitHub Actions run `33259701128`, attempt 2, completed the same release gate
 successfully at that exact commit after the account owner raised the exhausted Actions budget. The
@@ -140,9 +141,10 @@ machine-generated exact-SHA record is retained outside Git with the Core CI capt
 zero-step attempt is retained as outage history rather than treated as a source-test failure.
 
 Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
-owner-controlled evidence outside both repositories. This snapshot deliberately does not substitute
-a document claim for those machine records: every later candidate requires new CI and anonymous
-acquisition evidence for its exact Core, Distribution, and Cloudflare OS commits.
+owner-controlled evidence outside both repositories. This snapshot deliberately records earlier
+verified baselines instead of claiming to identify a mutable current Distribution HEAD: every later
+candidate requires new CI and anonymous acquisition evidence for its exact Core, Distribution, and
+Cloudflare OS commits.
 
 ## Current owner-production incident
 
