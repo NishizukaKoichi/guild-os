@@ -120,10 +120,10 @@ successful exact-SHA capture is retained outside Git in owner-controlled evidenc
 The separate Distribution's single local/hosted release gate passed typecheck, 55 tests, lint,
 compliance, reproducible SBOM drift detection, build, dependency audit, real Git-bundle clone/object
 verification, deterministic clean-room install/update/backup and restore preparation, ephemeral
-release signing, staged-package installation, and all seven acquired CLI launchers. Its final
-candidate must pin the succeeding audited Core documentation commit and repeat exact-SHA CI and
-anonymous acquisition; prior synthetic evidence is not an independent purchaser installation or
-production signing record.
+release signing, staged-package installation, and all seven acquired CLI launchers. A matching
+candidate now pins this audited Core documentation lineage and has repeated the local release gate,
+exact-SHA hosted CI, and anonymous acquisition. This synthetic evidence is not an independent
+purchaser installation or production signing record.
 
 Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
 owner-controlled evidence outside both repositories. This snapshot deliberately does not identify a
