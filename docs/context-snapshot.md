@@ -103,78 +103,60 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
   only that generated `guild-os-restore-verification/v1` artifact and finalizes it as purchaser-bound
   `guild-os-restore-rehearsal/v2`; legacy hand-authored v1 evidence is rejected.
 
-## Verified local baseline
+## Verified Core and Distribution baseline
 
-On 2026-08-30 the current audited Core outage-release candidate
-`2ae4f50751b907cf0e6aad817d675bc368dd8382` passed local typecheck, tests, build, lint, dependency
+On 2026-08-30 exact Runtime candidate
+`6204f1f0ed47df58a35cdc52b6fd618d0674bc39` passed local typecheck, tests, build, lint, dependency
 audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
 74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
 Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and the
-Cloudflare OS sandbox boundary. Database-backed integration files that require a disposable
-PostgreSQL URL and Cloudflare OS external integration files without credentials were skipped and
-remain separate gates.
+Cloudflare OS sandbox boundary.
 
-GitHub Actions run `33257911887` independently repeated complete-history scanning, dependency
+GitHub Actions run `33307079363` independently repeated complete-history scanning, dependency
 integrity, builds, tests, lint/types, every production Worker bundle, all 74 browser journeys, and
-non-superuser PostgreSQL migration/RLS/Runtime-role verification for exact candidate
-`2ae4f50751b907cf0e6aad817d675bc368dd8382`. The successful exact-SHA capture is retained outside
-Git in the owner-controlled incident evidence set.
+non-superuser PostgreSQL migration/RLS/Runtime-role verification for that exact candidate. The
+successful exact-SHA capture is retained outside Git in owner-controlled evidence.
 
-An audited 2026-08-30 Core documentation successor
-`e34e2a01bfd596c55ca32430b097347839299391` added the exact outage deployment record and
-documentation-authority regression without changing the deployed Runtime. GitHub Actions run
-`33258923163` repeated the full gate successfully for that exact historical successor.
-
-The matching audited Distribution baseline
-`5452d35536505fd9c1efb7f650ccd9678c4442ad` pinned that Core successor and Cloudflare OS
-`2328903878b8bb3d8e29af6187abe935a5738482`. Its single local/hosted release-gate implementation
-passed typecheck, 55 tests, lint, compliance, reproducible SBOM drift detection, build, dependency
-audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup
-and restore preparation, ephemeral release signing, staged-package installation, and all seven
-acquired CLI launchers. Mode-`0600` external evidence binds the exact three historical commits and
-manifest hash. This is synthetic evidence and is not an independent purchaser-account installation
-or production signing record.
-
-Distribution GitHub Actions run `33259701128`, attempt 2, completed the same release gate
-successfully at that exact commit after the account owner raised the exhausted Actions budget. The
-machine-generated exact-SHA record is retained outside Git with the Core CI capture; the earlier
-zero-step attempt is retained as outage history rather than treated as a source-test failure.
+The separate Distribution's single local/hosted release gate passed typecheck, 55 tests, lint,
+compliance, reproducible SBOM drift detection, build, dependency audit, real Git-bundle clone/object
+verification, deterministic clean-room install/update/backup and restore preparation, ephemeral
+release signing, staged-package installation, and all seven acquired CLI launchers. Its final
+candidate must pin the succeeding audited Core documentation commit and repeat exact-SHA CI and
+anonymous acquisition; prior synthetic evidence is not an independent purchaser installation or
+production signing record.
 
 Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
-owner-controlled evidence outside both repositories. This snapshot deliberately records earlier
-verified baselines instead of claiming to identify a mutable current Distribution HEAD: every later
-candidate requires new CI and anonymous acquisition evidence for its exact Core, Distribution, and
-Cloudflare OS commits.
+owner-controlled evidence outside both repositories. This snapshot deliberately does not identify a
+mutable current Distribution HEAD: every candidate must bind its exact Core, Distribution, and
+Cloudflare OS commits through external evidence.
 
-## Current owner-production incident
+## Current owner-production evidence
 
-The 2026-08-29 authenticated production audit reached Cloudflare Access successfully, but the Guild
-application could not open its PostgreSQL session. Private Worker and provider evidence identified a
-database compute-quota exhaustion, not an authentication, RLS, migration, or frontend failure. The
-existing database remains unavailable, so authenticated Guild journeys are still blocked until its
-service is restored.
+The existing production PostgreSQL service resumed on 2026-08-30. It was not replaced with an empty
+database. Before the final Runtime deployment, the owner-controlled operations workspace created and
+verified a complete PostgreSQL, KV, R2, and Access backup. Production preflight then confirmed
+PostgreSQL 18, verified TLS, all 51 migrations, and forced RLS on all 96 protected tables.
 
-All five production Workers now run the exact code-only recovery release
-`2ae4f50751b907cf0e6aad817d675bc368dd8382`. Its mode-`0600` external evidence records base release
-`2f5106dbbef14fd029979d3c0447458e3d7a3429`, exact reviewed Runtime patch hashes, existing-Secret
-verification, rollback points, five active versions, and `databaseChanged: false`. Maintenance
-reconciliation remains hourly and its database-backed jobs remain sequential; user-requested
-dispatch remains immediate. A fresh authenticated browser verified the accessible unavailable state,
-heading focus, and working retry action at desktop, 390 px, and 320 px. A fresh tab and the retry path
-both produced zero browser-console errors and did not expose the provider quota message. Anonymous
-Workshop access still redirects to Cloudflare Access and the direct Gatekeeper health URL remains
-unavailable.
+All five production Workers run exact Runtime release
+`6204f1f0ed47df58a35cdc52b6fd618d0674bc39`. Exact-SHA Core CI run `33307079363` passed the complete
+hosted gate, including 74 Playwright journeys and the disposable PostgreSQL migration, forced-RLS,
+non-superuser management, and Runtime-role suites. External mode-`0600` production evidence binds the
+same release to the five active Worker Versions, the restored database preflight, the verified backup,
+the Cloudflare Access boundary, Webhook health and signature rejection, and an authenticated machine
+smoke. Immediately afterward, its narrowly scoped Service Auth policy and token were removed, the
+stale credential received the Access redirect instead of application access, and the local credential
+file was deleted. The configured Human policy remained the only production application policy.
 
-An exact-release production-smoke record was also generated from a clean detached worktree at
-`2ae4f50751b907cf0e6aad817d675bc368dd8382` with the recorded Cloudflare OS submodule. It confirms
-that all five active Workers are 100% on Versions annotated with that same release, unauthenticated
-Workshop access returns the expected Access redirect, Webhook health returns 200 with no-store and
-nosniff headers, and an unsigned Webhook request is rejected. No Access service credential was
-configured for this run, so it does not claim an authenticated Guild journey.
+A separate authenticated Human browser journey verified Home, grounded Ask with a versioned citation,
+an inspectable fallback Plan, explicit one-action confirmation, successful Act, the resulting Working
+Memory, and matching append-only History events. English, Japanese, and Simplified Chinese switched in
+the deployed UI without missing-key output. Desktop 1440 px, mobile 390 px, and minimum-width 320 px
+each exposed the four primary actions with zero horizontal overflow; the 320 px page could scroll its
+last content above the fixed navigation. The complete browser journey produced zero console errors.
 
-This is deployed outage evidence, not normal production acceptance. The database preflight, complete
-backup, release evidence, and end-to-end authenticated Guild smoke remain pending until the same
-existing database resumes service.
+This is current owner-controlled production evidence. It closes the database-restoration and normal
+production-smoke gap, but it is not an independent purchaser installation, independent signing-custody
+record, or professional legal approval.
 
 ## Remaining completion gates
 
@@ -189,8 +171,5 @@ existing database resumes service.
 - Obtain professional approval for commercial license, trademark, contribution rights, privacy,
   tax/billing, customer agreement, support, pricing, refund, incident response, and transitive LGPL
   obligations.
-- Restore the same existing production database service, run its preflight, create and verify a
-  complete backup, and capture exact-release authenticated Guild smoke. Do not replace it with an
-  empty database.
 Guild OS remains incomplete while any of these required matrix rows is not `Implemented and
 verified`.
