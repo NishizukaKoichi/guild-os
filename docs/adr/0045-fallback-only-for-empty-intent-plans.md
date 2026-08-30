@@ -11,12 +11,17 @@ informational Ask objective. The server correctly refused to persist or execute 
 could not complete the documented Ask to Plan journey. Treating every malformed or unsupported
 model action as a fallback would hide unsafe output and weaken the inspection boundary.
 
+Cloudflare Workers AI JSON Mode returns structured output inside a `response` envelope. Depending
+on the provider path, that envelope can contain either a JSON string or an already-parsed object.
+Both are provider-valid representations and must reach the same strict Plan parser.
+
 ## Decision
 
 The Plan prompt explicitly requires one to twenty actions and directs the model to use a
 working-layer `memory.propose` when no specialized action is justified. If the model still returns
 an empty `actions` array, the service uses its existing deterministic, permission-checked Memory
-proposal. A malformed top-level response or missing `actions` array remains an error.
+proposal. The adapter unwraps string and object forms of the Workers AI `response` envelope before
+validation. A malformed top-level response or missing `actions` array remains an error.
 
 Unsupported action kinds, excessive action counts, malformed requests, invalid risk levels, and
 resource authorization failures continue to fail closed. The fallback creates only a pending Plan;

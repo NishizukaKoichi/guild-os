@@ -740,7 +740,9 @@ function unwrapPlannerResponse(value: unknown): unknown {
       throw new IntentServiceError("invalid_plan", "Planner response is not valid JSON.");
     }
   }
-  if (isRecord(value) && typeof value.response === "string") return unwrapPlannerResponse(value.response);
+  if (isRecord(value) && (typeof value.response === "string" || isRecord(value.response))) {
+    return unwrapPlannerResponse(value.response);
+  }
   if (isRecord(value) && value.proposal !== undefined) return value.proposal;
   return value;
 }
