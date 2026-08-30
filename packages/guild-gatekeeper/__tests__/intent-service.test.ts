@@ -522,6 +522,30 @@ describe("GuildIntentService", () => {
     expect(ports.memory.propose).not.toHaveBeenCalled();
   });
 
+  it("uses a deterministic Memory proposal when the model returns no actions", async () => {
+    const { service, store, ports } = harness({ plannerResult: { actions: [] } });
+
+    const result = await service.planFromAsk(planInput());
+
+    expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
+    expect(result.proposal.actions).toHaveLength(1);
+    expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed model proposal instead of hiding it behind a fallback", async () => {
+    const { service, store, ports } = harness({ plannerResult: { summary: "No action shape" } });
+
+    await expect(service.planFromAsk(planInput())).rejects.toMatchObject({
+      code: "invalid_plan",
+    });
+    expect(store.proposal).toBeNull();
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
+  });
+
   it("rechecks current authority and fails closed when permission changed after Plan", async () => {
     const { service, store, authority, ports } = harness();
     await service.planFromAsk(planInput());
