@@ -3,6 +3,7 @@ import type { Permission } from "@guild-os/domain";
 import {
   GuildIntentService,
   IntentActionExecutionError,
+  createModelIntentPlanner,
   type ActIntentInput,
   type IntentActAuthority,
   type IntentAuthorityPort,
@@ -497,6 +498,40 @@ function harness(options: HarnessOptions = {}) {
 }
 
 describe("GuildIntentService", () => {
+  it("requests schema-bound Workers AI output and includes the safe Memory example", async () => {
+    const runner = vi.fn(async () => memoryModelPlan(["Schema-bound output"]));
+    const planner = createModelIntentPlanner(runner);
+
+    await planner.plan({
+      objective: "Preserve the onboarding answer for review.",
+      locale: "en",
+      ask: planInput().ask,
+      spaceId: IDS.space,
+      allowedActionKinds: ["memory.propose", "agent.run"],
+      availableAgents: [{ actorId: IDS.agent, displayName: "Review Agent", spaceIds: [IDS.space] }],
+    }, new AbortController().signal);
+
+    const request = runner.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(request).toMatchObject({
+      max_tokens: 2_048,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          required: ["actions"],
+          additionalProperties: false,
+        },
+      },
+    });
+    const messages = request.messages as Array<{ role: string; content: string }>;
+    const userInput = JSON.parse(messages[1]?.content ?? "{}") as {
+      constraints?: { safeMemoryFallback?: { kind?: string; request?: { layer?: string } } };
+    };
+    expect(userInput.constraints?.safeMemoryFallback).toMatchObject({
+      kind: "memory.propose",
+      request: { layer: "working" },
+    });
+  });
+
   it("rejects an unsupported model action without persisting or executing it", async () => {
     const { service, store, ports } = harness({
       plannerResult: { actions: [{ kind: "shell.exec", riskLevel: 3, request: {} }] },
@@ -560,6 +595,44 @@ describe("GuildIntentService", () => {
     expect(result.proposal.actions).toHaveLength(1);
     expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
     expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
+  });
+
+  it("uses the safe fallback when a supported model action omits its request envelope", async () => {
+    const { service, store, ports } = harness({
+      plannerResult: {
+        response: {
+          actions: [{
+            kind: "memory.propose",
+            riskLevel: 1,
+            title: "Fields were placed outside request",
+          }],
+        },
+      },
+    });
+
+    const result = await service.planFromAsk(planInput());
+
+    expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
+    expect(result.proposal.actions).toHaveLength(1);
+    expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
+  });
+
+  it("still rejects a malformed request inside a valid supported action envelope", async () => {
+    const { service, store, ports } = harness({
+      plannerResult: {
+        actions: [{ kind: "memory.propose", riskLevel: 1, request: {} }],
+      },
+    });
+
+    await expect(service.planFromAsk(planInput())).rejects.toMatchObject({
+      code: "invalid_plan",
+    });
+    expect(store.proposal).toBeNull();
     expect(ports.memory.propose).not.toHaveBeenCalled();
     expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
   });

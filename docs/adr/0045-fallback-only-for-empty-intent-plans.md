@@ -1,4 +1,4 @@
-# ADR 0045: Fall Back Only For Empty Intent Plans
+# ADR 0045: Schema-bound Intent Plans With A Narrow Safe Fallback
 
 ## Status
 
@@ -15,15 +15,24 @@ Cloudflare Workers AI JSON Mode returns structured output inside a `response` en
 on the provider path, that envelope can contain either a JSON string or an already-parsed object.
 Both are provider-valid representations and must reach the same strict Plan parser.
 
+The production model subsequently returned a supported action kind and valid risk level but moved
+request fields onto the action object instead of placing them inside `request`. That output was
+correctly rejected, but it demonstrated that `json_object` mode did not communicate the action
+envelope strongly enough to the model.
+
 ## Decision
 
-The Plan prompt explicitly requires one to twenty actions and directs the model to use a
-working-layer `memory.propose` when no specialized action is justified. If the model still returns
-an empty `actions` array, the service uses its existing deterministic, permission-checked Memory
-proposal. The adapter unwraps string and object forms of the Workers AI `response` envelope before
-validation. A malformed top-level response or missing `actions` array remains an error.
+The Plan prompt uses Workers AI `json_schema` mode to require one to twenty actions and the exact
+action envelope for each currently authorized action kind. It also includes the complete,
+server-derived safe Memory action as the fallback example. The adapter unwraps string and object
+forms of the Workers AI `response` envelope before validation.
 
-Unsupported action kinds, excessive action counts, malformed requests, invalid risk levels, and
+If the model returns an empty `actions` array, or returns a supported action with a valid risk level
+but breaks only the outer action envelope, the service discards that model action and creates its
+existing deterministic, permission-checked working Memory proposal. A malformed top-level response
+or missing `actions` array remains an error.
+
+Unsupported action kinds, excessive action counts, malformed request contents, invalid risk levels, and
 resource authorization failures continue to fail closed. The fallback creates only a pending Plan;
 it never executes during Ask or Plan and still requires the normal one-at-a-time Act boundary.
 
@@ -32,7 +41,7 @@ it never executes during Ask or Plan and still requires the normal one-at-a-time
 - Returning the model error unchanged was rejected because a harmless empty response made the main
   production journey unavailable.
 - Falling back for every invalid model response was rejected because it could conceal unsupported
-  or excessive actions that operators need to investigate.
+  actions, malformed request content, or excessive actions that operators need to investigate.
 
 ## Risks And Rollback
 

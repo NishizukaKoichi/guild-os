@@ -117,6 +117,13 @@ class PlannerNoProposalError extends IntentServiceError {
   }
 }
 
+class PlannerActionEnvelopeError extends IntentServiceError {
+  constructor(position: number) {
+    super("invalid_plan", `Plan action ${position} has missing or unsupported fields.`);
+    this.name = "PlannerActionEnvelopeError";
+  }
+}
+
 export class IntentActionExecutionError extends Error {
   readonly code: string;
   readonly retryable: boolean;
@@ -768,7 +775,14 @@ function parsePlannedActions(value: unknown): PlannedAction[] {
     }
     const risk = riskLevel(rawAction.riskLevel);
     if (kind === "agent.run") {
-      assertExactKeys(rawAction, ["kind", "riskLevel", "agentActorId", "request"], [], `Plan action ${position}`);
+      try {
+        assertExactKeys(rawAction, ["kind", "riskLevel", "agentActorId", "request"], [], `Plan action ${position}`);
+      } catch (error) {
+        if (error instanceof IntentServiceError && error.code === "invalid_plan") {
+          throw new PlannerActionEnvelopeError(position);
+        }
+        throw error;
+      }
       const agentActorId = requiredString(rawAction, "agentActorId", 100);
       assertUuid(agentActorId, "Agent Actor ID");
       return {
@@ -779,7 +793,14 @@ function parsePlannedActions(value: unknown): PlannedAction[] {
       };
     }
     const fixedKind = kind as Exclude<IntentActionKind, "agent.run">;
-    assertExactKeys(rawAction, ["kind", "riskLevel", "request"], [], `Plan action ${position}`);
+    try {
+      assertExactKeys(rawAction, ["kind", "riskLevel", "request"], [], `Plan action ${position}`);
+    } catch (error) {
+      if (error instanceof IntentServiceError && error.code === "invalid_plan") {
+        throw new PlannerActionEnvelopeError(position);
+      }
+      throw error;
+    }
     if (risk !== FIXED_RISK[fixedKind]) {
       throw new IntentServiceError("invalid_plan", `${kind} must use risk level ${FIXED_RISK[fixedKind]}.`);
     }
@@ -790,6 +811,50 @@ function parsePlannedActions(value: unknown): PlannedAction[] {
       case "decision.propose": return { kind: fixedKind, riskLevel: 1, request: parseDecisionRequest(rawAction.request) };
     }
   });
+}
+
+function plannerResponseSchema(input: IntentPlannerInput): Readonly<Record<string, unknown>> {
+  const actionSchemas = input.allowedActionKinds.map((kind): Readonly<Record<string, unknown>> => {
+    if (kind === "agent.run") {
+      const availableAgentIds = input.availableAgents.map((agent) => agent.actorId);
+      return {
+        type: "object",
+        properties: {
+          kind: { const: kind },
+          riskLevel: { type: "integer", minimum: 0, maximum: 3 },
+          agentActorId: availableAgentIds.length > 0
+            ? { type: "string", enum: availableAgentIds }
+            : { type: "string", pattern: UUID_PATTERN.source },
+          request: { type: "object" },
+        },
+        required: ["kind", "riskLevel", "agentActorId", "request"],
+        additionalProperties: false,
+      };
+    }
+    return {
+      type: "object",
+      properties: {
+        kind: { const: kind },
+        riskLevel: { const: FIXED_RISK[kind] },
+        request: { type: "object" },
+      },
+      required: ["kind", "riskLevel", "request"],
+      additionalProperties: false,
+    };
+  });
+  return {
+    type: "object",
+    properties: {
+      actions: {
+        type: "array",
+        minItems: 1,
+        maxItems: MAX_ACTIONS,
+        items: actionSchemas.length === 1 ? actionSchemas[0] : { oneOf: actionSchemas },
+      },
+    },
+    required: ["actions"],
+    additionalProperties: false,
+  };
 }
 
 function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
@@ -829,6 +894,9 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
 }
 
 function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unknown>> {
+  const safeMemoryFallback = input.allowedActionKinds.includes("memory.propose")
+    ? deterministicFallback(input)[0]
+    : null;
   return {
     messages: [
       {
@@ -842,6 +910,7 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
           "agent.run may use riskLevel 0-3 and must name one available Agent.",
           "If no specialized action is justified, create one working-layer memory.propose action from the Ask answer for Human review.",
           "Every request must contain the complete fields required by the corresponding Guild OS create or assign request.",
+          "Follow the response JSON Schema exactly. Do not move request fields onto the action object.",
         ].join(" "),
       },
       {
@@ -857,12 +926,17 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
             availableAgents: input.availableAgents,
             canonicalMemoryWritesForbidden: true,
             executionForbiddenDuringPlanning: true,
+            safeMemoryFallback,
           },
         }),
       },
     ],
     temperature: 0,
-    response_format: { type: "json_object" },
+    max_tokens: 2_048,
+    response_format: {
+      type: "json_schema",
+      json_schema: plannerResponseSchema(input),
+    },
   };
 }
 
@@ -1258,7 +1332,8 @@ export class GuildIntentService {
           planned = parsePlannedActions(raw);
           source = "model";
         } catch (error) {
-          if (!(error instanceof PlannerNoProposalError)) throw error;
+          if (!(error instanceof PlannerNoProposalError) &&
+              !(error instanceof PlannerActionEnvelopeError)) throw error;
           planned = deterministicFallback(plannerInput);
         }
       }
