@@ -105,7 +105,7 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Verified local baseline
 
-On 2026-08-29 the current audited Core outage-release candidate
+On 2026-08-30 the current audited Core outage-release candidate
 `2ae4f50751b907cf0e6aad817d675bc368dd8382` passed local typecheck, tests, build, lint, dependency
 audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
 74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
@@ -134,10 +134,10 @@ CLI launchers. Mode-`0600` external evidence binds the exact three commits and m
 synthetic evidence and is not an independent purchaser-account installation or production signing
 record.
 
-Distribution GitHub Actions run `33259701128` at that exact commit started zero workflow steps.
-GitHub reports recent account-payment failure or an insufficient spending limit. The shared gate
-therefore did not execute on GitHub. This remains an external hosted-CI gate; it is not presented as
-a source-test result.
+Distribution GitHub Actions run `33259701128`, attempt 2, completed the same release gate
+successfully at that exact commit after the account owner raised the exhausted Actions budget. The
+machine-generated exact-SHA record is retained outside Git with the Core CI capture; the earlier
+zero-step attempt is retained as outage history rather than treated as a source-test failure.
 
 Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
 owner-controlled evidence outside both repositories. This snapshot deliberately does not substitute
@@ -163,6 +163,13 @@ both produced zero browser-console errors and did not expose the provider quota 
 Workshop access still redirects to Cloudflare Access and the direct Gatekeeper health URL remains
 unavailable.
 
+An exact-release production-smoke record was also generated from a clean detached worktree at
+`2ae4f50751b907cf0e6aad817d675bc368dd8382` with the recorded Cloudflare OS submodule. It confirms
+that all five active Workers are 100% on Versions annotated with that same release, unauthenticated
+Workshop access returns the expected Access redirect, Webhook health returns 200 with no-store and
+nosniff headers, and an unsigned Webhook request is rejected. No Access service credential was
+configured for this run, so it does not claim an authenticated Guild journey.
+
 This is deployed outage evidence, not normal production acceptance. The database preflight, complete
 backup, release evidence, and end-to-end authenticated Guild smoke remain pending until the same
 existing database resumes service.
@@ -183,8 +190,5 @@ existing database resumes service.
 - Restore the same existing production database service, run its preflight, create and verify a
   complete backup, and capture exact-release authenticated Guild smoke. Do not replace it with an
   empty database.
-- Resolve the GitHub account billing/spending gate and rerun Distribution CI at exact Distribution
-  `5452d35536505fd9c1efb7f650ccd9678c4442ad` or its reviewed successor.
-
 Guild OS remains incomplete while any of these required matrix rows is not `Implemented and
 verified`.
