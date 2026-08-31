@@ -37,20 +37,20 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(restoreAdr, /ownership-attestation file, live Installer-evidence file, deployment lock/);
   assert.match(publicationAdr, /repository owner explicitly authorized public Apache-2.0 visibility/);
   assert.match(publicationAdr, /anonymous recursive HTTPS clone independently passed/);
-  assert.match(matrix, /55 Distribution tests/);
-  assert.match(snapshot, /passed typecheck, 55 tests/);
+  assert.match(matrix, /62 Distribution tests/);
+  assert.match(snapshot, /passed typecheck, 62 tests/);
   assert.match(matrix, /This matrix deliberately does not name a mutable Distribution HEAD/);
   assert.match(matrix, /a repository document is not current-candidate CI evidence/);
-  assert.match(snapshot, /GitHub Actions run `33307079363` independently repeated/);
-  assert.match(matrix, /All five Workers run exact Runtime `6204f1f0ed47df58a35cdc52b6fd618d0674bc39`/);
-  assert.match(matrix, /existing production PostgreSQL service resumed without replacement/);
+  assert.match(snapshot, /Exact-SHA Core CI evidence independently repeated/);
+  assert.match(matrix, /All five Workers run the exact Git-resolved Core candidate recorded in external release evidence/);
+  assert.match(matrix, /existing production PostgreSQL service remains in place without replacement/);
   assert.match(matrix, /PostgreSQL 18[\s\S]*all 51 migrations[\s\S]*all 96 protected tables/);
   assert.match(matrix, /Human browser completed grounded Ask with citation[\s\S]*matching History/);
-  assert.match(snapshot, /Exact-SHA Core CI run `33307079363` passed the complete[\s\S]*hosted gate/);
+  assert.match(snapshot, /Exact-SHA Core CI evidence passed the complete[\s\S]*hosted gate/);
   assert.match(snapshot, /English, Japanese, and Simplified Chinese switched[\s\S]*zero console errors/);
-  assert.match(snapshot, /Service Auth policy and token were removed[\s\S]*stale credential received the Access redirect/);
-  assert.match(matrix, /temporary smoke policy and token were then removed[\s\S]*Human policy remained/);
-  assert.match(snapshot, /Distribution's single local\/hosted release gate passed typecheck, 55 tests/);
+  assert.match(snapshot, /Service Auth policy and token were\s+removed[\s\S]*stale credential received the Access redirect/);
+  assert.match(matrix, /temporary smoke policy and token were removed[\s\S]*Human policy remained/);
+  assert.match(snapshot, /Distribution's single local\/hosted release gate passed typecheck, 62 tests/);
   assert.match(snapshot, /does not identify a[\s\S]*mutable current Distribution HEAD/);
   assert.doesNotMatch(matrix, /The current Distribution candidate pins|Current `[0-9a-f]{7,40}` pins Core/);
   assert.doesNotMatch(matrix, /still starts zero hosted steps|exact hosted CI remains externally blocked/);
@@ -61,6 +61,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.doesNotMatch(snapshot, /GitHub Actions run `33253591545`/);
   assert.doesNotMatch(matrix, /Core run `33255163020`/);
   assert.doesNotMatch(snapshot, /GitHub Actions run `33255163020`/);
+  assert.doesNotMatch(matrix, /6204f1f0ed47df58a35cdc52b6fd618d0674bc39|33307079363/);
+  assert.doesNotMatch(snapshot, /6204f1f0ed47df58a35cdc52b6fd618d0674bc39|33307079363/);
   assert.match(specification, /complete local Git source archives/);
   assert.match(acceptance, /No seller source fetch is allowed/);
   assert.match(acceptance, /Open Core access/);
@@ -73,8 +75,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(matrix, /current Core branch SHA must always come from Git and exact external CI evidence/);
   assert.match(matrix, /generated two-phase read-only verifier/);
   assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
-  assert.doesNotMatch(matrix, /\b(?:38|46|49|50|52) Distribution tests\b/);
-  assert.doesNotMatch(snapshot, /\b(?:38|46|49|50|52) tests\b/);
+  assert.doesNotMatch(matrix, /\b(?:38|46|49|50|52|55) Distribution tests\b/);
+  assert.doesNotMatch(snapshot, /\b(?:38|46|49|50|52|55) tests\b/);
 
   for (const [name, contents] of [
     ["README", readme],

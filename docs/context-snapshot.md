@@ -1,6 +1,6 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-30
+Updated: 2026-08-31
 
 ## Current goal
 
@@ -105,19 +105,19 @@ commit from Git, bind it to Worker versions and signed manifests, and verify hos
 
 ## Verified Core and Distribution baseline
 
-On 2026-08-30 exact Runtime candidate
-`6204f1f0ed47df58a35cdc52b6fd618d0674bc39` passed local typecheck, tests, build, lint, dependency
-audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary tests, and
-74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile, English,
-Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and the
-Cloudflare OS sandbox boundary.
+On 2026-08-31 the exact Core candidate resolved from Git passed local typecheck, tests, build, lint,
+dependency audit, peer-dependency checks, the complete dry-run build check, Cloudflare OS boundary
+tests, and 74 Playwright E2E journeys. The E2E set covers desktop, tablet, 390 px and 320 px mobile,
+English, Japanese, Simplified Chinese, accessibility, Purpose-first generation, Ask/Plan/Act, and
+the Cloudflare OS sandbox boundary.
 
-GitHub Actions run `33307079363` independently repeated complete-history scanning, dependency
-integrity, builds, tests, lint/types, every production Worker bundle, all 74 browser journeys, and
-non-superuser PostgreSQL migration/RLS/Runtime-role verification for that exact candidate. The
-successful exact-SHA capture is retained outside Git in owner-controlled evidence.
+Exact-SHA Core CI evidence independently repeated complete-history scanning, dependency integrity,
+builds, tests, lint/types, every production Worker bundle, all 74 browser journeys, and non-superuser
+PostgreSQL migration/RLS/Runtime-role verification for that candidate. The successful run ID and
+commit are retained outside Git in owner-controlled evidence and rechecked through GitHub rather
+than copied into this self-changing document.
 
-The separate Distribution's single local/hosted release gate passed typecheck, 55 tests, lint,
+The separate Distribution's single local/hosted release gate passed typecheck, 62 tests, lint,
 compliance, reproducible SBOM drift detection, build, dependency audit, real Git-bundle clone/object
 verification, deterministic clean-room install/update/backup and restore preparation, ephemeral
 release signing, staged-package installation, and all seven acquired CLI launchers. A matching
@@ -132,20 +132,19 @@ Cloudflare OS commits through external evidence.
 
 ## Current owner-production evidence
 
-The existing production PostgreSQL service resumed on 2026-08-30. It was not replaced with an empty
-database. Before the final Runtime deployment, the owner-controlled operations workspace created and
-verified a complete PostgreSQL, KV, R2, and Access backup. Production preflight then confirmed
+The existing production PostgreSQL service remains in place; it was not replaced with an empty
+database. Before the 2026-08-31 Runtime deployment, the owner-controlled operations workspace created
+and verified a complete PostgreSQL, KV, R2, and Access backup. Production preflight then confirmed
 PostgreSQL 18, verified TLS, all 51 migrations, and forced RLS on all 96 protected tables.
 
-All five production Workers run exact Runtime release
-`6204f1f0ed47df58a35cdc52b6fd618d0674bc39`. Exact-SHA Core CI run `33307079363` passed the complete
-hosted gate, including 74 Playwright journeys and the disposable PostgreSQL migration, forced-RLS,
-non-superuser management, and Runtime-role suites. External mode-`0600` production evidence binds the
-same release to the five active Worker Versions, the restored database preflight, the verified backup,
-the Cloudflare Access boundary, Webhook health and signature rejection, and an authenticated machine
-smoke. Immediately afterward, its narrowly scoped Service Auth policy and token were removed, the
-stale credential received the Access redirect instead of application access, and the local credential
-file was deleted. The configured Human policy remained the only production application policy.
+All five production Workers run the exact Git-resolved Core candidate recorded in external release
+evidence. Exact-SHA Core CI evidence passed the complete hosted gate, including 74 Playwright journeys
+and the disposable PostgreSQL migration, forced-RLS, non-superuser management, and Runtime-role
+suites. External mode-`0600` production evidence binds that release to the five active Worker
+Versions, database preflight, the verified backup, the Cloudflare Access boundary, Webhook health and
+signature rejection, and machine smoke. The earlier narrowly scoped Service Auth policy and token were
+removed after authenticated smoke, the stale credential received the Access redirect instead of
+application access, and the local credential file was deleted. The configured Human policy remained.
 
 A separate authenticated Human browser journey verified Home, grounded Ask with a versioned citation,
 an inspectable fallback Plan, explicit one-action confirmation, successful Act, the resulting Working
