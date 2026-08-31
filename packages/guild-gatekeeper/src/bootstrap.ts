@@ -194,12 +194,40 @@ async function ensureDefaultModelRoutes(
   }
 }
 
+async function reconcileMissingDeploymentModelRoutes(
+  env: GuildEnv,
+  connection: GuildTransactionConnection,
+): Promise<void> {
+  const deployment = (await connection.query<{
+    root_owner_identity_id: string;
+    routes_missing: boolean;
+  }>(
+    `SELECT guild_row.root_owner_identity_id::text,
+            (SELECT count(DISTINCT route.purpose) < 5
+               FROM model_routes route
+              WHERE route.guild_id = guild_row.id
+                AND route.purpose IN ('ask', 'plan', 'act', 'embedding', 'review')) AS routes_missing
+       FROM guilds guild_row
+      WHERE guild_row.id = $1`,
+    [env.GUILD_ID],
+  )).rows[0];
+  if (!deployment?.routes_missing) return;
+
+  await connection.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [env.GUILD_ID]);
+  await ensureDefaultModelRoutes(env, connection, deployment.root_owner_identity_id);
+}
+
 export async function prepareGuildAccount(
   env: GuildEnv,
   accountId: string,
 ): Promise<GuildSetupState> {
   return withGuildTransaction(env.HYPERDRIVE.connectionString, env.GUILD_ID, async (connection) => {
-    return new GuildPostgresRepository(connection, env.GUILD_ID).getSetupState(accountId);
+    const state = await new GuildPostgresRepository(connection, env.GUILD_ID)
+      .getSetupState(accountId);
+    if (state.identityExists && state.membershipState === "active") {
+      await reconcileMissingDeploymentModelRoutes(env, connection);
+    }
+    return state;
   });
 }
 

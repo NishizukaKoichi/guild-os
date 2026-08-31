@@ -83,6 +83,48 @@ integration("Guild bootstrap boundary", () => {
     });
   });
 
+  it("reconciles missing deployment model routes for an active legacy Guild", async () => {
+    if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
+    const env = guildEnv(randomUUID());
+    const rootId = randomUUID();
+    await new GuildManagementApiImpl(env, rootId, true).initializeGuild({
+      ...collectiveSetup,
+      displayName: "Legacy Root",
+      preferredLocale: "en",
+      rootOwnershipAccepted: true,
+    });
+
+    await withGuildTransaction(connectionString, env.GUILD_ID, async (connection) => {
+      await connection.query("DELETE FROM model_routes WHERE guild_id = $1", [env.GUILD_ID]);
+      await connection.query("DELETE FROM model_providers WHERE guild_id = $1", [env.GUILD_ID]);
+    });
+
+    await expect(prepareGuildAccount(env, rootId)).resolves.toEqual({
+      initialized: true,
+      identityExists: true,
+      membershipState: "active",
+    });
+    await withGuildTransaction(connectionString, env.GUILD_ID, async (connection) => {
+      const repository = new GuildOperationsRepository(connection, env.GUILD_ID);
+      const providers = await repository.listModelProviders();
+      const routes = await repository.listModelRoutes();
+      expect(providers).toHaveLength(1);
+      expect(providers[0]).toMatchObject({
+        name: "Cloudflare Workers AI",
+        kind: "workers_ai",
+        deploymentManaged: true,
+        createdByActorId: rootId,
+      });
+      expect(routes.map((route) => route.purpose).sort()).toEqual([
+        "act",
+        "ask",
+        "embedding",
+        "plan",
+        "review",
+      ]);
+    });
+  });
+
   it("requires an explicit Workshop administrator and minimizes pre-membership state", async () => {
     if (!connectionString) throw new Error("DATABASE_URL is required for this integration test.");
     const env = guildEnv(randomUUID());
