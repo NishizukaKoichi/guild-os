@@ -1,6 +1,9 @@
 import {
+  ACTIVITY_STATUSES,
+  ACTIVITY_TYPES,
   CLASSIFICATIONS,
   DECISION_METHODS,
+  MEMORY_TYPES,
   PERMISSIONS,
   SUPPORTED_LOCALES,
   VISIBILITIES,
@@ -128,6 +131,13 @@ class PlannerActionEnvelopeError extends IntentServiceError {
   constructor(position: number) {
     super("invalid_plan", `Plan action ${position} has missing or unsupported fields.`);
     this.name = "PlannerActionEnvelopeError";
+  }
+}
+
+class PlannerActionRequestError extends IntentServiceError {
+  constructor(position: number) {
+    super("invalid_plan", `Plan action ${position} request is incomplete or invalid.`);
+    this.name = "PlannerActionRequestError";
   }
 }
 
@@ -790,14 +800,21 @@ function parsePlannedActions(value: unknown): PlannedAction[] {
         }
         throw error;
       }
-      const agentActorId = requiredString(rawAction, "agentActorId", 100);
-      assertUuid(agentActorId, "Agent Actor ID");
-      return {
-        kind,
-        riskLevel: risk,
-        agentActorId,
-        request: parseAgentRequest(rawAction.request),
-      };
+      try {
+        const agentActorId = requiredString(rawAction, "agentActorId", 100);
+        assertUuid(agentActorId, "Agent Actor ID");
+        return {
+          kind,
+          riskLevel: risk,
+          agentActorId,
+          request: parseAgentRequest(rawAction.request),
+        };
+      } catch (error) {
+        if (error instanceof IntentServiceError && error.code === "invalid_plan") {
+          throw new PlannerActionRequestError(position);
+        }
+        throw error;
+      }
     }
     const fixedKind = kind as Exclude<IntentActionKind, "agent.run">;
     try {
@@ -811,13 +828,230 @@ function parsePlannedActions(value: unknown): PlannedAction[] {
     if (risk !== FIXED_RISK[fixedKind]) {
       throw new IntentServiceError("invalid_plan", `${kind} must use risk level ${FIXED_RISK[fixedKind]}.`);
     }
-    switch (fixedKind) {
-      case "memory.propose": return { kind: fixedKind, riskLevel: 1, request: parseMemoryRequest(rawAction.request) };
-      case "activity.create": return { kind: fixedKind, riskLevel: 1, request: parseActivityRequest(rawAction.request) };
-      case "activity.assign": return { kind: fixedKind, riskLevel: 1, request: parseAssignmentRequest(rawAction.request) };
-      case "decision.propose": return { kind: fixedKind, riskLevel: 1, request: parseDecisionRequest(rawAction.request) };
+    try {
+      switch (fixedKind) {
+        case "memory.propose": return {
+          kind: fixedKind,
+          riskLevel: 1,
+          request: parseMemoryRequest(rawAction.request),
+        };
+        case "activity.create": return {
+          kind: fixedKind,
+          riskLevel: 1,
+          request: parseActivityRequest(rawAction.request),
+        };
+        case "activity.assign": return {
+          kind: fixedKind,
+          riskLevel: 1,
+          request: parseAssignmentRequest(rawAction.request),
+        };
+        case "decision.propose": return {
+          kind: fixedKind,
+          riskLevel: 1,
+          request: parseDecisionRequest(rawAction.request),
+        };
+      }
+    } catch (error) {
+      if (error instanceof IntentServiceError && error.code === "invalid_plan") {
+        throw new PlannerActionRequestError(position);
+      }
+      throw error;
     }
   });
+}
+
+function exactObjectSchema(
+  properties: Readonly<Record<string, unknown>>,
+  required: readonly string[] = Object.keys(properties),
+): Readonly<Record<string, unknown>> {
+  return { type: "object", properties, required, additionalProperties: false };
+}
+
+function nullableSchema(schema: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  return { anyOf: [schema, { type: "null" }] };
+}
+
+function uuidSchema(): Readonly<Record<string, unknown>> {
+  return { type: "string", pattern: UUID_PATTERN.source };
+}
+
+function uuidArraySchema(maxItems = MAX_REFERENCES): Readonly<Record<string, unknown>> {
+  return {
+    type: "array",
+    maxItems,
+    uniqueItems: true,
+    items: uuidSchema(),
+  };
+}
+
+function localizedTextSchema(locale: AppLocale, maximum: number): Readonly<Record<string, unknown>> {
+  return exactObjectSchema({
+    [locale]: { type: "string", minLength: 1, maxLength: maximum },
+  });
+}
+
+function memoryRequestSchema(input: IntentPlannerInput): Readonly<Record<string, unknown>> {
+  return exactObjectSchema({
+    spaceId: nullableSchema(uuidSchema()),
+    type: { type: "string", enum: MEMORY_TYPES },
+    title: localizedTextSchema(input.locale, 500),
+    summary: localizedTextSchema(input.locale, 2_000),
+    body: localizedTextSchema(input.locale, 100_000),
+    visibility: { type: "string", enum: VISIBILITIES },
+    classification: { type: "string", enum: CLASSIFICATIONS },
+    allowedActorIds: uuidArraySchema(MAX_ALLOWED_ACTORS),
+    sourceIds: uuidArraySchema(),
+    confidence: nullableSchema({ type: "number", minimum: 0, maximum: 1 }),
+    custody: { type: "string", enum: ["guild", "personal"] },
+    layer: { type: "string", enum: ["working", "external"] },
+    provenance: exactObjectSchema({
+      source: { type: "string", minLength: 1, maxLength: 200 },
+      askQuery: { type: "string", maxLength: 2_000 },
+    }),
+    lastVerifiedAt: nullableSchema({ type: "string" }),
+    changeNote: { type: "string", minLength: 1, maxLength: 2_000 },
+  });
+}
+
+function activityCreateRequestSchema(): Readonly<Record<string, unknown>> {
+  return exactObjectSchema({
+    parentActivityId: nullableSchema(uuidSchema()),
+    spaceId: nullableSchema(uuidSchema()),
+    assigneeActorId: nullableSchema(uuidSchema()),
+    type: { type: "string", enum: ACTIVITY_TYPES },
+    title: { type: "string", minLength: 1, maxLength: 500 },
+    description: { type: "string", maxLength: 20_000 },
+    status: { type: "string", enum: ACTIVITY_STATUSES },
+    visibility: { type: "string", enum: VISIBILITIES },
+    classification: { type: "string", enum: CLASSIFICATIONS },
+    allowedActorIds: uuidArraySchema(MAX_ALLOWED_ACTORS),
+    sourceIds: uuidArraySchema(),
+    startsAt: nullableSchema({ type: "string" }),
+    dueAt: nullableSchema({ type: "string" }),
+    position: { type: "integer", minimum: 0, maximum: 1_000_000 },
+  });
+}
+
+function activityAssignRequestSchema(): Readonly<Record<string, unknown>> {
+  return exactObjectSchema({
+    activityId: uuidSchema(),
+    expectedVersion: { type: "integer", minimum: 1 },
+    assigneeActorId: nullableSchema(uuidSchema()),
+  });
+}
+
+function decisionRequestSchema(): Readonly<Record<string, unknown>> {
+  return exactObjectSchema({
+    spaceId: nullableSchema(uuidSchema()),
+    method: { type: "string", enum: DECISION_METHODS },
+    title: { type: "string", minLength: 1, maxLength: 500 },
+    description: { type: "string", maxLength: 20_000 },
+    rationale: { type: "string", maxLength: 20_000 },
+    visibility: { type: "string", enum: VISIBILITIES },
+    classification: { type: "string", enum: CLASSIFICATIONS },
+    allowedIdentityIds: uuidArraySchema(MAX_ALLOWED_ACTORS),
+    sourceIds: uuidArraySchema(),
+    reviewAt: nullableSchema({ type: "string" }),
+    options: {
+      type: "array",
+      minItems: 1,
+      maxItems: 20,
+      items: exactObjectSchema({
+        label: { type: "string", minLength: 1, maxLength: 500 },
+        description: { type: "string", maxLength: 5_000 },
+      }),
+    },
+  });
+}
+
+function agentActionSchema(): Readonly<Record<string, unknown>> {
+  return {
+    oneOf: [
+      exactObjectSchema({
+        kind: { const: "memory_search" },
+        query: { type: "string", minLength: 1, maxLength: 500 },
+        locale: { type: "string", enum: SUPPORTED_LOCALES },
+      }),
+      exactObjectSchema({
+        kind: { const: "activity_draft" },
+        title: { type: "string", minLength: 1, maxLength: 200 },
+        description: { type: "string", maxLength: 10_000 },
+        activityType: { type: "string", enum: ACTIVITY_TYPES },
+      }),
+      exactObjectSchema({
+        kind: { const: "agent_delegate" },
+        targetAgentActorId: uuidSchema(),
+        objective: { type: "string", minLength: 1, maxLength: 5_000 },
+      }),
+      exactObjectSchema({
+        kind: { const: "connection_invoke" },
+        capabilityId: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$" },
+        input: { type: "object" },
+      }),
+      exactObjectSchema({
+        kind: { const: "https_webhook" },
+        eventType: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$" },
+        payload: { type: "object" },
+      }),
+      exactObjectSchema({
+        kind: { const: "federation_publish" },
+        federationLinkId: uuidSchema(),
+        grantIds: {
+          ...uuidArraySchema(100),
+          minItems: 1,
+        },
+      }),
+    ],
+  };
+}
+
+function agentRequestSchema(): Readonly<Record<string, unknown>> {
+  return exactObjectSchema({
+    spaceId: nullableSchema(uuidSchema()),
+    plan: exactObjectSchema({
+      objective: { type: "string", minLength: 1, maxLength: 500 },
+      expectedOutcome: { type: "string", minLength: 1, maxLength: 2_000 },
+      steps: {
+        type: "array",
+        minItems: 1,
+        maxItems: 50,
+        items: { type: "string", minLength: 1, maxLength: 500 },
+      },
+      connectorId: nullableSchema(uuidSchema()),
+      questId: nullableSchema(uuidSchema()),
+      action: agentActionSchema(),
+      estimatedUsage: exactObjectSchema({
+        budgetMinor: { type: "integer", minimum: 0 },
+        tokens: { type: "integer", minimum: 0 },
+        durationSeconds: { type: "integer", minimum: 1 },
+        steps: { type: "integer", minimum: 1, maximum: 50 },
+        retries: { type: "integer", minimum: 0 },
+        delegationDepth: { type: "integer", minimum: 0 },
+      }),
+    }),
+    visibility: { type: "string", enum: VISIBILITIES },
+    classification: { type: "string", enum: CLASSIFICATIONS },
+    allowedIdentityIds: uuidArraySchema(MAX_ALLOWED_ACTORS),
+    workflowPermissions: {
+      type: "array",
+      maxItems: PERMISSIONS.length,
+      uniqueItems: true,
+      items: { type: "string", enum: PERMISSIONS },
+    },
+    workflowDefinitionId: nullableSchema(uuidSchema()),
+  });
+}
+
+function requestSchemaFor(
+  kind: Exclude<IntentActionKind, "agent.run">,
+  input: IntentPlannerInput,
+): Readonly<Record<string, unknown>> {
+  switch (kind) {
+    case "memory.propose": return memoryRequestSchema(input);
+    case "activity.create": return activityCreateRequestSchema();
+    case "activity.assign": return activityAssignRequestSchema();
+    case "decision.propose": return decisionRequestSchema();
+  }
 }
 
 function plannerResponseSchema(input: IntentPlannerInput): Readonly<Record<string, unknown>> {
@@ -832,7 +1066,7 @@ function plannerResponseSchema(input: IntentPlannerInput): Readonly<Record<strin
           agentActorId: availableAgentIds.length > 0
             ? { type: "string", enum: availableAgentIds }
             : { type: "string", pattern: UUID_PATTERN.source },
-          request: { type: "object" },
+          request: agentRequestSchema(),
         },
         required: ["kind", "riskLevel", "agentActorId", "request"],
         additionalProperties: false,
@@ -843,7 +1077,7 @@ function plannerResponseSchema(input: IntentPlannerInput): Readonly<Record<strin
       properties: {
         kind: { const: kind },
         riskLevel: { const: FIXED_RISK[kind] },
-        request: { type: "object" },
+        request: requestSchemaFor(kind, input),
       },
       required: ["kind", "riskLevel", "request"],
       additionalProperties: false,
@@ -917,6 +1151,8 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
           "agent.run may use riskLevel 0-3 and must name one available Agent.",
           "If no specialized action is justified, create one working-layer memory.propose action from the Ask answer for Human review.",
           "Every request must contain the complete fields required by the corresponding Guild OS create or assign request.",
+          "When the objective asks to preserve or remember information, prefer memory.propose and use the supplied safeMemoryFallback as the structural example.",
+          "If you cannot satisfy every required request field, return the supplied safeMemoryFallback as the only action.",
           "Follow the response JSON Schema exactly. Do not move request fields onto the action object.",
         ].join(" "),
       },
@@ -1341,6 +1577,7 @@ export class GuildIntentService {
         } catch (error) {
           if (!(error instanceof PlannerNoProposalError) &&
               !(error instanceof PlannerActionEnvelopeError) &&
+              !(error instanceof PlannerActionRequestError) &&
               !(error instanceof PlannerResponseFormatError)) throw error;
           planned = deterministicFallback(plannerInput);
         }

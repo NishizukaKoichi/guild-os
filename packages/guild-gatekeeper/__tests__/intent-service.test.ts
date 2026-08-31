@@ -530,6 +530,71 @@ describe("GuildIntentService", () => {
       kind: "memory.propose",
       request: { layer: "working" },
     });
+
+    const responseFormat = request.response_format as {
+      json_schema?: {
+        properties?: {
+          actions?: {
+            items?: { oneOf?: Array<{ properties?: { request?: { required?: string[] } } }> };
+          };
+        };
+      };
+    };
+    const actionSchemas = responseFormat.json_schema?.properties?.actions?.items?.oneOf ?? [];
+    const memorySchema = actionSchemas.find((schema) =>
+      schema.properties?.request?.required?.includes("changeNote"));
+    expect(memorySchema?.properties?.request?.required).toEqual(expect.arrayContaining([
+      "spaceId",
+      "type",
+      "title",
+      "summary",
+      "body",
+      "visibility",
+      "classification",
+      "layer",
+      "changeNote",
+    ]));
+  });
+
+  it("describes every required Activity create field in the model response schema", async () => {
+    const runner = vi.fn(async () => memoryModelPlan(["Schema-bound output"]));
+    const planner = createModelIntentPlanner(runner);
+
+    await planner.plan({
+      objective: "Create one internal Activity draft.",
+      locale: "en",
+      ask: planInput().ask,
+      spaceId: IDS.space,
+      allowedActionKinds: ["activity.create"],
+      availableAgents: [],
+    }, new AbortController().signal);
+
+    const request = runner.mock.calls[0]?.[1] as {
+      response_format?: {
+        json_schema?: {
+          properties?: {
+            actions?: { items?: { properties?: { request?: { required?: string[] } } } };
+          };
+        };
+      };
+    };
+    expect(request.response_format?.json_schema?.properties?.actions?.items?.properties?.request?.required)
+      .toEqual([
+        "parentActivityId",
+        "spaceId",
+        "assigneeActorId",
+        "type",
+        "title",
+        "description",
+        "status",
+        "visibility",
+        "classification",
+        "allowedActorIds",
+        "sourceIds",
+        "startsAt",
+        "dueAt",
+        "position",
+      ]);
   });
 
   it("rejects an unsupported model action without persisting or executing it", async () => {
@@ -637,17 +702,41 @@ describe("GuildIntentService", () => {
     expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
   });
 
-  it("still rejects a malformed request inside a valid supported action envelope", async () => {
+  it("uses the safe fallback for a malformed request inside a known action envelope", async () => {
     const { service, store, ports } = harness({
       plannerResult: {
         actions: [{ kind: "memory.propose", riskLevel: 1, request: {} }],
       },
     });
 
-    await expect(service.planFromAsk(planInput())).rejects.toMatchObject({
-      code: "invalid_plan",
+    const result = await service.planFromAsk(planInput());
+
+    expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
+    expect(result.proposal.actions).toHaveLength(1);
+    expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
+  });
+
+  it("uses the safe fallback for a malformed Agent request inside a known action envelope", async () => {
+    const { service, store, ports } = harness({
+      plannerResult: {
+        actions: [{
+          kind: "agent.run",
+          riskLevel: 1,
+          agentActorId: IDS.agent,
+          request: {},
+        }],
+      },
     });
-    expect(store.proposal).toBeNull();
+
+    const result = await service.planFromAsk(planInput());
+
+    expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
+    expect(result.proposal.actions).toHaveLength(1);
+    expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
     expect(ports.memory.propose).not.toHaveBeenCalled();
     expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
   });
