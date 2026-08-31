@@ -37,8 +37,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(restoreAdr, /ownership-attestation file, live Installer-evidence file, deployment lock/);
   assert.match(publicationAdr, /repository owner explicitly authorized public Apache-2.0 visibility/);
   assert.match(publicationAdr, /anonymous recursive HTTPS clone independently passed/);
-  assert.match(matrix, /62 Distribution tests/);
-  assert.match(snapshot, /passed typecheck, 62 tests/);
+  assert.match(matrix, /complete Distribution test suite/);
+  assert.match(snapshot, /passed typecheck, the complete\s+Distribution test suite/);
   assert.match(matrix, /This matrix deliberately does not name a mutable Distribution HEAD/);
   assert.match(matrix, /a repository document is not current-candidate CI evidence/);
   assert.match(snapshot, /Exact-SHA Core CI evidence independently repeated/);
@@ -50,7 +50,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(snapshot, /English, Japanese, and Simplified Chinese switched[\s\S]*zero console errors/);
   assert.match(snapshot, /Service Auth policy and token were\s+removed[\s\S]*stale credential received the Access redirect/);
   assert.match(matrix, /temporary smoke policy and token were removed[\s\S]*Human policy remained/);
-  assert.match(snapshot, /Distribution's single local\/hosted release gate passed typecheck, 62 tests/);
+  assert.match(snapshot,
+    /Distribution's single local\/hosted release gate passed typecheck, the complete\s+Distribution test suite/);
   assert.match(snapshot, /does not identify a[\s\S]*mutable current Distribution HEAD/);
   assert.doesNotMatch(matrix, /The current Distribution candidate pins|Current `[0-9a-f]{7,40}` pins Core/);
   assert.doesNotMatch(matrix, /still starts zero hosted steps|exact hosted CI remains externally blocked/);
@@ -75,8 +76,8 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(matrix, /current Core branch SHA must always come from Git and exact external CI evidence/);
   assert.match(matrix, /generated two-phase read-only verifier/);
   assert.match(snapshot, /legacy hand-authored v1 evidence is rejected/);
-  assert.doesNotMatch(matrix, /\b(?:38|46|49|50|52|55) Distribution tests\b/);
-  assert.doesNotMatch(snapshot, /\b(?:38|46|49|50|52|55) tests\b/);
+  assert.doesNotMatch(matrix, /\b\d+ Distribution tests\b/);
+  assert.doesNotMatch(snapshot, /passed typecheck, \d+ tests\b/);
 
   for (const [name, contents] of [
     ["README", readme],

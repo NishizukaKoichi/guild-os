@@ -117,13 +117,13 @@ PostgreSQL migration/RLS/Runtime-role verification for that candidate. The succe
 commit are retained outside Git in owner-controlled evidence and rechecked through GitHub rather
 than copied into this self-changing document.
 
-The separate Distribution's single local/hosted release gate passed typecheck, 62 tests, lint,
-compliance, reproducible SBOM drift detection, build, dependency audit, real Git-bundle clone/object
-verification, deterministic clean-room install/update/backup and restore preparation, ephemeral
-release signing, staged-package installation, and all seven acquired CLI launchers. A matching
-candidate now pins this audited Core documentation lineage and has repeated the local release gate,
-exact-SHA hosted CI, and anonymous acquisition. This synthetic evidence is not an independent
-purchaser installation or production signing record.
+The separate Distribution's single local/hosted release gate passed typecheck, the complete
+Distribution test suite, lint, compliance, reproducible SBOM drift detection, build, dependency
+audit, real Git-bundle clone/object verification, deterministic clean-room install/update/backup and
+restore preparation, ephemeral release signing, staged-package installation, and all seven acquired
+CLI launchers. A matching candidate now pins this audited Core documentation lineage and has repeated
+the local release gate, exact-SHA hosted CI, and anonymous acquisition. This synthetic evidence is
+not an independent purchaser installation or production signing record.
 
 Exact-SHA hosted CI and anonymous Open Core acquisition records are captured from GitHub into
 owner-controlled evidence outside both repositories. This snapshot deliberately does not identify a
