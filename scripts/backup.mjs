@@ -1059,7 +1059,7 @@ async function createBackup(options) {
       ? await importAccessSnapshot(config, options.accessSnapshot, accessPath)
       : await exportAccess(config, cloudflareToken, accessPath);
     const deployments = captureWorkerDeployments(config);
-    const deployedReleaseCommit = activeWorkerReleaseCommit(deployments);
+    const deployedReleaseCommit = activeWorkerReleaseCommit(deployments, config);
     await writeAtomicJson(join(options.path, "cloudflare/deployments.json"), deployments);
     await writeAtomicJson(
       join(options.path, "cloudflare/deployment-summary.json"),

@@ -5,6 +5,10 @@ Date: 2026-09-05 (Australia/Sydney)
 Guild OS remains incomplete. This document is a local engineering handoff, not a purchaser
 attestation, signing activation, legal opinion, or permission to release.
 
+Independent follow-up found two additional target-binding gaps in the first local commit. See
+[the corrective follow-up](restore-target-binding.md) for the URL/account repair and actual-CLI
+test. The first-batch results below remain historical local evidence, not proof of those repairs.
+
 ## Identity and scope
 
 - Canonical Core: `/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os`, observed clean `main`.

@@ -22,7 +22,7 @@ const databaseUrl = "postgresql://restore@example.invalid/guild?sslmode=verify-f
 function config() {
   return {
     accountId: "a".repeat(32),
-    guild: { id: guildId },
+    guild: { id: guildId, webhook: { url: "https://hooks.example.invalid/guild-events" } },
     context: { kvNamespaceId: "context-namespace" },
     resources: {
       blueprintsKvNamespaceId: "blueprints-namespace",
@@ -31,7 +31,7 @@ function config() {
       blueprintContentBucket: "blueprints-bucket",
     },
     workers: {
-      workshop: { name: "test-workshop" },
+      workshop: { name: "test-workshop", route: { customDomain: "workshop.example.invalid" } },
       context: { name: "test-context" },
       guildGatekeeper: { name: "test-gatekeeper" },
       webhookReceiver: { name: "test-webhook" },
@@ -160,6 +160,7 @@ function smoke(checkedAt) {
 function productionSmoke() {
   const target = config();
   const activeDeployments = Object.values(target.workers).map(({ name }, index) => ({
+    accountId: target.accountId,
     workerName: name,
     versions: [{ id: `fixture-version-${index}`, percentage: 100 }],
   }));
@@ -168,8 +169,10 @@ function productionSmoke() {
     checkedAt: "2026-08-24T00:10:00.000Z",
     source: source(),
     target: { accountId: target.accountId, guildId, configSha256: sha256Object(target) },
-    workshop: { accessProtected: true, authenticatedServiceCheck: "passed" },
-    receiver: { status: 200, unsignedRequestRejected: true, noStore: true, nosniff: true },
+    workshop: { url: "https://workshop.example.invalid", accessProtected: true,
+      authenticatedServiceCheck: "passed", authenticatedRedirectPolicy: "error" },
+    receiver: { healthUrl: "https://hooks.example.invalid/healthz",
+      status: 200, unsignedRequestRejected: true, noStore: true, nosniff: true },
     activeDeployments,
     deploymentVerification: {
       executionMode: "live-cli",
@@ -188,6 +191,34 @@ test("restore smoke binds the exact target and live verified Worker inventory", 
   const result = await verifyProductionSmokeEvidence(path, config(), coreCommit);
   assert.equal(result.targetConfigSha256, sha256Object(config()));
   assert.equal(result.deploymentInventorySha256, sha256Object(core.activeDeployments));
+});
+
+test("restore workers.dev URL is tied to enabled routing for the exact account and Worker", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "guild-os-workers-dev-restore-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "smoke.json");
+  const target = config();
+  target.workers.workshop.route = { workersDev: true };
+  const core = productionSmoke();
+  core.target.configSha256 = sha256Object(target);
+  core.workshop.url = "https://test-workshop.purchaser.workers.dev";
+  core.workshopRouting = { accountId: target.accountId, workerName: "test-workshop", subdomain: "purchaser", enabled: true };
+  async function verify(value) {
+    await writeFile(path, JSON.stringify({ ...value, evidenceSha256: sha256Object(value) }));
+    return verifyProductionSmokeEvidence(path, target, coreCommit);
+  }
+  await verify(core);
+  for (const mutate of [
+    value => { delete value.workshopRouting; },
+    value => { value.workshopRouting.enabled = false; },
+    value => { value.workshopRouting.accountId = "b".repeat(32); },
+    value => { value.workshopRouting.workerName = "other-workshop"; },
+    value => { value.workshop.url = "https://test-workshop.other.workers.dev"; },
+  ]) {
+    const changed = structuredClone(core);
+    mutate(changed);
+    await assert.rejects(() => verify(changed), /Workshop/);
+  }
 });
 
 for (const [label, mutate, message] of [
@@ -211,7 +242,19 @@ for (const [label, mutate, message] of [
   ["duplicate Worker", (value) => {
     value.activeDeployments[0] = value.activeDeployments[1];
     value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
-  }, /do not match/],
+  }, /does not match/],
+  ["another Workshop", (value) => { value.workshop.url = "https://other.example.invalid"; }, /Workshop URL/],
+  ["unbound Workshop", (value) => { delete value.workshop.url; }, /Workshop URL/],
+  ["redirect-following Workshop", (value) => { delete value.workshop.authenticatedRedirectPolicy; }, /redirects/],
+  ["another Webhook", (value) => { value.receiver.healthUrl = "https://other.example.invalid/healthz"; }, /Webhook boundary/],
+  ["unbound inventory account", (value) => {
+    delete value.activeDeployments[0].accountId;
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /unbound or different account/],
+  ["another inventory account", (value) => {
+    value.activeDeployments[0].accountId = "b".repeat(32);
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /unbound or different account/],
 ]) {
   test(`restore rejects ${label} even with a recalculated payload checksum`, async (t) => {
     const root = await mkdtemp(join(tmpdir(), "guild-os-smoke-reject-test-"));

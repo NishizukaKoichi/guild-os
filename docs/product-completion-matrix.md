@@ -24,6 +24,11 @@ not certify their truth. Checksums, tests, fixture rehearsals, and this matrix c
 independent purchaser, physical custody, professional review, or exact-release cloud evidence.
 See [the current bounded handoff](bounded-verification-handoff.md).
 
+Independent follow-up identified URL and ambient-account misbinding in the first local repair.
+[The correction](restore-target-binding.md) adds exact Workshop routing and explicit CLI account
+selection with a real installed-CLI loopback test. These local checks do not close any independent
+purchaser or production gate; all 42 declarations and remaining requirements below are retained.
+
 ## Audit snapshot
 
 | Fact | Evidence recorded at this audit snapshot |

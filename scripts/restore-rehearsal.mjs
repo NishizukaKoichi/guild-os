@@ -21,9 +21,11 @@ import {
 } from "./backup.mjs";
 import { assertVerifiedTlsConfiguration } from "./database-preflight.mjs";
 import {
+  assertWorkerInventory,
   deploymentLockPath,
   deploymentResourceSummary,
   gitSourceSnapshot,
+  productionUrls,
   readResolvedDeployment,
   repositoryRoot,
   selectedDeploymentConfig,
@@ -210,12 +212,17 @@ export async function verifyProductionSmokeEvidence(path, config, expectedCommit
     throw new Error("Production smoke is bound to a different restore target configuration.");
   }
   const workshop = object(evidence.workshop, "Production smoke Workshop result");
+  if (typeof workshop.url !== "string") throw new Error("Production smoke has no Workshop URL.");
+  const expectedUrls = productionUrls(config, workshop.url, evidence.workshopRouting);
+  if (workshop.authenticatedRedirectPolicy !== "error") {
+    throw new Error("Production smoke did not forbid authenticated Workshop redirects.");
+  }
   if (workshop.accessProtected !== true || workshop.authenticatedServiceCheck !== "passed") {
     throw new Error("Production smoke did not prove Access protection and service authentication.");
   }
   const receiver = evidence.receiver === null ? null : object(evidence.receiver, "Production smoke receiver");
   if (config.referenceWebhook.enabled &&
-      (receiver?.status !== 200 || receiver?.unsignedRequestRejected !== true ||
+      (receiver?.healthUrl !== expectedUrls.receiver || receiver?.status !== 200 || receiver?.unsignedRequestRejected !== true ||
        receiver?.noStore !== true || receiver?.nosniff !== true)) {
     throw new Error("Production smoke did not prove the reference Webhook boundary.");
   }
@@ -227,14 +234,7 @@ export async function verifyProductionSmokeEvidence(path, config, expectedCommit
       verification.inventorySha256 !== sha256Object(evidence.activeDeployments)) {
     throw new Error("Production smoke has no live exact-release verification for this Worker inventory.");
   }
-  for (const deployment of evidence.activeDeployments) {
-    const versions = object(deployment, "Production smoke deployment").versions;
-    if (!Array.isArray(versions) || versions.length !== 1 ||
-        versions[0]?.percentage !== 100 || typeof versions[0]?.id !== "string" ||
-        !versions[0].id.trim()) {
-      throw new Error("Production smoke Worker is not on one complete active version.");
-    }
-  }
+  assertWorkerInventory(config, evidence.activeDeployments);
   const observedWorkers = evidence.activeDeployments.map((entry) =>
     object(entry, "Production smoke deployment").workerName).sort();
   if (sha256Object(observedWorkers) !== sha256Object(activeWorkerNames(config))) {

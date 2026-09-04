@@ -436,7 +436,13 @@ pnpm smoke:production -- \
   --output /Volumes/EncryptedOps/guild-os/releases/SMOKE.json
 ```
 
-Add `--url` for `workersDev`. Optionally set both `CF_ACCESS_CLIENT_ID` and
+For `workersDev`, the smoke verifies the configured account's registered subdomain and the named
+Worker's enabled routing using an existing purchaser-owned `CLOUDFLARE_API_TOKEN`. Missing access
+fails closed. It derives the URL; optional `--url` must match that exact HTTPS origin. For custom
+domains, an override must match the configured hostname. Paths, credentials, queries and fragments
+are rejected, and authenticated smoke never follows redirects. Inventory/version queries use an
+explicit account config; conflicting `CLOUDFLARE_ACCOUNT_ID` or `CF_ACCOUNT_ID` values are rejected.
+See [target binding](restore-target-binding.md). Optionally set both `CF_ACCESS_CLIENT_ID` and
 `CF_ACCESS_CLIENT_SECRET` for a narrowly scoped Access service-token check; unset them immediately.
 The smoke evidence deliberately lists the human checks that remain.
 

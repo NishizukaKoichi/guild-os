@@ -97,7 +97,7 @@ export async function buildReleaseManifest({
     }))
     : captureWorkerDeployments(resolvedConfig));
   if (!offline && !deployments) {
-    assertWorkerDeploymentsMatchRelease(activeDeployments, sourceSnapshot.commit);
+    assertWorkerDeploymentsMatchRelease(activeDeployments, sourceSnapshot.commit, resolvedConfig);
   }
   const databaseVerification = database ?? (offline
     ? { status: "not-queried" }

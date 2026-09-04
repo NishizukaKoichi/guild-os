@@ -6,6 +6,8 @@ import {
   assertWorkerDeploymentsMatchRelease,
   assertResolvedResources,
   captureWorkerDeployments,
+  canonicalWorkshopUrl,
+  expectedAccountId,
   gitSourceSnapshot,
   productionUrls,
   readResolvedDeployment,
@@ -77,6 +79,7 @@ function accessRedirectAccepted(response, issuer) {
 }
 
 export async function smokeWorkshop(url, issuer, credentials = {}, fetcher = fetch) {
+  url = canonicalWorkshopUrl(url);
   const unauthenticated = await fetchWithTimeout(url, { redirect: "manual" }, fetcher);
   if (!accessRedirectAccepted(unauthenticated, issuer)) {
     throw new Error(
@@ -88,6 +91,7 @@ export async function smokeWorkshop(url, issuer, credentials = {}, fetcher = fet
     unauthenticatedStatus: unauthenticated.status,
     accessProtected: true,
     authenticatedServiceCheck: "not-configured",
+    authenticatedRedirectPolicy: "error",
   };
 
   const { clientId, clientSecret } = credentials;
@@ -96,14 +100,15 @@ export async function smokeWorkshop(url, issuer, credentials = {}, fetcher = fet
   }
   if (!clientId) return result;
   const authenticated = await fetchWithTimeout(url, {
-    redirect: "follow",
+    redirect: "error",
     headers: {
       "cf-access-client-id": clientId,
       "cf-access-client-secret": clientSecret,
     },
   }, fetcher);
   const body = await authenticated.text();
-  if (authenticated.status !== 200 || !/cloudflare os/i.test(body)) {
+  if (authenticated.status !== 200 || authenticated.redirected ||
+      (authenticated.url && canonicalWorkshopUrl(authenticated.url) !== url) || !/cloudflare os/i.test(body)) {
     throw new Error(
       `Access service-token Workshop smoke failed (HTTP ${authenticated.status}).`,
     );
@@ -145,13 +150,38 @@ export async function smokeReceiver(healthUrl, fetcher = fetch) {
   };
 }
 
+export async function captureWorkersDevRouting(config, fetcher = fetch) {
+  if (config.workers.workshop.route?.workersDev !== true) return null;
+  const accountId = expectedAccountId(config);
+  const workerName = config.workers.workshop.name;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  if (!token) throw new Error("Workers.dev smoke requires a purchaser-owned API token to verify account routing.");
+  async function read(path) {
+    const response = await fetchWithTimeout(`https://api.cloudflare.com/client/v4/accounts/${accountId}/${path}`, {
+      method: "GET", redirect: "error", headers: { authorization: `Bearer ${token}` },
+    }, fetcher);
+    const value = await response.json().catch(() => null);
+    if (response.status !== 200 || value?.success !== true || !value.result) {
+      throw new Error("Unable to verify the configured account's workers.dev routing.");
+    }
+    return value.result;
+  }
+  const subdomain = await read("workers/subdomain");
+  const script = await read(`workers/scripts/${encodeURIComponent(workerName)}/subdomain`);
+  const routing = { accountId, workerName, subdomain: subdomain.subdomain, enabled: script.enabled };
+  productionUrls(config, undefined, routing);
+  return routing;
+}
+
 export async function runProductionSmoke({
   config, workshopUrl, fetcher = fetch, deployments, sourceSnapshot,
 } = {}) {
   const resolvedConfig = config ?? await readResolvedDeployment();
   assertResolvedResources(resolvedConfig);
+  expectedAccountId(resolvedConfig);
   const source = sourceSnapshot ?? gitSourceSnapshot({ requireClean: true });
-  const urls = productionUrls(resolvedConfig, workshopUrl);
+  const workshopRouting = await captureWorkersDevRouting(resolvedConfig, fetcher);
+  const urls = productionUrls(resolvedConfig, workshopUrl, workshopRouting);
   const [workshop, receiver] = await Promise.all([
     smokeWorkshop(urls.workshop, resolvedConfig.access.issuer, {
       clientId: process.env.CF_ACCESS_CLIENT_ID,
@@ -161,7 +191,7 @@ export async function runProductionSmoke({
   ]);
   const activeDeployments = deployments ?? captureWorkerDeployments(resolvedConfig);
   if (!deployments) {
-    assertWorkerDeploymentsMatchRelease(activeDeployments, source.commit);
+    assertWorkerDeploymentsMatchRelease(activeDeployments, source.commit, resolvedConfig);
   }
   // Injected transport/source/deployments can exercise contracts, never attest a live release.
   const live = fetcher === fetch && deployments === undefined && sourceSnapshot === undefined;
@@ -180,6 +210,7 @@ export async function runProductionSmoke({
       inventorySha256: sha256Object(activeDeployments),
     },
     workshop,
+    workshopRouting,
     receiver,
     activeDeployments,
     residualManualChecks: [
