@@ -68,9 +68,11 @@ completion as verified. Existing tests now check this distinction even if all ro
 ## Local verification and evidence
 
 Ignored `.verification/commands.jsonl` records exact command arguments, times, exit codes and log
-paths. `.verification/logs/` holds full results. `.verification/verification-summary.json` binds
-the final committed source and log checksums; it is local evidence only. Do not put these artifacts
-into a release bundle or promote them to purchaser evidence.
+paths. `.verification/logs/` holds full results. The tracked receipt above binds the verified
+implementation commit. After the final evidence-only commit, `.verification/final-local-receipt.json`
+binds that exact candidate to log checksums, preserved failures, and explicitly false external
+gates. Ignored evidence is local only; do not put it into a release bundle or promote it to
+purchaser evidence.
 
 Validation uses pnpm 11.9.0, an allowlisted child environment without production credentials, and
 worktree-local HOME, temporary directory, package caches, browsers, and generated output.
