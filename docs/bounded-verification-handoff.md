@@ -5,6 +5,10 @@ Date: 2026-09-05 (Australia/Sydney)
 Guild OS remains incomplete. This document is a local engineering handoff, not a purchaser
 attestation, signing activation, legal opinion, or permission to release.
 
+The tracked [bounded local verification receipt](evidence/2026-09-05-bounded-local-verification.md)
+records the final implementation SHA, corrected test totals, repaired local PostgreSQL verification
+boundary, Distribution successor rehearsal, and unresolved safety exceptions.
+
 Independent follow-up found two additional target-binding gaps in the first local commit. See
 [the corrective follow-up](restore-target-binding.md) for the URL/account repair and actual-CLI
 test. The first-batch results below remain historical local evidence, not proof of those repairs.
@@ -122,7 +126,7 @@ changes to false. This does not test Distribution against the unpinned local suc
 | Gate | Result and boundary |
 | --- | --- |
 | Install, typecheck, build, lint, dependency and peer audits | Passed; exact commands and exits are retained in the ignored command ledger |
-| Core default tests | 376 passed; 73 DB-dependent cases skip here and run separately below |
+| Core default tests | 395 passed overall: 119 Node assertions plus a 276 Vitest subtotal; 73 DB-dependent cases skip here and run separately below |
 | PostgreSQL and Gatekeeper integrations | 73 plus 35 passed on the new local fixture; 51 migrations and 96 forced-RLS tables verified |
 | Cloudflare OS | 496 passed, including the required four-case RPC replay; the original skipped suite remains visible rather than being counted as coverage |
 | Worker check | Passed with CI fixture configuration and dry-run only; nothing uploaded |
