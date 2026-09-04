@@ -145,10 +145,12 @@ export async function smokeReceiver(healthUrl, fetcher = fetch) {
   };
 }
 
-export async function runProductionSmoke({ config, workshopUrl, fetcher = fetch, deployments } = {}) {
+export async function runProductionSmoke({
+  config, workshopUrl, fetcher = fetch, deployments, sourceSnapshot,
+} = {}) {
   const resolvedConfig = config ?? await readResolvedDeployment();
   assertResolvedResources(resolvedConfig);
-  const source = gitSourceSnapshot({ requireClean: true });
+  const source = sourceSnapshot ?? gitSourceSnapshot({ requireClean: true });
   const urls = productionUrls(resolvedConfig, workshopUrl);
   const [workshop, receiver] = await Promise.all([
     smokeWorkshop(urls.workshop, resolvedConfig.access.issuer, {
@@ -161,10 +163,22 @@ export async function runProductionSmoke({ config, workshopUrl, fetcher = fetch,
   if (!deployments) {
     assertWorkerDeploymentsMatchRelease(activeDeployments, source.commit);
   }
+  // Injected transport/source/deployments can exercise contracts, never attest a live release.
+  const live = fetcher === fetch && deployments === undefined && sourceSnapshot === undefined;
   const core = {
     format: "guild-os-production-smoke/v1",
     checkedAt: new Date().toISOString(),
     source,
+    target: {
+      accountId: resolvedConfig.accountId,
+      guildId: resolvedConfig.guild.id,
+      configSha256: sha256Object(resolvedConfig),
+    },
+    deploymentVerification: {
+      executionMode: live ? "live-cli" : "injected-runner",
+      releaseCommit: live ? source.commit : null,
+      inventorySha256: sha256Object(activeDeployments),
+    },
     workshop,
     receiver,
     activeDeployments,

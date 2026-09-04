@@ -42,7 +42,10 @@ test("product documents keep one authority and the implemented Distribution boun
   assert.match(matrix, /This matrix deliberately does not name a mutable Distribution HEAD/);
   assert.match(matrix, /a repository document is not current-candidate CI evidence/);
   assert.match(snapshot, /Exact-SHA Core CI evidence independently repeated/);
-  assert.match(matrix, /All five Workers run the exact Git-resolved Core candidate recorded in external release evidence/);
+  assert.match(snapshot, /Historical owner-production evidence \(not current-candidate proof\)/);
+  assert.match(matrix, /Rows below retain their historical implementation declarations/);
+  assert.match(acceptance, /Injected-runner results and legacy unbound records fail closed/);
+  assert.match(matrix, /Production was not queried/);
   assert.match(matrix, /existing production PostgreSQL service remains in place without replacement/);
   assert.match(matrix, /PostgreSQL 18[\s\S]*all 51 migrations[\s\S]*all 96 protected tables/);
   assert.match(matrix, /Human browser completed grounded Ask with citation[\s\S]*matching History/);

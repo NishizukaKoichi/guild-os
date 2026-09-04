@@ -204,6 +204,11 @@ export async function verifyProductionSmokeEvidence(path, config, expectedCommit
   if (commit(source.commit, "Production smoke Core commit") !== expectedCommit) {
     throw new Error("Production smoke does not use the exact Core candidate commit.");
   }
+  const target = object(evidence.target, "Production smoke target binding");
+  if (target.accountId !== config.accountId || target.guildId !== config.guild.id ||
+      target.configSha256 !== sha256Object(config)) {
+    throw new Error("Production smoke is bound to a different restore target configuration.");
+  }
   const workshop = object(evidence.workshop, "Production smoke Workshop result");
   if (workshop.accessProtected !== true || workshop.authenticatedServiceCheck !== "passed") {
     throw new Error("Production smoke did not prove Access protection and service authentication.");
@@ -216,6 +221,19 @@ export async function verifyProductionSmokeEvidence(path, config, expectedCommit
   }
   if (!Array.isArray(evidence.activeDeployments)) {
     throw new Error("Production smoke has no active deployment inventory.");
+  }
+  const verification = object(evidence.deploymentVerification, "Production smoke deployment verification");
+  if (verification.executionMode !== "live-cli" || verification.releaseCommit !== expectedCommit ||
+      verification.inventorySha256 !== sha256Object(evidence.activeDeployments)) {
+    throw new Error("Production smoke has no live exact-release verification for this Worker inventory.");
+  }
+  for (const deployment of evidence.activeDeployments) {
+    const versions = object(deployment, "Production smoke deployment").versions;
+    if (!Array.isArray(versions) || versions.length !== 1 ||
+        versions[0]?.percentage !== 100 || typeof versions[0]?.id !== "string" ||
+        !versions[0].id.trim()) {
+      throw new Error("Production smoke Worker is not on one complete active version.");
+    }
   }
   const observedWorkers = evidence.activeDeployments.map((entry) =>
     object(entry, "Production smoke deployment").workerName).sort();
@@ -231,6 +249,8 @@ export async function verifyProductionSmokeEvidence(path, config, expectedCommit
     webhookHealth: config.referenceWebhook.enabled ? "passed" : "not-configured",
     unsignedWebhookRejected: config.referenceWebhook.enabled ? true : null,
     workerInventorySha256: sha256Object(observedWorkers),
+    deploymentInventorySha256: verification.inventorySha256,
+    targetConfigSha256: target.configSha256,
   };
 }
 

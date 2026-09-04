@@ -1,6 +1,22 @@
 # Guild OS Context Snapshot
 
-Updated: 2026-08-31
+Updated: 2026-09-05
+
+## Bounded verification audit
+
+The observed clean Core baseline is `c7183f13219b47ab7bf00c2220e4976cb2dffa0f`.
+GitHub run `33397241955` was queried on 2026-09-05 and completed successfully for that exact SHA.
+The separately observed clean Distribution is `d75ee8b8e124ec7ad28f927a7f5c21002a633c40`;
+its `core.release.json` pins that Core baseline and the Cloudflare OS commit below.
+These are dated observations, not assertions about a successor commit or the active production
+version. This task allows only a dedicated worktree and local commit: no push, merge, deployment,
+credential changes, production queries, or Distribution edits. The older production paragraphs
+below are historical declarations and have not been re-observed in this task.
+
+The current change binds restore smoke to the exact account, Guild, resolved configuration, and
+live-verified Worker inventory. Old unbound smoke records must be recaptured, not edited or relabeled.
+See [bounded verification and acceptance handoff](bounded-verification-handoff.md) for commands,
+evidence classes, the dedicated worktree, and external exceptions.
 
 ## Current goal
 
@@ -130,15 +146,15 @@ owner-controlled evidence outside both repositories. This snapshot deliberately 
 mutable current Distribution HEAD: every candidate must bind its exact Core, Distribution, and
 Cloudflare OS commits through external evidence.
 
-## Current owner-production evidence
+## Historical owner-production evidence (not current-candidate proof)
 
 The existing production PostgreSQL service remains in place; it was not replaced with an empty
 database. Before the 2026-08-31 Runtime deployment, the owner-controlled operations workspace created
 and verified a complete PostgreSQL, KV, R2, and Access backup. Production preflight then confirmed
 PostgreSQL 18, verified TLS, all 51 migrations, and forced RLS on all 96 protected tables.
 
-All five production Workers run the exact Git-resolved Core candidate recorded in external release
-evidence. Exact-SHA Core CI evidence passed the complete hosted gate, including 74 Playwright journeys
+The earlier audit reported all five production Workers on the release recorded in its external
+evidence. That report does not establish the current production commit. Exact-SHA Core CI evidence passed the complete hosted gate, including 74 Playwright journeys
 and the disposable PostgreSQL migration, forced-RLS, non-superuser management, and Runtime-role
 suites. External mode-`0600` production evidence binds that release to the five active Worker
 Versions, database preflight, the verified backup, the Cloudflare Access boundary, Webhook health and
@@ -153,9 +169,9 @@ the deployed UI without missing-key output. Desktop 1440 px, mobile 390 px, and 
 each exposed the four primary actions with zero horizontal overflow; the 320 px page could scroll its
 last content above the fixed navigation. The complete browser journey produced zero console errors.
 
-This is current owner-controlled production evidence. It closes the database-restoration and normal
-production-smoke gap, but it is not an independent purchaser installation, independent signing-custody
-record, or professional legal approval.
+This is historical owner-controlled production evidence. It does not close the current-candidate
+production-smoke gap, independent purchaser installation, independent signing-custody, or
+professional legal approval. Local successors require their own exact-commit evidence.
 
 ## Remaining completion gates
 

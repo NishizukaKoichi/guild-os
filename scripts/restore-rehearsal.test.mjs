@@ -9,6 +9,7 @@ import {
   RESTORE_VERIFICATION_FORMAT,
   verifyRestorePostRecovery,
   verifyRestorePreRecovery,
+  verifyProductionSmokeEvidence,
 } from "./restore-rehearsal.mjs";
 import { sha256Object, sha256Text } from "./ops-core.mjs";
 
@@ -154,6 +155,73 @@ function smoke(checkedAt) {
     unsignedWebhookRejected: true,
     workerInventorySha256: "e".repeat(64),
   };
+}
+
+function productionSmoke() {
+  const target = config();
+  const activeDeployments = Object.values(target.workers).map(({ name }, index) => ({
+    workerName: name,
+    versions: [{ id: `fixture-version-${index}`, percentage: 100 }],
+  }));
+  return {
+    format: "guild-os-production-smoke/v1",
+    checkedAt: "2026-08-24T00:10:00.000Z",
+    source: source(),
+    target: { accountId: target.accountId, guildId, configSha256: sha256Object(target) },
+    workshop: { accessProtected: true, authenticatedServiceCheck: "passed" },
+    receiver: { status: 200, unsignedRequestRejected: true, noStore: true, nosniff: true },
+    activeDeployments,
+    deploymentVerification: {
+      executionMode: "live-cli",
+      releaseCommit: coreCommit,
+      inventorySha256: sha256Object(activeDeployments),
+    },
+  };
+}
+
+test("restore smoke binds the exact target and live verified Worker inventory", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "guild-os-smoke-binding-test-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "smoke.json");
+  const core = productionSmoke();
+  await writeFile(path, JSON.stringify({ ...core, evidenceSha256: sha256Object(core) }));
+  const result = await verifyProductionSmokeEvidence(path, config(), coreCommit);
+  assert.equal(result.targetConfigSha256, sha256Object(config()));
+  assert.equal(result.deploymentInventorySha256, sha256Object(core.activeDeployments));
+});
+
+for (const [label, mutate, message] of [
+  ["legacy unbound evidence", (value) => { delete value.target; }, /target binding/],
+  ["another account", (value) => { value.target.accountId = "b".repeat(32); }, /different restore target/],
+  ["another Guild", (value) => { value.target.guildId = "other-guild"; }, /different restore target/],
+  ["changed configuration", (value) => { value.target.configSha256 = "b".repeat(64); }, /different restore target/],
+  ["injected runner", (value) => { value.deploymentVerification.executionMode = "injected-runner"; }, /no live exact-release/],
+  ["unverified release", (value) => { delete value.deploymentVerification; }, /deployment verification/],
+  ["different release", (value) => { value.deploymentVerification.releaseCommit = "b".repeat(40); }, /no live exact-release/],
+  ["different source", (value) => { value.source.commit = "b".repeat(40); }, /exact Core candidate/],
+  ["changed version inventory", (value) => { value.activeDeployments[0].versions[0].id = "other-version"; }, /no live exact-release/],
+  ["split traffic", (value) => {
+    value.activeDeployments[0].versions[0].percentage = 50;
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /one complete active version/],
+  ["missing version", (value) => {
+    value.activeDeployments[0].versions = [];
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /one complete active version/],
+  ["duplicate Worker", (value) => {
+    value.activeDeployments[0] = value.activeDeployments[1];
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /do not match/],
+]) {
+  test(`restore rejects ${label} even with a recalculated payload checksum`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "guild-os-smoke-reject-test-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const path = join(root, "smoke.json");
+    const core = productionSmoke();
+    mutate(core);
+    await writeFile(path, JSON.stringify({ ...core, evidenceSha256: sha256Object(core) }));
+    await assert.rejects(() => verifyProductionSmokeEvidence(path, config(), coreCommit), message);
+  });
 }
 
 test("restore verification arguments require an explicit phase and absolute paths", () => {
