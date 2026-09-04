@@ -1,0 +1,24 @@
+{
+  "format": "guild-os-tracked-local-receipt-binding/v1",
+  "evidenceClass": "local-engineering-only",
+  "verifiedImplementation": {
+    "commit": "bd5fa87cda5f5db8173ecd07a0ad066e73ba4013",
+    "tree": "80be58123c6d52a1b2a6518b677f0f4e64a62090"
+  },
+  "trackedReceipt": {
+    "path": "docs/evidence/2026-09-05-bounded-local-verification.md",
+    "introducedByCommit": "2932cd621cc3a187eb883a95329f4dedc05ed60a",
+    "introducingTree": "758ed002478f4368e432eb982383327432ce5b05",
+    "gitBlob": "9b64d8bc7d72439652be47e6d5196bdeb2f23b60",
+    "sha256": "953d8c2e0e4a2ddd913bdb3a172d661ad8f4fb68ed485c6197ff100fb599ded4"
+  },
+  "relationship": "The tracked receipt commit is a documentation-only successor to the verified implementation commit. It records evidence but is not the source-under-test.",
+  "completion": {
+    "productComplete": false,
+    "candidateHostedCiVerified": false,
+    "independentPurchaserVerified": false,
+    "productionSigningCustodyVerified": false,
+    "professionalReviewVerified": false,
+    "authenticatedStagingOrProductionVerified": false
+  }
+}
