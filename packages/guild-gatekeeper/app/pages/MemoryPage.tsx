@@ -424,6 +424,18 @@ export function MemoryPage({
                 <h2>{localized(memory.title, locale)}</h2>
                 <p>{localized(memory.summary, locale)}</p>
                 <small>{t("memory.updated")} {dateFormatter.format(new Date(memory.updatedAt))}</small>
+                {!memory.capabilities.governed ? (
+                  <details className="memory-content">
+                    <summary>{t("memory.body")}</summary>
+                    <p>{localized(memory.body, locale)}</p>
+                    <dl>
+                      <dt>{t("memory.visibility")}</dt>
+                      <dd>{t(visibilityTranslationKey(memory.visibility))}</dd>
+                      <dt>{t("operations.security.classification")}</dt>
+                      <dd>{t(classificationTranslationKey(memory.classification))}</dd>
+                    </dl>
+                  </details>
+                ) : null}
               </div>
               <div className="row-actions">
                 {memory.capabilities.governed ? <button className="text-button" type="button" onClick={() => onOpenGoverned(memory.id)}><ShieldCheck size={16} />{t("memory.openWorkflow")}</button> : null}

@@ -606,6 +606,8 @@ describe("GuildIntentService", () => {
       },
     });
     const messages = request.messages as Array<{ role: string; content: string }>;
+    expect(messages[0]?.content).toContain("use that exact title");
+    expect(messages[0]?.content).toContain("Never copy the whole objective into a title");
     const userInput = JSON.parse(messages[1]?.content ?? "{}") as {
       constraints?: { safeMemoryFallback?: { kind?: string; request?: { layer?: string } } };
     };
@@ -705,6 +707,7 @@ describe("GuildIntentService", () => {
       visibility: "private",
       allowedActorIds: [],
       layer: "working",
+      title: { en: planInput().ask.query },
     });
     expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
     expect(ports.memory.propose).not.toHaveBeenCalled();

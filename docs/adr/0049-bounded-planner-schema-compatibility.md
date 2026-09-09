@@ -47,3 +47,14 @@ record source `model` before that claim is made.
 No migration, permission or credential change is required. Reverting this
 application change restores the original response-format behavior without
 rewriting saved proposals or History.
+
+## Live follow-up
+
+Release `1f776db` produced a model-sourced private Memory proposal in the
+authenticated production browser (Chronicle sequence 1508), but copied the
+objective into the title despite an explicit title request. No Act was run.
+The prompt now distinguishes instructions from resource titles and requires an
+explicitly requested title to be used exactly. The deterministic default uses
+the Ask question, not the command text. These prompt checks are regression
+guards, not proof that an arbitrary model always understands intent; the
+requested title, body and audience must be inspected again in production.

@@ -5992,6 +5992,27 @@ body.modal-open {
   background: rgba(255, 255, 255, 0.6);
 }
 
+.memory-content summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 12px;
+}
+
+.memory-content p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.memory-content dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 6px 12px;
+}
+
+.memory-content dd {
+  margin: 0;
+}
+
 .memory-row-main,
 .activity-row-main {
   min-width: 0;

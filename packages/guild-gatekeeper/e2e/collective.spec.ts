@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "playwright/test";
 import { navigateTo, navigateToMore } from "./navigation";
 
@@ -44,6 +45,29 @@ test("shows Human, Agent, Service, and Guild in one Members surface", async ({ p
   await expect(filters.getByRole("button", { name: "Research partner", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`lets a read-only member open Memory content without edit permission at ${width}px`, async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("?standalone=member");
+    await navigateTo(page, "memory");
+    const memory = page.locator(".memory-row").filter({ hasText: "Signals from the fictional coastal habitat study" });
+    await expect(memory.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+    await memory.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(memory.getByText(/The fictional sample suggests seasonal variation/)).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).analyze();
+    expect(accessibility.violations.filter((violation) =>
+      violation.impact === "critical" || violation.impact === "serious")).toEqual([]);
+    await page.getByLabel("Language", { exact: true }).selectOption("ja");
+    await expect(page.getByText(/架空のサンプルは季節変動を示唆しています/)).toBeVisible();
+    await page.getByLabel("言語", { exact: true }).selectOption("zh-CN");
+    await expect(page.getByText(/虚构样本显示可能存在季节变化/)).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    expect(errors).toEqual([]);
+  });
+}
 
 test("orders Home intents and Agent guidance from the active Guild profile", async ({ page }) => {
   const errors = collectBrowserErrors(page);

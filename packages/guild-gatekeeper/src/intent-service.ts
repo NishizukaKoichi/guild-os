@@ -1124,7 +1124,7 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
       true,
     );
   }
-  const title = input.objective.slice(0, 500);
+  const title = input.ask.query.slice(0, 500);
   const body = input.ask.answer.trim().length > 0 ? input.ask.answer : input.ask.query;
   return [{
     kind: "memory.propose",
@@ -1171,8 +1171,10 @@ function plannerPrompt(input: IntentPlannerInput, constrainedSchema = true): Rea
           "If no specialized action is justified, create one working-layer memory.propose action from the Ask answer for Human review.",
           "Every request must contain the complete fields required by the corresponding Guild OS create or assign request.",
           "When the objective asks to preserve or remember information, prefer memory.propose and use the supplied safeMemoryFallback as the structural example.",
+          "The objective is an instruction about the desired result, not the title of a resource. Never copy the whole objective into a title.",
+          "If the objective specifies a title, use that exact title in the requested locale. Adapt the example's title, summary and body to the requested result while preserving the safety constraints.",
           "New Memory drafts must remain private unless the objective explicitly requests sharing. A Space selection alone is not consent to share.",
-          "If you cannot satisfy every required request field, return the supplied safeMemoryFallback as the only action.",
+          "Use the example's defaults for unspecified fields. Include every required field, and do not add actions the objective excludes.",
           "Follow the response JSON Schema exactly. Do not move request fields onto the action object.",
           ...(constrainedSchema ? [] : [
             `Required output JSON Schema: ${JSON.stringify(plannerResponseSchema(input))}`,

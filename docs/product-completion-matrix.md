@@ -23,6 +23,15 @@ No new backup, data migration, Access change or credential entry was performed.
 The owner's existing code-only release authorization supersedes the historical
 local-only restriction below, not the independent purchaser or legal gates.
 
+The subsequent exact release `1f776db061c3e16f73892de6114d01fb3ebfd4b5`
+passed CI `34354819085` and five-Worker production verification. Human browser
+Chronicle sequence 1508 recorded `source: model` and no fallback reason; its
+Memory preview was private. The requested short title was not followed, so no
+Act was executed and section 17 remains partial. The follow-up removes the
+instruction-as-title default and distinguishes the requested title from the
+objective in the model contract. Inference success alone is not semantic
+acceptance of the requested result.
+
 Rows below retain their historical implementation declarations, not a fresh attestation of every
 production boundary. On 2026-09-05 the clean baseline was `c7183f13219b47ab7bf00c2220e4976cb2dffa0f`;
 GitHub run `33397241955` was observed successful for that SHA. Distribution was separately observed
