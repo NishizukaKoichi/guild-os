@@ -807,6 +807,13 @@ export interface UiIntentEvidence {
 }
 
 export interface UiIntentAction {
+  memoryPreview?: {
+    body: string;
+    visibility: CreateMemoryRequest["visibility"];
+    classification: CreateMemoryRequest["classification"];
+    spaceId: string | null;
+    allowedActorIds: readonly string[];
+  } | null;
   position: number;
   kind: UiIntentActionKind;
   riskLevel: RiskLevel;

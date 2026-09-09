@@ -28,7 +28,7 @@ import type {
 import type { AppPage } from "../components/AppShell";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
-import { useI18n } from "../i18n";
+import { classificationTranslationKey, useI18n, visibilityTranslationKey } from "../i18n";
 
 function proposalStatusKey(status: UiIntentProposal["status"]) {
   switch (status) {
@@ -544,6 +544,16 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                             </span>
                           </header>
                           <dl>
+                            {action.memoryPreview ? <>
+                              <div>
+                                <dt>{t("memory.visibility")}</dt>
+                                <dd>{t(visibilityTranslationKey(action.memoryPreview.visibility))}</dd>
+                              </div>
+                              <div>
+                                <dt>{t("operations.security.classification")}</dt>
+                                <dd>{t(classificationTranslationKey(action.memoryPreview.classification))}</dd>
+                              </div>
+                            </> : null}
                             <div>
                               <dt>{t("ask.intent.risk")}</dt>
                               <dd>{t(riskKey(action.riskLevel))}</dd>
@@ -587,6 +597,14 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                               <dd>{t(rollbackKey(action.rollbackKind))}</dd>
                             </div>
                           </dl>
+                          {action.memoryPreview ? (
+                            <details>
+                              <summary>{t("memory.body")}</summary>
+                              <p className="intent-memory-preview">{action.memoryPreview.body}</p>
+                              {action.memoryPreview.spaceId ? <code>{action.memoryPreview.spaceId}</code> : null}
+                              {action.memoryPreview.allowedActorIds.map((id) => <code key={id}>{id}</code>)}
+                            </details>
+                          ) : null}
                           <details>
                             <summary>{t("ask.intent.technicalDetails")}</summary>
                             <code>{action.resourceId}</code>

@@ -4211,6 +4211,13 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
           resourceType: "memory",
           resourceId: memoryResourceId,
           resourceLabel: input.objective.trim(),
+          memoryPreview: {
+            body: ask.answer,
+            visibility: "private",
+            classification: "internal",
+            spaceId: input.spaceId,
+            allowedActorIds: [],
+          },
           agentActorId: null,
           agentName: null,
           executingActorId: bootstrap.accountId,

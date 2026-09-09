@@ -3960,6 +3960,13 @@ body.modal-open {
   font-size: 11px;
 }
 
+.intent-memory-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
 .intent-action-body details {
   color: var(--text-muted);
   font-size: 11px;

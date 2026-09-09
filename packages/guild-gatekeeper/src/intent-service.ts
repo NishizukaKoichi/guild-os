@@ -1135,7 +1135,8 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
       title: { [input.locale]: title },
       summary: { [input.locale]: input.ask.query.slice(0, 2_000) },
       body: { [input.locale]: body.slice(0, 100_000) },
-      visibility: input.spaceId === null ? "guild" : "space",
+      // Reading an answer does not authorize sharing its contents with other members.
+      visibility: "private",
       classification: "internal",
       allowedActorIds: [],
       sourceIds: input.ask.evidence
@@ -1152,7 +1153,7 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
   }];
 }
 
-function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unknown>> {
+function plannerPrompt(input: IntentPlannerInput, constrainedSchema = true): Readonly<Record<string, unknown>> {
   const safeMemoryFallback = input.allowedActionKinds.includes("memory.propose")
     ? deterministicFallback(input)[0]
     : null;
@@ -1170,8 +1171,12 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
           "If no specialized action is justified, create one working-layer memory.propose action from the Ask answer for Human review.",
           "Every request must contain the complete fields required by the corresponding Guild OS create or assign request.",
           "When the objective asks to preserve or remember information, prefer memory.propose and use the supplied safeMemoryFallback as the structural example.",
+          "New Memory drafts must remain private unless the objective explicitly requests sharing. A Space selection alone is not consent to share.",
           "If you cannot satisfy every required request field, return the supplied safeMemoryFallback as the only action.",
           "Follow the response JSON Schema exactly. Do not move request fields onto the action object.",
+          ...(constrainedSchema ? [] : [
+            `Required output JSON Schema: ${JSON.stringify(plannerResponseSchema(input))}`,
+          ]),
         ].join(" "),
       },
       {
@@ -1194,10 +1199,10 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
     ],
     temperature: 0,
     max_tokens: 2_048,
-    response_format: {
+    response_format: constrainedSchema ? {
       type: "json_schema",
       json_schema: plannerResponseSchema(input),
-    },
+    } : { type: "json_object" },
   };
 }
 
@@ -1205,7 +1210,16 @@ export function createModelIntentPlanner(runner: ConfiguredIntentModelRunner): I
   return {
     async plan(input, signal) {
       if (signal.aborted) throw new IntentServiceError("planner_timeout", "Planner timed out.", true);
-      const result = await runner("plan", plannerPrompt(input), null);
+      let result: unknown;
+      try {
+        result = await runner("plan", plannerPrompt(input), null);
+      } catch (error) {
+        if (signal.aborted) throw new IntentServiceError("planner_timeout", "Planner timed out.", true);
+        if (plannerFailureReason(error) !== "provider_schema_rejected") throw error;
+        // Some providers cannot compile this union schema. This read-only retry
+        // still passes through the same server-side parser and authority checks.
+        result = await runner("plan", plannerPrompt(input, false), null);
+      }
       if (signal.aborted) throw new IntentServiceError("planner_timeout", "Planner timed out.", true);
       return result;
     },

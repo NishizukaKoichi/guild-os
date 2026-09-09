@@ -69,6 +69,9 @@ test("keeps Ask read-only and executes an inspectable Plan one durable action at
 
   const actions = page.locator(".intent-action");
   await expect(actions).toHaveCount(3);
+  await expect(actions.nth(0).getByText("Owner only", { exact: true })).toBeVisible();
+  await actions.nth(0).getByText("Content", { exact: true }).click();
+  await expect(actions.nth(0).locator(".intent-memory-preview")).toBeVisible();
   await expect(actions.nth(0).getByText("Pending", { exact: true })).toBeVisible();
   await expect(actions.nth(1).getByText("Pending", { exact: true })).toBeVisible();
 
@@ -121,8 +124,10 @@ test("keeps Plan inspection and Act confirmation usable on a phone viewport", as
   await page.getByLabel("Language", { exact: true }).selectOption("ja");
   await expect(page.getByRole("heading", { name: "確認してから、一件ずつ実行", exact: true })).toBeVisible();
   await expect(page.getByText("作業用の記憶を提案", { exact: true })).toBeVisible();
+  await expect(page.getByText("所有者のみ", { exact: true })).toBeVisible();
   await page.getByLabel("言語", { exact: true }).selectOption("zh-CN");
   await expect(page.getByRole("heading", { name: "检查、确认，然后逐项执行", exact: true })).toBeVisible();
   await expect(page.getByText("提议工作记忆", { exact: true })).toBeVisible();
+  await expect(page.getByText("仅所有者", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });

@@ -1,6 +1,6 @@
 # Guild OS Product Completion Matrix
 
-Updated: 2026-09-05
+Updated: 2026-09-09
 
 Authority: [Product specification](product-specification.md)
 
@@ -9,6 +9,19 @@ real data and authorization boundary plus automated or operational evidence. A r
 when one required behavior is absent, even if most of the area exists.
 
 ## Current audit qualification
+
+The 2026-09-09 owner-authorized code-only production verification observed all
+five Workers on `ae79fe0667e0f48c4f9b93ffe7b4e421f3b77ba1`, exact successful
+GitHub CI run `34352758953`, PostgreSQL 18, verified TLS, 51 migrations and 96
+forced-RLS tables. An existing Human Google session completed grounded Ask and
+created a Plan without Act. Chronicle sequence 1505 recorded
+`provider_schema_rejected` and `deterministic_fallback`. This is direct evidence
+of a remaining Plan defect, not successful model planning. ADRs 0048 and 0049
+repair fallback privacy, content inspection and bounded format compatibility;
+that successor still needs its own exact-release live model verification.
+No new backup, data migration, Access change or credential entry was performed.
+The owner's existing code-only release authorization supersedes the historical
+local-only restriction below, not the independent purchaser or legal gates.
 
 Rows below retain their historical implementation declarations, not a fresh attestation of every
 production boundary. On 2026-09-05 the clean baseline was `c7183f13219b47ab7bf00c2220e4976cb2dffa0f`;
@@ -68,7 +81,7 @@ purchaser or production gate; all 42 declarations and remaining requirements bel
 | 14 | Decision and governance | Implemented and verified | Every authoritative method is first-class, with additive fail-closed database compatibility, Constitution, transfer, Break Glass, evidence, and quorum tests. |
 | 15 | Standard navigation and contextual language | Implemented and verified | Permission-aware Home/Ask/Members/Memory/Activity/More navigation, contextual vocabulary, direct links, history, and responsive navigation are covered by E2E. |
 | 16 | Home | Implemented and verified | Permission-aware action-first Home, attention, partial failure, Agents, updates, and risks have E2E coverage. |
-| 17 | Ask / Plan / Act | Implemented and verified | Read-only Ask, citations, inspectable proposals, one-at-a-time execution, Actor/Connection, cost/time estimate, effect scope, approval, and rollback semantics are represented and tested. The exact production Runtime also completed a Human grounded Ask, citation review, deterministic fallback Plan, explicit confirmation, one-action Act, Working Memory creation, and matching append-only History. |
+| 17 | Ask / Plan / Act | Partially implemented | Read-only Ask, citations, inspectable proposals, one-at-a-time execution and History are implemented and previously exercised in production. Live verification on 2026-09-09 isolated a provider schema rejection; a deterministic fallback is not model-generated Plan success. ADRs 0048/0049 add private draft defaults, exact content/audience preview and a bounded schema-compatibility retry without relaxing authorization. A successor must pass authenticated live model planning and the resulting inspected Act path before this row is restored to verified. |
 | 18 | Agent | Implemented and verified | Limits, policy intersection, approvals, delegation, Kill, idempotency, authority recheck, and execution evidence exist. |
 | 19 | Connections | Implemented and verified | Cloudflare OS Gatekeeper, MCP, HTTPS Webhook, Service Binding, Email, Calendar, File Storage, Git Repository, External API, and Model Provider use scoped purchaser-owned adapters, Secret references, health, and revocation. |
 | 20 | Automation | Implemented and verified | Schedules, event triggers, waits, retry, delegation, deduplication, Kill, and offboarding cancellation exist. |

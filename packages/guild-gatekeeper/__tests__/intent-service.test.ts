@@ -500,6 +500,57 @@ function harness(options: HarnessOptions = {}) {
 }
 
 describe("GuildIntentService", () => {
+  const compatiblePlannerInput = {
+    objective: "Preserve the onboarding answer for review.",
+    locale: "en" as const,
+    ask: planInput().ask,
+    spaceId: IDS.space,
+    allowedActionKinds: ["memory.propose" as const],
+    availableAgents: [],
+  };
+
+  it("retries rejected provider schemas once using JSON Mode with the full contract", async () => {
+    const result = memoryModelPlan(["Compatible output"]);
+    const runner = vi.fn()
+      .mockRejectedValueOnce(new Error("JSON Mode couldn't be met"))
+      .mockResolvedValueOnce(result);
+    const output = await createModelIntentPlanner(runner)
+      .plan(compatiblePlannerInput, new AbortController().signal);
+    expect(output).toEqual(result);
+    expect(runner).toHaveBeenCalledTimes(2);
+    const retry = runner.mock.calls[1]?.[1] as Record<string, unknown>;
+    expect(retry).toMatchObject({ response_format: { type: "json_object" }, max_tokens: 2_048 });
+    expect(JSON.stringify(retry.messages)).toContain("Required output JSON Schema");
+    expect(JSON.stringify(retry.messages)).toContain("additionalProperties");
+  });
+
+  it.each(["HTTP 401", "HTTP 429", "timeout", "unavailable"])(
+    "does not retry a provider failure unrelated to schema compatibility: %s", async (message) => {
+      const runner = vi.fn().mockRejectedValue(new Error(message));
+      await expect(createModelIntentPlanner(runner)
+        .plan(compatiblePlannerInput, new AbortController().signal)).rejects.toThrow(message);
+      expect(runner).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("bounds a second schema failure and never starts a third model call", async () => {
+    const runner = vi.fn().mockRejectedValue(new Error("JSON Mode couldn't be met"));
+    await expect(createModelIntentPlanner(runner)
+      .plan(compatiblePlannerInput, new AbortController().signal)).rejects.toThrow("JSON Mode");
+    expect(runner).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry after the overall planner deadline expires", async () => {
+    const controller = new AbortController();
+    const runner = vi.fn(async () => {
+      controller.abort();
+      throw new Error("JSON Mode couldn't be met");
+    });
+    await expect(createModelIntentPlanner(runner)
+      .plan(compatiblePlannerInput, controller.signal)).rejects.toMatchObject({ code: "planner_timeout" });
+    expect(runner).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["JSON Mode couldn't be met: private-input", "provider_schema_rejected"],
     ["HTTP 401 private-key", "provider_authentication"],
@@ -650,6 +701,11 @@ describe("GuildIntentService", () => {
     expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
     expect(result.proposal.actions).toHaveLength(1);
     expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(result.proposal.actions[0]?.action.request).toMatchObject({
+      visibility: "private",
+      allowedActorIds: [],
+      layer: "working",
+    });
     expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
     expect(ports.memory.propose).not.toHaveBeenCalled();
   });

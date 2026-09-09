@@ -52,7 +52,14 @@ function proposal(expiresAt = "2026-08-15T00:00:00.000Z"): IntentProposalDetail 
     action: {
       memoryId: IDS.memory,
       spaceId: IDS.space,
-      request: { title: { en: "Draft the shared method" } },
+      request: {
+        title: { en: "Draft the shared method" },
+        body: { en: "Exact proposed content", ja: "Japanese proposed content" },
+        visibility: "private",
+        classification: "confidential",
+        spaceId: IDS.space,
+        allowedActorIds: [],
+      },
     },
   }, {
     ...actionBase(1, 1),
@@ -189,6 +196,14 @@ describe("intent management adapter presentation", () => {
     const ui = intentProposalForUi(proposal(), context(), new Date(NOW));
 
     expect(ui.actions).toHaveLength(5);
+    expect(ui.actions[0]?.memoryPreview).toEqual({
+      body: "Exact proposed content",
+      visibility: "private",
+      classification: "confidential",
+      spaceId: IDS.space,
+      allowedActorIds: [],
+    });
+    expect(ui.actions[1]?.memoryPreview).toBeNull();
     expect(ui.actions.map((action) => action.kind)).toEqual([
       "memory.propose",
       "activity.create",
