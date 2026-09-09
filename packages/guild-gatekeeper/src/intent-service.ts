@@ -1638,6 +1638,7 @@ export class GuildIntentService {
         ...action,
         request: parseMemoryRequest({
           ...action.request,
+          summary: { [input.locale]: input.ask.query.slice(0, 2_000) },
           body: { [input.locale]: input.ask.answer || input.ask.query },
           sourceIds: input.ask.evidence
             .filter((evidence) => evidence.sourceType === "memory" && UUID_PATTERN.test(evidence.sourceId))

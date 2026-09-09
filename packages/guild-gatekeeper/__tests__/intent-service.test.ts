@@ -707,6 +707,7 @@ describe("GuildIntentService", () => {
     expect(result.source).toBe("model");
     expect(result.proposal.actions[0]?.action.request).toMatchObject({
       title: { [locale]: "Requested title" },
+      summary: { [locale]: input.ask.query },
       body: { [locale]: input.ask.answer },
       provenance: { contentSource: "authorized_ask_answer" },
     });

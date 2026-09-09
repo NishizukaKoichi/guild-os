@@ -24,6 +24,11 @@ Unchecking the option retains model-authored draft content. Older callers that
 omit the option retain their contract. Activity, Decision and Agent actions
 are unchanged. No existing proposal, Memory or schema is rewritten.
 
+Live afed164 verification completed one private Memory Act with the requested
+title and unchanged answer, but the model's summary still described the
+instruction rather than the question. Preserve mode therefore also binds the
+summary to the Ask question. The model-authored mode remains unchanged.
+
 ## Verification and limits
 
 Unit tests cover EN/JA/zh-CN content binding through Act, explicit draft mode,

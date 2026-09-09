@@ -42,6 +42,15 @@ than relying on another prompt-only guarantee. Fresh live evidence is required
 for that successor. A deployment-time RPC reset recovered after an outer-page
 reload; it is not recorded as zero-error uninterrupted service.
 
+Release `afed164c228ef75611fd4ef5af6cb9e18b02f4b4` passed exact CI
+`34360222064`, 81 local E2E journeys and five-Worker live verification. Its
+Human-authenticated model Plan and one-action Act persisted a private Memory
+with the requested title and unchanged authorized answer; Chronicle sequences
+1515-1518 and attempt count one were observed. The summary still described the
+instruction, so ADR 0052 also binds preserve-mode summaries to the Ask question.
+The deployment-time RPC reset needed an outer reload again. This owner-controlled
+journey does not close independent purchaser, Distribution or custody gates.
+
 Rows below retain their historical implementation declarations, not a fresh attestation of every
 production boundary. On 2026-09-05 the clean baseline was `c7183f13219b47ab7bf00c2220e4976cb2dffa0f`;
 GitHub run `33397241955` was observed successful for that SHA. Distribution was separately observed
