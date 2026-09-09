@@ -86,6 +86,7 @@ class FakeIntentStore implements IntentProposalStore {
   proposal: IntentProposalDetail | null = null;
   agentTerminalState: "running" | "succeeded" | "failed" = "running";
   readonly chronicleActions: string[] = [];
+  readonly proposalEvents: CreateProposalInput["chronicleEvent"][] = [];
 
   constructor(guildId: string) {
     this.guildId = guildId;
@@ -102,6 +103,7 @@ class FakeIntentStore implements IntentProposalStore {
 
   async createProposal(input: CreateProposalInput) {
     if (this.proposal) return { created: false, proposal: this.proposal };
+    this.proposalEvents.push(input.chronicleEvent);
     const maximumRiskLevel = Math.max(...input.actions.map((action) => action.riskLevel)) as 0 | 1 | 2 | 3;
     this.proposal = {
       id: input.id,
@@ -498,6 +500,36 @@ function harness(options: HarnessOptions = {}) {
 }
 
 describe("GuildIntentService", () => {
+  it.each([
+    ["JSON Mode couldn't be met: private-input", "provider_schema_rejected"],
+    ["HTTP 401 private-key", "provider_authentication"],
+    ["HTTP 429 private-input", "provider_rate_limit"],
+    ["HTTP 400 private-input", "provider_request_rejected"],
+    ["Upstream timeout private-input", "timeout"],
+    ["https://private.example/?token=private-key", "provider_unavailable"],
+  ])("records only a safe fallback category for %s", async (message, reason) => {
+    const { service, store, ports } = harness({ plannerFailure: new Error(message) });
+    await service.planFromAsk(planInput());
+    const evidence = JSON.stringify(store.proposalEvents);
+    expect(evidence).toContain(`\"fallbackReason\":\"${reason}\"`);
+    expect(evidence).not.toContain(message);
+    expect(evidence).not.toContain("private-key");
+    expect(evidence).not.toContain("private-input");
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ actions: [] }, "empty_actions"],
+    [{ response: "not JSON" }, "invalid_json"],
+    [{ actions: [{ kind: "memory.propose", riskLevel: 1, title: "wrong level" }] }, "invalid_action_envelope"],
+    [{ actions: [{ kind: "memory.propose", riskLevel: 1, request: {} }] }, "invalid_action_request"],
+  ])("distinguishes invalid planner output without logging its content", async (plannerResult, reason) => {
+    const { service, store } = harness({ plannerResult });
+    await service.planFromAsk(planInput());
+    expect(JSON.stringify(store.proposalEvents)).toContain(`\"fallbackReason\":\"${reason}\"`);
+    expect(JSON.stringify(store.proposalEvents)).not.toContain("wrong level");
+  });
+
   it("requests schema-bound Workers AI output and includes the safe Memory example", async () => {
     const runner = vi.fn(async () => memoryModelPlan(["Schema-bound output"]));
     const planner = createModelIntentPlanner(runner);

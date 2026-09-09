@@ -141,6 +141,24 @@ class PlannerActionRequestError extends IntentServiceError {
   }
 }
 
+function plannerFailureReason(error: unknown): string {
+  if (error instanceof PlannerNoProposalError) return "empty_actions";
+  if (error instanceof PlannerResponseFormatError) return "invalid_json";
+  if (error instanceof PlannerActionEnvelopeError) return "invalid_action_envelope";
+  if (error instanceof PlannerActionRequestError) return "invalid_action_request";
+  if (error instanceof IntentServiceError && error.code === "planner_timeout") return "timeout";
+  if (error instanceof Error) {
+    // Only fixed categories cross the diagnostic boundary, never provider text or inputs.
+    const message = error.message.slice(0, 4_096);
+    if (/json mode|json schema|json_schema|grammar/i.test(message)) return "provider_schema_rejected";
+    if (/\b(?:401|403)\b/.test(message)) return "provider_authentication";
+    if (/\b429\b/.test(message)) return "provider_rate_limit";
+    if (/\b400\b/.test(message)) return "provider_request_rejected";
+    if (/timed?\s*out|timeout/i.test(message)) return "timeout";
+  }
+  return "provider_unavailable";
+}
+
 export class IntentActionExecutionError extends Error {
   readonly code: string;
   readonly retryable: boolean;
@@ -1556,8 +1574,10 @@ export class GuildIntentService {
       availableAgents: input.availableAgents ?? [],
     };
     let source: "model" | "deterministic_fallback" = "deterministic_fallback";
+    let fallbackReason: string | null = null;
     let planned: PlannedAction[] | null = null;
     if (this.#planner === null) {
+      fallbackReason = "not_configured";
       planned = deterministicFallback(plannerInput);
     } else {
       let raw: unknown;
@@ -1566,7 +1586,8 @@ export class GuildIntentService {
           this.#plannerTimeoutMs,
           (signal) => this.#planner!.plan(plannerInput, signal),
         );
-      } catch {
+      } catch (error) {
+        fallbackReason = plannerFailureReason(error);
         planned = deterministicFallback(plannerInput);
         raw = undefined;
       }
@@ -1579,6 +1600,7 @@ export class GuildIntentService {
               !(error instanceof PlannerActionEnvelopeError) &&
               !(error instanceof PlannerActionRequestError) &&
               !(error instanceof PlannerResponseFormatError)) throw error;
+          fallbackReason = plannerFailureReason(error);
           planned = deterministicFallback(plannerInput);
         }
       }
@@ -1634,7 +1656,7 @@ export class GuildIntentService {
         input.requestId,
         input.spaceId,
         "intent.proposal.created",
-        { source, actionCount: actions.length, askIsReadOnlyContext: true },
+        { source, actionCount: actions.length, askIsReadOnlyContext: true, fallbackReason },
         now,
       ),
     });
