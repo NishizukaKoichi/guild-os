@@ -131,17 +131,24 @@ function actionIcon(kind: UiIntentAction["kind"]) {
   return <ListChecks size={18} />;
 }
 
-export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }: {
+export interface AskSession {
+  question: string;
+  response: AskGuildResponse | null;
+  objective: string;
+}
+
+export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRequestId }: {
   api: GuildUiApi;
+  session: AskSession;
   onOpenCitation(citation: AskGuildCitation): void;
   onNavigate(page: AppPage): void;
   focusRequestId?: number;
 }) {
   const { locale, t } = useI18n();
   const [mode, setMode] = useState<"ask" | "plan" | "act">("ask");
-  const [question, setQuestion] = useState("");
-  const [response, setResponse] = useState<AskGuildResponse | null>(null);
-  const [objective, setObjective] = useState("");
+  const [question, setQuestion] = useState(session.question);
+  const [response, setResponse] = useState<AskGuildResponse | null>(session.response);
+  const [objective, setObjective] = useState(session.objective);
   const [proposals, setProposals] = useState<readonly UiIntentProposal[]>([]);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [askBusy, setAskBusy] = useState(false);
@@ -154,6 +161,10 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
   const questionRef = useRef<HTMLTextAreaElement>(null);
   const answerRef = useRef<HTMLElement>(null);
   const handledFocusRequest = useRef<number | null>(null);
+
+  useEffect(() => {
+    Object.assign(session, { question, response, objective });
+  }, [session, question, response, objective]);
 
   const selectedProposal = useMemo(
     () => proposals.find((proposal) => proposal.id === selectedProposalId) ?? null,
@@ -600,7 +611,9 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                           {action.memoryPreview ? (
                             <details>
                               <summary>{t("memory.body")}</summary>
-                              <p className="intent-memory-preview">{action.memoryPreview.body}</p>
+                              <div className="intent-memory-preview" role="region" aria-label={t("memory.body")} tabIndex={0}>
+                                {action.memoryPreview.body}
+                              </div>
                               {action.memoryPreview.spaceId ? <code>{action.memoryPreview.spaceId}</code> : null}
                               {action.memoryPreview.allowedActorIds.map((id) => <code key={id}>{id}</code>)}
                             </details>

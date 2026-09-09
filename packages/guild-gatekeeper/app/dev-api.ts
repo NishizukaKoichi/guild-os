@@ -1706,7 +1706,7 @@ export function createDevelopmentApi(mode: string): GuildUiApi {
   let intentProposals: UiIntentProposal[] = [];
 
   function demoAsk(locale: "en" | "ja" | "zh-CN"): AskGuildResponse {
-    const source = knowledge[0]!;
+    const source = knowledge.find((item) => item.state === "canonical") ?? knowledge[0]!;
     const title = source.title[locale] ?? source.title.ja ?? source.title.en ?? "Knowledge";
     const summary = source.summary[locale] ?? source.summary.ja ?? source.summary.en ?? "";
     const answer = locale === "ja"

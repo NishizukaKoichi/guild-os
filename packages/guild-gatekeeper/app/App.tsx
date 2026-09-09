@@ -25,7 +25,7 @@ import type {
 import { AppShell, type AppPage } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
 import { ActivityPage } from "./pages/ActivityPage";
-import { AskGuildPage } from "./pages/AskGuildPage";
+import { AskGuildPage, type AskSession } from "./pages/AskGuildPage";
 import { ChroniclePage } from "./pages/ChroniclePage";
 import { DecisionsPage } from "./pages/DecisionsPage";
 import { ContributionsPage } from "./pages/ContributionsPage";
@@ -81,6 +81,7 @@ export function App({ api }: { api: GuildUiApi }) {
   } | null>(null);
   const quickActionSequence = useRef(0);
   const [knowledgeTarget, setKnowledgeTarget] = useState<string | null>(null);
+  const askSession = useRef<AskSession>({ question: "", response: null, objective: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,6 +105,9 @@ export function App({ api }: { api: GuildUiApi }) {
   }, [api]);
 
   const load = useCallback(async () => {
+    // Keep citation round trips in memory, but never carry answers into a new
+    // bootstrap/authentication context or persist them in browser storage.
+    askSession.current = { question: "", response: null, objective: "" };
     setLoading(true);
     setError(null);
     try {
@@ -236,9 +240,9 @@ export function App({ api }: { api: GuildUiApi }) {
     await loadMemberData(activeBootstrap);
   }
 
-  function navigate(nextPage: AppPage, options: { replace?: boolean } = {}) {
+  function navigate(nextPage: AppPage, options: { replace?: boolean; knowledgeId?: string } = {}) {
     const destination = permittedPages.has(nextPage) ? nextPage : "home";
-    if (nextPage === "knowledge") setKnowledgeTarget(null);
+    if (nextPage === "knowledge") setKnowledgeTarget(options.knowledgeId ?? null);
     if (destination !== page || !window.location.hash.startsWith("#/")) {
       writePageLocation(destination, options);
     }
@@ -286,12 +290,12 @@ export function App({ api }: { api: GuildUiApi }) {
       {visiblePage === "ask" ? (
         <AskGuildPage
           api={api}
+          session={askSession.current}
           onNavigate={navigate}
           focusRequestId={quickActionRequest?.action === "ask" ? quickActionRequest.id : undefined}
           onOpenCitation={(citation) => {
             if (citation.resourceType === "memory") {
-              if (citation.governed) setKnowledgeTarget(citation.resourceId);
-              navigate(citation.governed ? "knowledge" : "memory");
+              navigate(citation.governed ? "knowledge" : "memory", { knowledgeId: citation.resourceId });
             } else {
               navigate(citation.resourceType === "actor" ? "members" : "decisions");
             }
@@ -305,8 +309,7 @@ export function App({ api }: { api: GuildUiApi }) {
           directory={directory}
           createRequestId={quickActionRequest?.action === "remember" ? quickActionRequest.id : undefined}
           onOpenGoverned={(memoryId) => {
-            setKnowledgeTarget(memoryId);
-            navigate("knowledge");
+            navigate("knowledge", { knowledgeId: memoryId });
           }}
         />
       ) : null}
@@ -327,8 +330,7 @@ export function App({ api }: { api: GuildUiApi }) {
           api={api}
           directory={directory}
           onOpenKnowledge={(knowledgeId) => {
-            setKnowledgeTarget(knowledgeId);
-            navigate("knowledge");
+            navigate("knowledge", { knowledgeId });
           }}
         />
       ) : null}
@@ -338,8 +340,7 @@ export function App({ api }: { api: GuildUiApi }) {
           collective={collective}
           directory={directory}
           onOpenKnowledge={(knowledgeId) => {
-            setKnowledgeTarget(knowledgeId);
-            navigate("knowledge");
+            navigate("knowledge", { knowledgeId });
           }}
         />
       ) : null}

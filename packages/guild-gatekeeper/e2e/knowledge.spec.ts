@@ -91,3 +91,37 @@ test("keeps the Knowledge workflow inside a mobile viewport", async ({ page }) =
   expect(viewport.scrollWidth).toBe(viewport.clientWidth);
   expect(errors).toEqual([]);
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`opens the cited item rather than the first draft and retains Ask on return at ${width}px`, async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("?standalone=root");
+    await navigateToMore(page, "Canonical memory");
+    await page.getByRole("button", { name: "Create Knowledge", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Title", { exact: true }).fill("Unrelated unpublished draft");
+    await dialog.getByLabel("Summary", { exact: true }).fill("Not the citation target.");
+    await dialog.getByLabel("Content", { exact: true }).fill("Unapproved fixture content.");
+    await dialog.getByLabel("Change note", { exact: true }).fill("Test exact citation navigation.");
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Unrelated unpublished draft", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Ask", exact: true }).click();
+    const question = "Which approved source should this research use?";
+    await page.getByLabel("Question", { exact: true }).fill(question);
+    await page.getByRole("button", { name: "Get answer", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Answer", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Research intake procedure/ }).click();
+    await expect(page.getByRole("heading", { name: "Research intake procedure", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Unrelated unpublished draft", exact: true })).toHaveCount(0);
+    await page.goBack();
+    await expect(page.getByLabel("Question", { exact: true })).toHaveValue(question);
+    await expect(page.getByRole("heading", { name: "Answer", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Turn this answer into a plan", exact: true })).toBeVisible();
+    const stored = await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }));
+    expect(stored).not.toContain(question);
+    await page.reload();
+    await expect(page.getByLabel("Question", { exact: true })).toHaveValue("");
+    expect(errors).toEqual([]);
+  });
+}
