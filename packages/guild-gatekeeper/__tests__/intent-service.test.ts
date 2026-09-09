@@ -86,6 +86,7 @@ class FakeIntentStore implements IntentProposalStore {
   proposal: IntentProposalDetail | null = null;
   agentTerminalState: "running" | "succeeded" | "failed" = "running";
   readonly chronicleActions: string[] = [];
+  readonly proposalEvents: CreateProposalInput["chronicleEvent"][] = [];
 
   constructor(guildId: string) {
     this.guildId = guildId;
@@ -102,6 +103,7 @@ class FakeIntentStore implements IntentProposalStore {
 
   async createProposal(input: CreateProposalInput) {
     if (this.proposal) return { created: false, proposal: this.proposal };
+    this.proposalEvents.push(input.chronicleEvent);
     const maximumRiskLevel = Math.max(...input.actions.map((action) => action.riskLevel)) as 0 | 1 | 2 | 3;
     this.proposal = {
       id: input.id,
@@ -498,6 +500,87 @@ function harness(options: HarnessOptions = {}) {
 }
 
 describe("GuildIntentService", () => {
+  const compatiblePlannerInput = {
+    objective: "Preserve the onboarding answer for review.",
+    locale: "en" as const,
+    ask: planInput().ask,
+    spaceId: IDS.space,
+    allowedActionKinds: ["memory.propose" as const],
+    availableAgents: [],
+  };
+
+  it("retries rejected provider schemas once using JSON Mode with the full contract", async () => {
+    const result = memoryModelPlan(["Compatible output"]);
+    const runner = vi.fn()
+      .mockRejectedValueOnce(new Error("JSON Mode couldn't be met"))
+      .mockResolvedValueOnce(result);
+    const output = await createModelIntentPlanner(runner)
+      .plan(compatiblePlannerInput, new AbortController().signal);
+    expect(output).toEqual(result);
+    expect(runner).toHaveBeenCalledTimes(2);
+    const retry = runner.mock.calls[1]?.[1] as Record<string, unknown>;
+    expect(retry).toMatchObject({ response_format: { type: "json_object" }, max_tokens: 2_048 });
+    expect(JSON.stringify(retry.messages)).toContain("Required output JSON Schema");
+    expect(JSON.stringify(retry.messages)).toContain("additionalProperties");
+  });
+
+  it.each(["HTTP 401", "HTTP 429", "timeout", "unavailable"])(
+    "does not retry a provider failure unrelated to schema compatibility: %s", async (message) => {
+      const runner = vi.fn().mockRejectedValue(new Error(message));
+      await expect(createModelIntentPlanner(runner)
+        .plan(compatiblePlannerInput, new AbortController().signal)).rejects.toThrow(message);
+      expect(runner).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("bounds a second schema failure and never starts a third model call", async () => {
+    const runner = vi.fn().mockRejectedValue(new Error("JSON Mode couldn't be met"));
+    await expect(createModelIntentPlanner(runner)
+      .plan(compatiblePlannerInput, new AbortController().signal)).rejects.toThrow("JSON Mode");
+    expect(runner).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry after the overall planner deadline expires", async () => {
+    const controller = new AbortController();
+    const runner = vi.fn(async () => {
+      controller.abort();
+      throw new Error("JSON Mode couldn't be met");
+    });
+    await expect(createModelIntentPlanner(runner)
+      .plan(compatiblePlannerInput, controller.signal)).rejects.toMatchObject({ code: "planner_timeout" });
+    expect(runner).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["JSON Mode couldn't be met: private-input", "provider_schema_rejected"],
+    ["HTTP 401 private-key", "provider_authentication"],
+    ["HTTP 429 private-input", "provider_rate_limit"],
+    ["HTTP 400 private-input", "provider_request_rejected"],
+    ["Upstream timeout private-input", "timeout"],
+    ["https://private.example/?token=private-key", "provider_unavailable"],
+  ])("records only a safe fallback category for %s", async (message, reason) => {
+    const { service, store, ports } = harness({ plannerFailure: new Error(message) });
+    await service.planFromAsk(planInput());
+    const evidence = JSON.stringify(store.proposalEvents);
+    expect(evidence).toContain(`\"fallbackReason\":\"${reason}\"`);
+    expect(evidence).not.toContain(message);
+    expect(evidence).not.toContain("private-key");
+    expect(evidence).not.toContain("private-input");
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ actions: [] }, "empty_actions"],
+    [{ response: "not JSON" }, "invalid_json"],
+    [{ actions: [{ kind: "memory.propose", riskLevel: 1, title: "wrong level" }] }, "invalid_action_envelope"],
+    [{ actions: [{ kind: "memory.propose", riskLevel: 1, request: {} }] }, "invalid_action_request"],
+  ])("distinguishes invalid planner output without logging its content", async (plannerResult, reason) => {
+    const { service, store } = harness({ plannerResult });
+    await service.planFromAsk(planInput());
+    expect(JSON.stringify(store.proposalEvents)).toContain(`\"fallbackReason\":\"${reason}\"`);
+    expect(JSON.stringify(store.proposalEvents)).not.toContain("wrong level");
+  });
+
   it("requests schema-bound Workers AI output and includes the safe Memory example", async () => {
     const runner = vi.fn(async () => memoryModelPlan(["Schema-bound output"]));
     const planner = createModelIntentPlanner(runner);
@@ -523,6 +606,8 @@ describe("GuildIntentService", () => {
       },
     });
     const messages = request.messages as Array<{ role: string; content: string }>;
+    expect(messages[0]?.content).toContain("use that exact title");
+    expect(messages[0]?.content).toContain("Never copy the whole objective into a title");
     const userInput = JSON.parse(messages[1]?.content ?? "{}") as {
       constraints?: { safeMemoryFallback?: { kind?: string; request?: { layer?: string } } };
     };
@@ -610,6 +695,41 @@ describe("GuildIntentService", () => {
     expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
   });
 
+  it.each(["en", "ja", "zh-CN"] as const)("binds preserved Memory to the authorized answer in %s, not model instructions", async (locale) => {
+    const { service, ports } = harness({ plannerResult: { actions: [{
+      kind: "memory.propose", riskLevel: 1,
+      request: { ...memoryRequest("Requested title"),
+        title: { [locale]: "Requested title" }, summary: { [locale]: "Requested summary" },
+        body: { [locale]: "Incorrect instruction-as-content" } },
+    }] } });
+    const input = { ...planInput(), locale, preserveAnswer: true };
+    const result = await service.planFromAsk(input);
+    expect(result.source).toBe("model");
+    expect(result.proposal.actions[0]?.action.request).toMatchObject({
+      title: { [locale]: "Requested title" },
+      summary: { [locale]: input.ask.query },
+      body: { [locale]: input.ask.answer },
+      provenance: { contentSource: "authorized_ask_answer" },
+    });
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    await service.actOnce(actInput());
+    expect(JSON.stringify(ports.memory.propose.mock.calls)).toContain(input.ask.answer);
+    expect(JSON.stringify(ports.memory.propose.mock.calls)).not.toContain("Incorrect instruction-as-content");
+  });
+
+  it("retains model-authored Memory drafts when answer preservation is not selected", async () => {
+    const { service } = harness({ plannerResult: memoryModelPlan(["New draft"]) });
+    const result = await service.planFromAsk({ ...planInput(), preserveAnswer: false });
+    expect(result.proposal.actions[0]?.action.request).toMatchObject({ body: { en: "Body for New draft" } });
+  });
+
+  it("rejects a malformed preservation option before contacting the planner", async () => {
+    const { service, planner } = harness();
+    await expect(service.planFromAsk({ ...planInput(), preserveAnswer: "true" as unknown as boolean }))
+      .rejects.toMatchObject({ code: "invalid_ask" });
+    expect(planner.plan).not.toHaveBeenCalled();
+  });
+
   it("uses a deterministic Memory proposal when the configured planner is unavailable", async () => {
     const { service, store, ports } = harness({ plannerFailure: new Error("model offline") });
 
@@ -618,6 +738,12 @@ describe("GuildIntentService", () => {
     expect(result).toMatchObject({ created: true, source: "deterministic_fallback" });
     expect(result.proposal.actions).toHaveLength(1);
     expect(result.proposal.actions[0]).toMatchObject({ kind: "memory.propose", status: "pending" });
+    expect(result.proposal.actions[0]?.action.request).toMatchObject({
+      visibility: "private",
+      allowedActorIds: [],
+      layer: "working",
+      title: { en: planInput().ask.query },
+    });
     expect(store.chronicleActions).toEqual(["intent.proposal.created"]);
     expect(ports.memory.propose).not.toHaveBeenCalled();
   });

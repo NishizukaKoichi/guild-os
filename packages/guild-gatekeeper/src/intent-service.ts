@@ -141,6 +141,24 @@ class PlannerActionRequestError extends IntentServiceError {
   }
 }
 
+function plannerFailureReason(error: unknown): string {
+  if (error instanceof PlannerNoProposalError) return "empty_actions";
+  if (error instanceof PlannerResponseFormatError) return "invalid_json";
+  if (error instanceof PlannerActionEnvelopeError) return "invalid_action_envelope";
+  if (error instanceof PlannerActionRequestError) return "invalid_action_request";
+  if (error instanceof IntentServiceError && error.code === "planner_timeout") return "timeout";
+  if (error instanceof Error) {
+    // Only fixed categories cross the diagnostic boundary, never provider text or inputs.
+    const message = error.message.slice(0, 4_096);
+    if (/json mode|json schema|json_schema|grammar/i.test(message)) return "provider_schema_rejected";
+    if (/\b(?:401|403)\b/.test(message)) return "provider_authentication";
+    if (/\b429\b/.test(message)) return "provider_rate_limit";
+    if (/\b400\b/.test(message)) return "provider_request_rejected";
+    if (/timed?\s*out|timeout/i.test(message)) return "timeout";
+  }
+  return "provider_unavailable";
+}
+
 export class IntentActionExecutionError extends Error {
   readonly code: string;
   readonly retryable: boolean;
@@ -173,6 +191,7 @@ export interface PlanFromAskInput {
   spaceId: string | null;
   locale: AppLocale;
   objective: string;
+  preserveAnswer?: boolean;
   ask: ReadOnlyAskResult;
   availableAgents?: readonly AvailableIntentAgent[];
   allowedActionKinds?: readonly IntentActionKind[];
@@ -287,6 +306,7 @@ export interface IntentExecutionPorts {
 }
 
 export interface IntentPlannerInput {
+  preserveAnswer?: boolean;
   objective: string;
   locale: AppLocale;
   ask: ReadOnlyAskResult;
@@ -1106,7 +1126,7 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
       true,
     );
   }
-  const title = input.objective.slice(0, 500);
+  const title = input.ask.query.slice(0, 500);
   const body = input.ask.answer.trim().length > 0 ? input.ask.answer : input.ask.query;
   return [{
     kind: "memory.propose",
@@ -1117,7 +1137,8 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
       title: { [input.locale]: title },
       summary: { [input.locale]: input.ask.query.slice(0, 2_000) },
       body: { [input.locale]: body.slice(0, 100_000) },
-      visibility: input.spaceId === null ? "guild" : "space",
+      // Reading an answer does not authorize sharing its contents with other members.
+      visibility: "private",
       classification: "internal",
       allowedActorIds: [],
       sourceIds: input.ask.evidence
@@ -1134,7 +1155,7 @@ function deterministicFallback(input: IntentPlannerInput): PlannedAction[] {
   }];
 }
 
-function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unknown>> {
+function plannerPrompt(input: IntentPlannerInput, constrainedSchema = true): Readonly<Record<string, unknown>> {
   const safeMemoryFallback = input.allowedActionKinds.includes("memory.propose")
     ? deterministicFallback(input)[0]
     : null;
@@ -1152,8 +1173,15 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
           "If no specialized action is justified, create one working-layer memory.propose action from the Ask answer for Human review.",
           "Every request must contain the complete fields required by the corresponding Guild OS create or assign request.",
           "When the objective asks to preserve or remember information, prefer memory.propose and use the supplied safeMemoryFallback as the structural example.",
-          "If you cannot satisfy every required request field, return the supplied safeMemoryFallback as the only action.",
+          "The objective is an instruction about the desired result, not the title of a resource. Never copy the whole objective into a title.",
+          "If the objective specifies a title, use that exact title in the requested locale. Adapt the example's title, summary and body to the requested result while preserving the safety constraints.",
+          "New Memory drafts must remain private unless the objective explicitly requests sharing. A Space selection alone is not consent to share.",
+          ...(input.preserveAnswer ? ["Memory body content will be bound by the server to the authorized Ask answer. Keep that answer unchanged; only plan its title and other metadata."] : []),
+          "Use the example's defaults for unspecified fields. Include every required field, and do not add actions the objective excludes.",
           "Follow the response JSON Schema exactly. Do not move request fields onto the action object.",
+          ...(constrainedSchema ? [] : [
+            `Required output JSON Schema: ${JSON.stringify(plannerResponseSchema(input))}`,
+          ]),
         ].join(" "),
       },
       {
@@ -1176,10 +1204,10 @@ function plannerPrompt(input: IntentPlannerInput): Readonly<Record<string, unkno
     ],
     temperature: 0,
     max_tokens: 2_048,
-    response_format: {
+    response_format: constrainedSchema ? {
       type: "json_schema",
       json_schema: plannerResponseSchema(input),
-    },
+    } : { type: "json_object" },
   };
 }
 
@@ -1187,7 +1215,16 @@ export function createModelIntentPlanner(runner: ConfiguredIntentModelRunner): I
   return {
     async plan(input, signal) {
       if (signal.aborted) throw new IntentServiceError("planner_timeout", "Planner timed out.", true);
-      const result = await runner("plan", plannerPrompt(input), null);
+      let result: unknown;
+      try {
+        result = await runner("plan", plannerPrompt(input), null);
+      } catch (error) {
+        if (signal.aborted) throw new IntentServiceError("planner_timeout", "Planner timed out.", true);
+        if (plannerFailureReason(error) !== "provider_schema_rejected") throw error;
+        // Some providers cannot compile this union schema. This read-only retry
+        // still passes through the same server-side parser and authority checks.
+        result = await runner("plan", plannerPrompt(input, false), null);
+      }
       if (signal.aborted) throw new IntentServiceError("planner_timeout", "Planner timed out.", true);
       return result;
     },
@@ -1230,6 +1267,9 @@ function validateAskInput(input: PlanFromAskInput): void {
     throw new IntentServiceError("invalid_ask", "Plan locale is unsupported.");
   }
   assertNonBlank(input.objective, "Plan objective", 5_000);
+  if (input.preserveAnswer !== undefined && typeof input.preserveAnswer !== "boolean") {
+    throw new IntentServiceError("invalid_ask", "Memory answer preservation must be a boolean.");
+  }
   assertNonBlank(input.ask.query, "Ask query", 5_000);
   if (typeof input.ask.answer !== "string" || input.ask.answer.length > 100_000) {
     throw new IntentServiceError("invalid_ask", "Ask answer exceeds the Plan context limit.");
@@ -1551,13 +1591,16 @@ export class GuildIntentService {
       objective: input.objective,
       locale: input.locale,
       ask: input.ask,
+      preserveAnswer: input.preserveAnswer,
       spaceId: input.spaceId,
       allowedActionKinds: effectiveKinds,
       availableAgents: input.availableAgents ?? [],
     };
     let source: "model" | "deterministic_fallback" = "deterministic_fallback";
+    let fallbackReason: string | null = null;
     let planned: PlannedAction[] | null = null;
     if (this.#planner === null) {
+      fallbackReason = "not_configured";
       planned = deterministicFallback(plannerInput);
     } else {
       let raw: unknown;
@@ -1566,7 +1609,8 @@ export class GuildIntentService {
           this.#plannerTimeoutMs,
           (signal) => this.#planner!.plan(plannerInput, signal),
         );
-      } catch {
+      } catch (error) {
+        fallbackReason = plannerFailureReason(error);
         planned = deterministicFallback(plannerInput);
         raw = undefined;
       }
@@ -1579,12 +1623,34 @@ export class GuildIntentService {
               !(error instanceof PlannerActionEnvelopeError) &&
               !(error instanceof PlannerActionRequestError) &&
               !(error instanceof PlannerResponseFormatError)) throw error;
+          fallbackReason = plannerFailureReason(error);
           planned = deterministicFallback(plannerInput);
         }
       }
     }
     if (planned === null) {
       throw new IntentServiceError("planner_unavailable", "Planner returned no proposal.", true);
+    }
+    if (input.preserveAnswer) {
+      // The UI never supplies this answer: the adapter has freshly retrieved
+      // it with current authorization. Bind content before hashing and approval.
+      planned = planned.map((action) => action.kind === "memory.propose" ? {
+        ...action,
+        request: parseMemoryRequest({
+          ...action.request,
+          summary: { [input.locale]: input.ask.query.slice(0, 2_000) },
+          body: { [input.locale]: input.ask.answer || input.ask.query },
+          sourceIds: input.ask.evidence
+            .filter((evidence) => evidence.sourceType === "memory" && UUID_PATTERN.test(evidence.sourceId))
+            .slice(0, MAX_REFERENCES)
+            .map((evidence) => evidence.sourceId),
+          provenance: {
+            ...action.request.provenance,
+            contentSource: "authorized_ask_answer",
+            askQuery: input.ask.query.slice(0, 2_000),
+          },
+        }),
+      } : action);
     }
     const actions = await persistedActions(input.requestId, planned);
     for (const action of actions) {
@@ -1634,7 +1700,8 @@ export class GuildIntentService {
         input.requestId,
         input.spaceId,
         "intent.proposal.created",
-        { source, actionCount: actions.length, askIsReadOnlyContext: true },
+        { source, actionCount: actions.length, askIsReadOnlyContext: true, fallbackReason,
+          preserveAnswer: input.preserveAnswer === true },
         now,
       ),
     });

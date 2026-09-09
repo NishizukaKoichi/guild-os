@@ -104,7 +104,10 @@ test("active deployment evidence strips author identity and requires 100 percent
 });
 
 test("active Worker versions must identify the exact source release", () => {
+  const input = config();
+  input.workers = { workshop: input.workers.workshop };
   const deployments = [{
+    accountId: input.accountId,
     workerName: "guild-workshop",
     versions: [{ id: "version-id", percentage: 100 }],
   }];
@@ -113,37 +116,43 @@ test("active Worker versions must identify the exact source release", () => {
   assert.equal(assertWorkerDeploymentsMatchRelease(
     deployments,
     release,
+    input,
     (command, args) => {
       calls.push([command, args]);
-      return JSON.stringify({ annotations: { "workers/message": `Guild OS ${release}` } });
+      return JSON.stringify({ id: "version-id", annotations: { "workers/message": `Guild OS ${release}` } });
     },
   ), deployments);
-  assert.deepEqual(calls[0][1], [
+  assert.deepEqual(calls[0][1].slice(0, -2), [
     "exec", "wrangler", "versions", "view", "version-id",
     "--name", "guild-workshop", "--json",
   ]);
   assert.throws(() => assertWorkerDeploymentsMatchRelease(
     deployments,
     release,
-    () => JSON.stringify({ annotations: { "workers/message": "Guild OS stale" } }),
+    input,
+    () => JSON.stringify({ id: "version-id", annotations: { "workers/message": "Guild OS stale" } }),
   ), /not running release/i);
 });
 
 test("active Workers expose one shared release for pre-deploy backups", () => {
+  const input = config();
+  input.workers = { workshop: { name: "workshop" }, gatekeeper: { name: "gatekeeper" } };
   const release = "0123456789abcdef0123456789abcdef01234567";
   const deployments = ["workshop", "gatekeeper"].map((workerName, index) => ({
+    accountId: input.accountId,
     workerName,
     versions: [{ id: `version-${index}`, percentage: 100 }],
   }));
   assert.equal(activeWorkerReleaseCommit(
     deployments,
-    () => JSON.stringify({ annotations: { "workers/message": `Guild OS ${release}` } }),
+    input,
+    (_command, args) => JSON.stringify({ id: args[4], annotations: { "workers/message": `Guild OS ${release}` } }),
   ), release);
   let call = 0;
-  assert.throws(() => activeWorkerReleaseCommit(deployments, () => {
+  assert.throws(() => activeWorkerReleaseCommit(deployments, input, (_command, args) => {
     call += 1;
     const active = call === 1 ? release : "abcdef0123456789abcdef0123456789abcdef01";
-    return JSON.stringify({ annotations: { "workers/message": `Guild OS ${active}` } });
+    return JSON.stringify({ id: args[4], annotations: { "workers/message": `Guild OS ${active}` } });
   }), /do not share one Guild OS release/i);
 });
 

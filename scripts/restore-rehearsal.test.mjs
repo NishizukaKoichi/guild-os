@@ -9,6 +9,7 @@ import {
   RESTORE_VERIFICATION_FORMAT,
   verifyRestorePostRecovery,
   verifyRestorePreRecovery,
+  verifyProductionSmokeEvidence,
 } from "./restore-rehearsal.mjs";
 import { sha256Object, sha256Text } from "./ops-core.mjs";
 
@@ -21,7 +22,7 @@ const databaseUrl = "postgresql://restore@example.invalid/guild?sslmode=verify-f
 function config() {
   return {
     accountId: "a".repeat(32),
-    guild: { id: guildId },
+    guild: { id: guildId, webhook: { url: "https://hooks.example.invalid/guild-events" } },
     context: { kvNamespaceId: "context-namespace" },
     resources: {
       blueprintsKvNamespaceId: "blueprints-namespace",
@@ -30,7 +31,7 @@ function config() {
       blueprintContentBucket: "blueprints-bucket",
     },
     workers: {
-      workshop: { name: "test-workshop" },
+      workshop: { name: "test-workshop", route: { customDomain: "workshop.example.invalid" } },
       context: { name: "test-context" },
       guildGatekeeper: { name: "test-gatekeeper" },
       webhookReceiver: { name: "test-webhook" },
@@ -154,6 +155,116 @@ function smoke(checkedAt) {
     unsignedWebhookRejected: true,
     workerInventorySha256: "e".repeat(64),
   };
+}
+
+function productionSmoke() {
+  const target = config();
+  const activeDeployments = Object.values(target.workers).map(({ name }, index) => ({
+    accountId: target.accountId,
+    workerName: name,
+    versions: [{ id: `fixture-version-${index}`, percentage: 100 }],
+  }));
+  return {
+    format: "guild-os-production-smoke/v1",
+    checkedAt: "2026-08-24T00:10:00.000Z",
+    source: source(),
+    target: { accountId: target.accountId, guildId, configSha256: sha256Object(target) },
+    workshop: { url: "https://workshop.example.invalid", accessProtected: true,
+      authenticatedServiceCheck: "passed", authenticatedRedirectPolicy: "error" },
+    receiver: { healthUrl: "https://hooks.example.invalid/healthz",
+      status: 200, unsignedRequestRejected: true, noStore: true, nosniff: true },
+    activeDeployments,
+    deploymentVerification: {
+      executionMode: "live-cli",
+      releaseCommit: coreCommit,
+      inventorySha256: sha256Object(activeDeployments),
+    },
+  };
+}
+
+test("restore smoke binds the exact target and live verified Worker inventory", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "guild-os-smoke-binding-test-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "smoke.json");
+  const core = productionSmoke();
+  await writeFile(path, JSON.stringify({ ...core, evidenceSha256: sha256Object(core) }));
+  const result = await verifyProductionSmokeEvidence(path, config(), coreCommit);
+  assert.equal(result.targetConfigSha256, sha256Object(config()));
+  assert.equal(result.deploymentInventorySha256, sha256Object(core.activeDeployments));
+});
+
+test("restore workers.dev URL is tied to enabled routing for the exact account and Worker", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "guild-os-workers-dev-restore-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "smoke.json");
+  const target = config();
+  target.workers.workshop.route = { workersDev: true };
+  const core = productionSmoke();
+  core.target.configSha256 = sha256Object(target);
+  core.workshop.url = "https://test-workshop.purchaser.workers.dev";
+  core.workshopRouting = { accountId: target.accountId, workerName: "test-workshop", subdomain: "purchaser", enabled: true };
+  async function verify(value) {
+    await writeFile(path, JSON.stringify({ ...value, evidenceSha256: sha256Object(value) }));
+    return verifyProductionSmokeEvidence(path, target, coreCommit);
+  }
+  await verify(core);
+  for (const mutate of [
+    value => { delete value.workshopRouting; },
+    value => { value.workshopRouting.enabled = false; },
+    value => { value.workshopRouting.accountId = "b".repeat(32); },
+    value => { value.workshopRouting.workerName = "other-workshop"; },
+    value => { value.workshop.url = "https://test-workshop.other.workers.dev"; },
+  ]) {
+    const changed = structuredClone(core);
+    mutate(changed);
+    await assert.rejects(() => verify(changed), /Workshop/);
+  }
+});
+
+for (const [label, mutate, message] of [
+  ["legacy unbound evidence", (value) => { delete value.target; }, /target binding/],
+  ["another account", (value) => { value.target.accountId = "b".repeat(32); }, /different restore target/],
+  ["another Guild", (value) => { value.target.guildId = "other-guild"; }, /different restore target/],
+  ["changed configuration", (value) => { value.target.configSha256 = "b".repeat(64); }, /different restore target/],
+  ["injected runner", (value) => { value.deploymentVerification.executionMode = "injected-runner"; }, /no live exact-release/],
+  ["unverified release", (value) => { delete value.deploymentVerification; }, /deployment verification/],
+  ["different release", (value) => { value.deploymentVerification.releaseCommit = "b".repeat(40); }, /no live exact-release/],
+  ["different source", (value) => { value.source.commit = "b".repeat(40); }, /exact Core candidate/],
+  ["changed version inventory", (value) => { value.activeDeployments[0].versions[0].id = "other-version"; }, /no live exact-release/],
+  ["split traffic", (value) => {
+    value.activeDeployments[0].versions[0].percentage = 50;
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /one complete active version/],
+  ["missing version", (value) => {
+    value.activeDeployments[0].versions = [];
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /one complete active version/],
+  ["duplicate Worker", (value) => {
+    value.activeDeployments[0] = value.activeDeployments[1];
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /does not match/],
+  ["another Workshop", (value) => { value.workshop.url = "https://other.example.invalid"; }, /Workshop URL/],
+  ["unbound Workshop", (value) => { delete value.workshop.url; }, /Workshop URL/],
+  ["redirect-following Workshop", (value) => { delete value.workshop.authenticatedRedirectPolicy; }, /redirects/],
+  ["another Webhook", (value) => { value.receiver.healthUrl = "https://other.example.invalid/healthz"; }, /Webhook boundary/],
+  ["unbound inventory account", (value) => {
+    delete value.activeDeployments[0].accountId;
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /unbound or different account/],
+  ["another inventory account", (value) => {
+    value.activeDeployments[0].accountId = "b".repeat(32);
+    value.deploymentVerification.inventorySha256 = sha256Object(value.activeDeployments);
+  }, /unbound or different account/],
+]) {
+  test(`restore rejects ${label} even with a recalculated payload checksum`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "guild-os-smoke-reject-test-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const path = join(root, "smoke.json");
+    const core = productionSmoke();
+    mutate(core);
+    await writeFile(path, JSON.stringify({ ...core, evidenceSha256: sha256Object(core) }));
+    await assert.rejects(() => verifyProductionSmokeEvidence(path, config(), coreCommit), message);
+  });
 }
 
 test("restore verification arguments require an explicit phase and absolute paths", () => {

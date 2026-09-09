@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { chmod, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, printParseErrorCode } from "jsonc-parser";
@@ -270,13 +271,14 @@ export function sanitizeDeploymentStatus(workerName, value) {
     throw new Error(`Cloudflare returned an invalid deployment status for ${workerName}.`);
   }
   const versions = value.versions.map((version) => {
-    if (typeof version?.version_id !== "string" ||
-        typeof version?.percentage !== "number") {
+    if (typeof version?.version_id !== "string" || !version.version_id.trim() ||
+        !Number.isFinite(version?.percentage) || version.percentage <= 0 || version.percentage > 100) {
       throw new Error(`Cloudflare returned an invalid active version for ${workerName}.`);
     }
     return { id: version.version_id, percentage: version.percentage };
   });
-  if (!versions.length || versions.reduce((sum, version) => sum + version.percentage, 0) !== 100) {
+  if (!versions.length || new Set(versions.map(({ id }) => id)).size !== versions.length ||
+      versions.reduce((sum, version) => sum + version.percentage, 0) !== 100) {
     throw new Error(`${workerName} does not have a complete active deployment.`);
   }
   return {
@@ -288,41 +290,81 @@ export function sanitizeDeploymentStatus(workerName, value) {
   };
 }
 
-export function captureWorkerDeployments(config, runner = runCapture) {
+export function expectedAccountId(config) {
+  if (!/^[a-f0-9]{32}$/.test(config?.accountId ?? "")) {
+    throw new Error("A canonical Cloudflare account ID is required for operational evidence.");
+  }
+  for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CF_ACCOUNT_ID"]) {
+    if (process.env[name] !== undefined && process.env[name] !== config.accountId) {
+      throw new Error(`${name} conflicts with the configured evidence account.`);
+    }
+  }
+  return config.accountId;
+}
+
+function accountWrangler(config, args, runner) {
+  const accountId = expectedAccountId(config);
   const env = { ...process.env };
-  delete env.DATABASE_URL;
-  delete env.GUILD_WEBHOOK_SIGNING_SECRET;
-  delete env.CF_AI_GATEWAY_API_TOKEN;
+  for (const name of ["DATABASE_URL", "GUILD_WEBHOOK_SIGNING_SECRET", "CF_AI_GATEWAY_API_TOKEN",
+    "CF_ACCESS_CLIENT_ID", "CF_ACCESS_CLIENT_SECRET", "CLOUDFLARE_ACCESS_CLIENT_ID",
+    "CLOUDFLARE_ACCESS_CLIENT_SECRET", "CLOUDFLARE_ENV", "WRANGLER_ENV", "CF_ACCOUNT_ID"]) {
+    delete env[name];
+  }
+  env.CLOUDFLARE_ACCOUNT_ID = accountId;
+  env.CLOUDFLARE_API_BASE_URL = "https://api.cloudflare.com/client/v4";
+  // Wrangler 4 prioritizes account_id in its config over environment/account cache.
+  // This non-secret temporary config also excludes unrelated ambient routes and environments.
+  const directory = mkdtempSync(join(tmpdir(), "guild-os-account-evidence-"));
+  const path = join(directory, "wrangler.json");
+  try {
+    writeFileSync(path, JSON.stringify({ account_id: accountId }), { mode: 0o600, flag: "wx" });
+    return runner("pnpm", ["exec", "wrangler", ...args, "--config", path], { env });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+export function captureWorkerDeployments(config, runner = runCapture) {
+  const accountId = expectedAccountId(config);
   return workerEntries(config).map(({ key, name }) => {
-    const output = runner("pnpm", [
-      "exec", "wrangler", "deployments", "status", "--name", name, "--json",
-    ], { env: { ...env, ...(process.env.CLOUDFLARE_API_TOKEN
-      ? { CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN }
-      : {}) } });
-    return { key, ...sanitizeDeploymentStatus(name, JSON.parse(output)) };
+    const output = accountWrangler(config, [
+      "deployments", "status", "--name", name, "--json",
+    ], runner);
+    return { key, accountId, ...sanitizeDeploymentStatus(name, JSON.parse(output)) };
   });
 }
 
-export function activeWorkerReleaseCommit(deployments, runner = runCapture) {
-  const env = { ...process.env };
-  delete env.DATABASE_URL;
-  delete env.GUILD_WEBHOOK_SIGNING_SECRET;
-  delete env.CF_AI_GATEWAY_API_TOKEN;
-  delete env.CF_ACCESS_CLIENT_ID;
-  delete env.CF_ACCESS_CLIENT_SECRET;
-  const releases = new Set();
+export function assertWorkerInventory(config, deployments) {
+  const accountId = expectedAccountId(config);
+  const names = workerEntries(config).map(({ name }) => name).sort();
+  if (!Array.isArray(deployments) || !names.length || new Set(names).size !== names.length ||
+      sha256Object(deployments.map((entry) => entry?.workerName).sort()) !== sha256Object(names)) {
+    throw new Error("Worker inventory does not match the complete configured target.");
+  }
   for (const deployment of deployments) {
+    if (deployment.accountId !== accountId) {
+      throw new Error("Worker inventory has an unbound or different account.");
+    }
     if (!Array.isArray(deployment?.versions) || deployment.versions.length !== 1 ||
         deployment.versions[0]?.percentage !== 100 ||
-        typeof deployment.versions[0]?.id !== "string") {
+        typeof deployment.versions[0]?.id !== "string" || !deployment.versions[0].id.trim()) {
       throw new Error(`${deployment?.workerName ?? "Worker"} is not on one complete active version.`);
     }
-    const version = JSON.parse(runner("pnpm", [
-      "exec", "wrangler", "versions", "view", deployment.versions[0].id,
+  }
+  return deployments;
+}
+
+export function activeWorkerReleaseCommit(deployments, config, runner = runCapture) {
+  assertWorkerInventory(config, deployments);
+  const releases = new Set();
+  for (const deployment of deployments) {
+    const version = JSON.parse(accountWrangler(config, [
+      "versions", "view", deployment.versions[0].id,
       "--name", deployment.workerName, "--json",
-    ], { env: { ...env, ...(process.env.CLOUDFLARE_API_TOKEN
-      ? { CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN }
-      : {}) } }));
+    ], runner));
+    if (version?.id !== deployment.versions[0].id) {
+      throw new Error(`${deployment.workerName} returned a different or unresolved Worker version.`);
+    }
     const match = /^Guild OS ([a-f0-9]{40})$/i.exec(
       version?.annotations?.["workers/message"] ?? "",
     );
@@ -337,13 +379,13 @@ export function activeWorkerReleaseCommit(deployments, runner = runCapture) {
   return [...releases][0];
 }
 
-export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, runner = runCapture) {
+export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, config, runner = runCapture) {
   if (!/^[a-f0-9]{40}$/i.test(releaseCommit ?? "")) {
     throw new Error("A full release commit is required to verify active Worker versions.");
   }
   let activeRelease;
   try {
-    activeRelease = activeWorkerReleaseCommit(deployments, runner);
+    activeRelease = activeWorkerReleaseCommit(deployments, config, runner);
   } catch (error) {
     throw new Error(`Workers are not running release ${releaseCommit}. ${error.message}`);
   }
@@ -353,16 +395,41 @@ export function assertWorkerDeploymentsMatchRelease(deployments, releaseCommit, 
   return deployments;
 }
 
-export function productionUrls(config, workshopOverride) {
-  const workshop = workshopOverride ?? (config.workers.workshop.route.customDomain
-    ? `https://${config.workers.workshop.route.customDomain}`
-    : null);
+export function canonicalWorkshopUrl(value) {
+  let url;
+  try { url = new URL(value); } catch { throw new Error("Workshop URL must be a canonical HTTPS origin."); }
+  if (url.protocol !== "https:" || url.username || url.password || url.port ||
+      url.pathname !== "/" || url.search || url.hash ||
+      (value !== url.origin && value !== `${url.origin}/`)) {
+    throw new Error("Workshop URL must be a canonical HTTPS origin without credentials, path, query or fragment.");
+  }
+  return url.origin;
+}
+
+export function productionUrls(config, workshopOverride, workersDevRouting) {
+  const worker = config.workers.workshop;
+  const route = worker.route;
+  if (!route || Boolean(route.customDomain) === Boolean(route.workersDev)) {
+    throw new Error("Workshop must have exactly one configured route.");
+  }
+  let workshop;
+  if (route.customDomain) {
+    workshop = canonicalWorkshopUrl(`https://${route.customDomain}`);
+  } else {
+    if (route.workersDev !== true || workersDevRouting?.accountId !== config.accountId ||
+        workersDevRouting?.workerName !== worker.name || workersDevRouting?.enabled !== true ||
+        !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(workersDevRouting?.subdomain ?? "")) {
+      throw new Error("Workshop workers.dev requires verified account subdomain and enabled Worker routing.");
+    }
+    workshop = canonicalWorkshopUrl(`https://${worker.name}.${workersDevRouting.subdomain}.workers.dev`);
+  }
+  if (workshopOverride !== undefined && workshopOverride !== null &&
+      canonicalWorkshopUrl(workshopOverride) !== workshop) {
+    throw new Error("Workshop URL does not match the exact configured route.");
+  }
   const receiver = config.referenceWebhook.enabled
     ? config.guild.webhook.url.replace(/\/guild-events$/, "/healthz")
     : null;
-  if (!workshop) {
-    throw new Error("Pass --url for a workers.dev Workshop deployment.");
-  }
   return { workshop, receiver };
 }
 

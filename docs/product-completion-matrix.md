@@ -1,6 +1,6 @@
 # Guild OS Product Completion Matrix
 
-Updated: 2026-08-31
+Updated: 2026-09-09
 
 Authority: [Product specification](product-specification.md)
 
@@ -8,19 +8,81 @@ This is an evidence register, not a marketing checklist. `Implemented and verifi
 real data and authorization boundary plus automated or operational evidence. A row remains partial
 when one required behavior is absent, even if most of the area exists.
 
+## Current audit qualification
+
+The 2026-09-09 owner-authorized code-only production verification observed all
+five Workers on `ae79fe0667e0f48c4f9b93ffe7b4e421f3b77ba1`, exact successful
+GitHub CI run `34352758953`, PostgreSQL 18, verified TLS, 51 migrations and 96
+forced-RLS tables. An existing Human Google session completed grounded Ask and
+created a Plan without Act. Chronicle sequence 1505 recorded
+`provider_schema_rejected` and `deterministic_fallback`. This is direct evidence
+of a remaining Plan defect, not successful model planning. ADRs 0048 and 0049
+repair fallback privacy, content inspection and bounded format compatibility;
+that successor still needs its own exact-release live model verification.
+No new backup, data migration, Access change or credential entry was performed.
+The owner's existing code-only release authorization supersedes the historical
+local-only restriction below, not the independent purchaser or legal gates.
+
+The subsequent exact release `1f776db061c3e16f73892de6114d01fb3ebfd4b5`
+passed CI `34354819085` and five-Worker production verification. Human browser
+Chronicle sequence 1508 recorded `source: model` and no fallback reason; its
+Memory preview was private. The requested short title was not followed, so no
+Act was executed and section 17 remains partial. The follow-up removes the
+instruction-as-title default and distinguishes the requested title from the
+objective in the model contract. Inference success alone is not semantic
+acceptance of the requested result.
+
+Release `2f73715ab6dfcd25c7b42227f7fb6be0fbe2b1ba` passed exact CI
+`34357163433`, 80 local E2E journeys and five-Worker live verification. Its
+model-generated Plan followed the short title and private audience, but its
+body contained an instruction instead of the Ask answer. No Act was executed.
+ADR 0052 adds an explicit answer-preservation option, binding Memory content
+to the freshly authorized server Ask result before proposal approval rather
+than relying on another prompt-only guarantee. Fresh live evidence is required
+for that successor. A deployment-time RPC reset recovered after an outer-page
+reload; it is not recorded as zero-error uninterrupted service.
+
+Release `afed164c228ef75611fd4ef5af6cb9e18b02f4b4` passed exact CI
+`34360222064`, 81 local E2E journeys and five-Worker live verification. Its
+Human-authenticated model Plan and one-action Act persisted a private Memory
+with the requested title and unchanged authorized answer; Chronicle sequences
+1515-1518 and attempt count one were observed. The summary still described the
+instruction, so ADR 0052 also binds preserve-mode summaries to the Ask question.
+The deployment-time RPC reset needed an outer reload again. This owner-controlled
+journey does not close independent purchaser, Distribution or custody gates.
+
+Rows below retain their historical implementation declarations, not a fresh attestation of every
+production boundary. On 2026-09-05 the clean baseline was `c7183f13219b47ab7bf00c2220e4976cb2dffa0f`;
+GitHub run `33397241955` was observed successful for that SHA. Distribution was separately observed
+at `d75ee8b8e124ec7ad28f927a7f5c21002a633c40`, pinning that baseline. No production or purchaser
+infrastructure was queried by this bounded task. A local successor is not deployed or CI-verified
+merely because its base was. Historical production claims below apply only to their original
+external evidence, never automatically to HEAD. The current restoration verifier change requires
+fresh target-bound smoke evidence and its own authorized release before operational acceptance.
+
+`pnpm completion:report` checks all 42 section/status declarations and reports open rows; it does
+not certify their truth. Checksums, tests, fixture rehearsals, and this matrix cannot substitute for
+independent purchaser, physical custody, professional review, or exact-release cloud evidence.
+See [the current bounded handoff](bounded-verification-handoff.md).
+
+Independent follow-up identified URL and ambient-account misbinding in the first local repair.
+[The correction](restore-target-binding.md) adds exact Workshop routing and explicit CLI account
+selection with a real installed-CLI loopback test. These local checks do not close any independent
+purchaser or production gate; all 42 declarations and remaining requirements below are retained.
+
 ## Audit snapshot
 
 | Fact | Evidence recorded at this audit snapshot |
 | --- | --- |
-| Core repository | Canonical Git root `/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os`. The exact Git-resolved Core candidate is committed, pushed, exact-SHA CI-verified, and active on all five production Workers according to machine-generated external evidence. The current Core branch SHA must always come from Git and exact external CI evidence, never from a self-referential document. |
+| Core repository | Canonical Git root `/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os`. The 2026-09-05 audit found clean main at c7183f1 with matching origin/main and successful exact-SHA CI. Production was not queried. The current Core branch SHA must always come from Git and exact external CI evidence, never from a self-referential document. |
 | Distribution repository | Separate canonical Git root `/Volumes/Pensive/Workspace/NishizukaKoichi/guild-os-distribution`. The exact commercial candidate and its Core and Cloudflare OS pins come from that repository's live Git HEAD, `core.release.json`, vendored-source inventory, and owner-only external release evidence. This matrix deliberately does not name a mutable Distribution HEAD. The source-complete Distribution includes signed release v2, Installer evidence v4, installed state v3, Updater evidence v3, and purchaser-retained Core/Cloudflare OS Git bundles without seller-source fetching. |
 | Repository visibility | Live GitHub and anonymous API checks on 2026-08-24 report the Apache Core as `PUBLIC` and the commercial Distribution as `PRIVATE`. Credential-free recursive Core acquisition, strict Git verification, frozen install, typecheck, and build succeeded; each later candidate must repeat that exact-commit gate. |
 | Cloudflare OS | Core pins submodule `2328903878b8bb3d8e29af6187abe935a5738482`; the purchaser-owned fork adds an accessible retry state and keeps handled Gatekeeper infrastructure failures out of the browser console while retaining bounded private issue reporting. |
 | Core local verification | On 2026-08-30: typecheck, tests, build, lint, dependency and peer audits, the complete dry-run check, Cloudflare OS boundary tests, and 74 Playwright E2E journeys passed. E2E includes 320/390 px, EN/JA/zh-CN, Purpose-first unknown Collectives, accessibility, direct navigation, Ask/Plan/Act, and sandbox file/initialization paths. |
-| External integration scope | Local PostgreSQL test command passed 18 tests and skipped 73 tests requiring a disposable migrated database. Cloudflare OS integration passed its local suites and skipped four credential-dependent integration tests. Neither skip is presented as release evidence. |
+| External integration scope | On 2026-09-05 a fresh local PostgreSQL 18.6 fixture passed 73 PostgreSQL and 35 Gatekeeper integration cases after all 51 migrations and non-superuser Runtime provisioning. The four upstream RPC tests were unconditionally skipped for historical timeouts, not missing credentials; an unchanged-body replay passed all four. Core now adds a required replay to its Cloudflare OS gate without changing the upstream gitlink or silently counting skips as coverage. These are local synthetic tests, not purchaser, TLS, or production evidence. |
 | Hosted candidate CI | Exact-SHA Core and Distribution CI captures are stored outside Git and rechecked through the authenticated GitHub CLI. The 2026-08-30 audit includes successful records for the exact deployed Runtime, later Core evidence successors, and matching Distribution candidates after the account owner raised the exhausted Actions budget. Those immutable records retain their run IDs and commits outside Git. Every later candidate must capture its own workflow directly from GitHub; a repository document is not current-candidate CI evidence. |
 | Distribution local verification | One executable gate shared with hosted CI passed typecheck, the complete Distribution test suite, lint, compliance, reproducible SBOM generation and drift detection, build, dependency audit, deterministic clean-room, real Git-bundle clone, exact-commit, strict-object, source-tamper, seller-network-absence, executable-mode, staged-package installation, all seven acquired CLI launchers, and readiness v2 Open Core acquisition re-execution. Clean-room completed 11 install steps, update, three backup commands, isolated restore preparation, expired-package denial, Runtime continuity, and handover Secret-redaction with no purchaser-cloud mutation. A mode-`0600` external report binds exact Distribution/Core/Cloudflare OS commits and the ephemeral rehearsal manifest while explicitly denying production-signing and independent-purchaser evidence. A live credential-free public Core capture also completed without creating a seller dependency. |
-| Production | The existing production PostgreSQL service remains in place without replacement. All five Workers run the exact Git-resolved Core candidate recorded in external release evidence, and exact-SHA Core CI evidence passed the complete hosted gate. External mode-`0600` evidence records a verified complete PostgreSQL/KV/R2/Access backup, PostgreSQL 18, verified TLS, all 51 migrations, forced RLS on all 96 protected tables, five active Worker Versions, Access enforcement, Webhook health, and unsigned-request rejection. A separate Human browser completed grounded Ask with citation, inspectable fallback Plan, one-action Act, Working Memory creation, and matching History, then switched EN/JA/zh-CN and verified 1440/390/320 px with zero horizontal overflow and zero console errors. The temporary smoke policy and token were removed, the stale credential was denied, its local file was deleted, and the Human policy remained. This is current owner-controlled production evidence, not independent purchaser proof. |
+| Historical owner production | The existing production PostgreSQL service remains in place without replacement. The earlier audit reported five Workers on the release bound to its external evidence and successful hosted CI; no current Worker commit was observed during the bounded 2026-09-05 task. External mode-`0600` evidence records a verified complete PostgreSQL/KV/R2/Access backup, PostgreSQL 18, verified TLS, all 51 migrations, forced RLS on all 96 protected tables, five active Worker Versions, Access enforcement, Webhook health, and unsigned-request rejection. A separate Human browser completed grounded Ask with citation, inspectable fallback Plan, one-action Act, Working Memory creation, and matching History, then switched EN/JA/zh-CN and verified 1440/390/320 px with zero horizontal overflow and zero console errors. The temporary smoke policy and token were removed, the stale credential was denied, its local file was deleted, and the Human policy remained. This is historical owner-controlled evidence, not current-candidate or independent purchaser proof. |
 | Historical owner-controlled staging | Exact Core `63de2470e6ec7e5c4783ed947e54de7c78534eee` previously passed PostgreSQL 18 migration/RLS, five-Worker Access-protected staging, Human Personal initialization, encrypted backup, full isolated owner-controlled restore, authenticated smoke, and Break Glass recovery. This remains valid historical behavior evidence, not independent purchaser proof for the new candidate. |
 | Independent purchaser evidence | Missing. A new purchaser Cloudflare/PostgreSQL/AI/Access/backup boundary must produce live v4 Installer evidence, successful and failed-smoke v3 Updater evidence, and full independent restore evidence. |
 | Release signing custody | Separate encrypted Ed25519 release and entitlement custody, device-bound offline attestations, active/retired/revoked trust, and public-only readiness verification are implemented and tested. A production set is not active until two physically independent offline devices and named Human activation exist. |
@@ -47,7 +109,7 @@ when one required behavior is absent, even if most of the area exists.
 | 14 | Decision and governance | Implemented and verified | Every authoritative method is first-class, with additive fail-closed database compatibility, Constitution, transfer, Break Glass, evidence, and quorum tests. |
 | 15 | Standard navigation and contextual language | Implemented and verified | Permission-aware Home/Ask/Members/Memory/Activity/More navigation, contextual vocabulary, direct links, history, and responsive navigation are covered by E2E. |
 | 16 | Home | Implemented and verified | Permission-aware action-first Home, attention, partial failure, Agents, updates, and risks have E2E coverage. |
-| 17 | Ask / Plan / Act | Implemented and verified | Read-only Ask, citations, inspectable proposals, one-at-a-time execution, Actor/Connection, cost/time estimate, effect scope, approval, and rollback semantics are represented and tested. The exact production Runtime also completed a Human grounded Ask, citation review, deterministic fallback Plan, explicit confirmation, one-action Act, Working Memory creation, and matching append-only History. |
+| 17 | Ask / Plan / Act | Partially implemented | Read-only Ask, citations, inspectable proposals, one-at-a-time execution and History are implemented and previously exercised in production. Live verification on 2026-09-09 isolated a provider schema rejection; a deterministic fallback is not model-generated Plan success. ADRs 0048/0049 add private draft defaults, exact content/audience preview and a bounded schema-compatibility retry without relaxing authorization. A successor must pass authenticated live model planning and the resulting inspected Act path before this row is restored to verified. |
 | 18 | Agent | Implemented and verified | Limits, policy intersection, approvals, delegation, Kill, idempotency, authority recheck, and execution evidence exist. |
 | 19 | Connections | Implemented and verified | Cloudflare OS Gatekeeper, MCP, HTTPS Webhook, Service Binding, Email, Calendar, File Storage, Git Repository, External API, and Model Provider use scoped purchaser-owned adapters, Secret references, health, and revocation. |
 | 20 | Automation | Implemented and verified | Schedules, event triggers, waits, retry, delegation, deduplication, Kill, and offboarding cancellation exist. |
@@ -67,7 +129,7 @@ when one required behavior is absent, even if most of the area exists.
 | 34 | Explicit non-goals | Implemented and verified | Exclusions are documented and absent from the Core product surface. |
 | 35 | Current-state audit | Implemented and verified | This matrix records Git, remote, submodule, production annotation, migration inventory, licensing, Distribution state, and a full-history publication-secret gate. The gate rejects shallow history and every unreviewed finding; its four exact fingerprint exceptions are test-only, historical-line-hash-bound, and redacted. |
 | 36 | Gap Matrix and authoritative acceptance | Implemented and verified | The 42-section specification remains the authority. This matrix, Full-Spec Acceptance, and the machine-readable commercial readiness report keep Core, Distribution, independent purchaser, signing, CI, restore, and professional approval gates separate without shrinking completion. |
-| 37 | Safe implementation sequence | In progress | The exact Git-resolved Core candidate is committed, pushed, green in exact-SHA hosted CI, deployed across all five Workers, and verified against the existing database. Complete backup, PostgreSQL preflight, machine smoke, Human Ask/Plan/Act, History, three languages, three viewports, overflow, console checks, and post-smoke Access cleanup passed. The matching Distribution candidate pins the audited Core documentation lineage and passed its self-contained release gate, anonymous acquisition, and hosted CI. Fresh independent-account Installer/Updater/rollback/full-restore execution and operational production-key activation remain. |
+| 37 | Safe implementation sequence | Partially implemented | Historical release evidence covers the previously observed owner deployment, not this local successor. The 2026-09-05 bounded task preserves the clean c7183f1 baseline in a dedicated worktree and allows local verification and commit only. Push, candidate CI, staging, deployment, fresh independent-account Installer/Updater/rollback/full-restore execution, and operational production-key activation remain outside this task's authority or unverified. |
 | 38 | Required test coverage | Implemented but unverified | Core local gates, 74 E2E including 320 px Inbox and History overflow coverage, a pinned redacted complete-history publication scan, and credential-free public acquisition pass; exact hosted CI also runs the disposable PostgreSQL migration, forced-RLS, non-superuser management, and Runtime-role suites. Owner-production browser verification adds Ask/citation/Plan/Act/Memory/History, EN/JA/zh-CN, 1440/390/320 px, overflow, mobile-bottom reachability, and console-error evidence. Distribution typecheck, the complete Distribution test suite, lint, compliance, reproducible SBOM generation, build, audit, deterministic clean-room, real source-bundle extraction, source-tamper, acquired-package CLI, staged-package installation, all seven launcher smokes, and full Open Core acquisition re-execution pass through the same local and successful hosted gate. Independent purchaser Installer/Updater/rollback/full-restore execution and operational key activation remain. |
 | 39 | Technical completion | Missing | Readiness v2 prevents local, owner-controlled, hand-authored-only acquisition or legacy restore, stale-CI, or draft evidence from being reported as completion. Public anonymous Core acquisition now succeeds, but independent purchaser-account live install/update/rollback/full restore and activation of a production signing set against two physically independent offline devices remain. |
 | 40 | Sale readiness | Blocked by legal review | Professional license, trademark, contribution-rights, privacy, tax/billing, customer-agreement, support, pricing, refund, and incident-response review cannot be replaced by implementation. The readiness gate can bind named approvals to final document hashes but explicitly makes no legal judgment. |

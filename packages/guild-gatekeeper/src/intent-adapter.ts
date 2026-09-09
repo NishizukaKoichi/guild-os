@@ -1228,6 +1228,22 @@ function actionExecutionDetails(
   };
 }
 
+function memoryPreview(action: StoredIntentAction, locale: string): UiIntentAction["memoryPreview"] {
+  if (action.kind !== "memory.propose") return null;
+  const request = action.action.request;
+  const visibility = VISIBILITIES.find((value) => value === request.visibility);
+  const classification = CLASSIFICATIONS.find((value) => value === request.classification);
+  if (!visibility || !classification) return null;
+  return {
+    body: localizedLabel(request.body, locale) ?? "",
+    visibility,
+    classification,
+    spaceId: typeof request.spaceId === "string" ? request.spaceId : null,
+    allowedActorIds: Array.isArray(request.allowedActorIds)
+      ? request.allowedActorIds.filter((value): value is string => typeof value === "string") : [],
+  };
+}
+
 export function intentProposalForUi(
   proposal: IntentProposalDetail,
   context: IntentProposalUiContext,
@@ -1250,6 +1266,7 @@ export function intentProposalForUi(
       reauthenticationRequired: requirement.reauthenticationRequired,
       ...targetForAction(action, proposal, context),
       ...actionExecutionDetails(action, proposal, context),
+      memoryPreview: memoryPreview(action, proposal.locale),
       result: action.result,
       errorSummary: action.errorSummary,
       startedAt: action.startedAt,
@@ -1305,6 +1322,7 @@ export class GuildIntentAdapter {
       spaceId: input.spaceId,
       locale: input.locale,
       objective: input.objective,
+      preserveAnswer: input.preserveAnswer,
       ask: {
         query: input.question,
         answer: askResponse.answer,

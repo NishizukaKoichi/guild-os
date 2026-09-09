@@ -4,7 +4,44 @@ import {
   parseSmokeArguments,
   smokeReceiver,
   smokeWorkshop,
+  runProductionSmoke,
 } from "./production-smoke.mjs";
+import { sha256Object } from "./ops-core.mjs";
+
+test("injected smoke records target binding but cannot claim live release verification", async () => {
+  const config = {
+    accountId: "a".repeat(32),
+    guild: { id: "fixture-guild" },
+    workers: { workshop: { name: "fixture-workshop", route: { customDomain: "guild.example.invalid" } } },
+    access: { issuer: "https://team.cloudflareaccess.com" },
+    context: { kvNamespaceId: "fixture-context" },
+    resources: {
+      blueprintsKvNamespaceId: "fixture-blueprints", avatarsKvNamespaceId: "fixture-avatars",
+      blueprintContentBucket: "fixture-blueprints", knowledgeFilesBucket: "fixture-knowledge",
+    },
+    referenceWebhook: { enabled: false },
+  };
+  const deployments = [{ workerName: "fixture-workshop", versions: [{ id: "fixture", percentage: 100 }] }];
+  const evidence = await runProductionSmoke({
+    config,
+    sourceSnapshot: { commit: "1".repeat(40) },
+    deployments,
+    fetcher: async (_url, options) => options.redirect === "manual"
+      ? new Response(null, {
+        status: 302,
+        headers: { location: "https://team.cloudflareaccess.com/cdn-cgi/access/login/fixture" },
+      })
+      : new Response("<title>Cloudflare OS</title>", { status: 200 }),
+  });
+  assert.deepEqual(evidence.target, {
+    accountId: config.accountId, guildId: config.guild.id, configSha256: sha256Object(config),
+  });
+  assert.deepEqual(evidence.deploymentVerification, {
+    executionMode: "injected-runner", releaseCommit: null, inventorySha256: sha256Object(deployments),
+  });
+  const { evidenceSha256, ...core } = evidence;
+  assert.equal(evidenceSha256, sha256Object(core));
+});
 
 test("production smoke arguments require external evidence output", () => {
   assert.deepEqual(parseSmokeArguments([

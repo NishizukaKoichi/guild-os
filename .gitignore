@@ -6,3 +6,4 @@ deployment.local.jsonc
 deployment.lock.json
 packages/*/test-results/
 packages/*/.ux-review/
+.verification/

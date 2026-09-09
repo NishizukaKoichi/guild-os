@@ -28,7 +28,7 @@ import type {
 import type { AppPage } from "../components/AppShell";
 import { Notice } from "../components/Notice";
 import { PageHeader } from "../components/PageHeader";
-import { useI18n } from "../i18n";
+import { classificationTranslationKey, useI18n, visibilityTranslationKey } from "../i18n";
 
 function proposalStatusKey(status: UiIntentProposal["status"]) {
   switch (status) {
@@ -131,17 +131,26 @@ function actionIcon(kind: UiIntentAction["kind"]) {
   return <ListChecks size={18} />;
 }
 
-export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }: {
+export interface AskSession {
+  question: string;
+  response: AskGuildResponse | null;
+  objective: string;
+  preserveAnswer?: boolean;
+}
+
+export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRequestId }: {
   api: GuildUiApi;
+  session: AskSession;
   onOpenCitation(citation: AskGuildCitation): void;
   onNavigate(page: AppPage): void;
   focusRequestId?: number;
 }) {
   const { locale, t } = useI18n();
   const [mode, setMode] = useState<"ask" | "plan" | "act">("ask");
-  const [question, setQuestion] = useState("");
-  const [response, setResponse] = useState<AskGuildResponse | null>(null);
-  const [objective, setObjective] = useState("");
+  const [question, setQuestion] = useState(session.question);
+  const [response, setResponse] = useState<AskGuildResponse | null>(session.response);
+  const [objective, setObjective] = useState(session.objective);
+  const [preserveAnswer, setPreserveAnswer] = useState(session.preserveAnswer ?? true);
   const [proposals, setProposals] = useState<readonly UiIntentProposal[]>([]);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [askBusy, setAskBusy] = useState(false);
@@ -154,6 +163,10 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
   const questionRef = useRef<HTMLTextAreaElement>(null);
   const answerRef = useRef<HTMLElement>(null);
   const handledFocusRequest = useRef<number | null>(null);
+
+  useEffect(() => {
+    Object.assign(session, { question, response, objective, preserveAnswer });
+  }, [session, question, response, objective, preserveAnswer]);
 
   const selectedProposal = useMemo(
     () => proposals.find((proposal) => proposal.id === selectedProposalId) ?? null,
@@ -235,6 +248,7 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
         requestId: crypto.randomUUID(),
         question: question.trim(),
         objective: objective.trim(),
+        preserveAnswer,
         locale,
         spaceId: response.citations[0]?.spaceId ?? null,
       });
@@ -417,6 +431,11 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                   onChange={(event) => setObjective(event.target.value)}
                 />
               </label>
+              <label className="checkbox-field">
+                <input type="checkbox" checked={preserveAnswer}
+                  onChange={(event) => setPreserveAnswer(event.target.checked)} />
+                <span>{t("ask.intent.preserveAnswer")}</span>
+              </label>
               <div className="ask-plan-boundary">
                 <ShieldCheck size={18} />
                 <span>{t("ask.intent.planBoundary")}</span>
@@ -544,6 +563,16 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                             </span>
                           </header>
                           <dl>
+                            {action.memoryPreview ? <>
+                              <div>
+                                <dt>{t("memory.visibility")}</dt>
+                                <dd>{t(visibilityTranslationKey(action.memoryPreview.visibility))}</dd>
+                              </div>
+                              <div>
+                                <dt>{t("operations.security.classification")}</dt>
+                                <dd>{t(classificationTranslationKey(action.memoryPreview.classification))}</dd>
+                              </div>
+                            </> : null}
                             <div>
                               <dt>{t("ask.intent.risk")}</dt>
                               <dd>{t(riskKey(action.riskLevel))}</dd>
@@ -587,6 +616,16 @@ export function AskGuildPage({ api, onOpenCitation, onNavigate, focusRequestId }
                               <dd>{t(rollbackKey(action.rollbackKind))}</dd>
                             </div>
                           </dl>
+                          {action.memoryPreview ? (
+                            <details>
+                              <summary>{t("memory.body")}</summary>
+                              <div className="intent-memory-preview" role="region" aria-label={t("memory.body")} tabIndex={0}>
+                                {action.memoryPreview.body}
+                              </div>
+                              {action.memoryPreview.spaceId ? <code>{action.memoryPreview.spaceId}</code> : null}
+                              {action.memoryPreview.allowedActorIds.map((id) => <code key={id}>{id}</code>)}
+                            </details>
+                          ) : null}
                           <details>
                             <summary>{t("ask.intent.technicalDetails")}</summary>
                             <code>{action.resourceId}</code>

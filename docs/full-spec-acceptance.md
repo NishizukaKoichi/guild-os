@@ -2,6 +2,21 @@
 
 Updated: 2026-08-24
 
+Evidence amendment (2026-09-05): restore acceptance requires production smoke bound to the exact
+Cloudflare account, Guild, resolved deployment configuration, Core release, and complete active
+Worker versions. Injected-runner results and legacy unbound records fail closed, even with a valid
+payload checksum. Recapture through the live CLI; never hand-edit old evidence to make it pass.
+An unsigned checksum provides integrity and cross-record consistency, not independent authorship.
+The full 42-section declaration inventory is checked by `pnpm completion:report`; a structurally
+valid matrix remains documentation, not a replacement for the external release gates below.
+
+Target-binding follow-up: smoke must use the exact configured HTTPS Workshop origin, reject
+authenticated redirects, verify account-owned workers.dev routing when selected, and explicitly
+pin the account in both Wrangler configuration and environment for inventory/version queries.
+Restore rejects alternate URLs and unbound or foreign-account inventory even if their hashes
+are internally consistent. [The CLI contract and regression evidence](restore-target-binding.md)
+document this gate without treating a synthetic provider as purchaser or production evidence.
+
 The authoritative requirements are in [the product specification](product-specification.md), and
 their current evidence state is in [the product completion matrix](product-completion-matrix.md).
 This document is the executable release contract for that complete specification. A feature is not
