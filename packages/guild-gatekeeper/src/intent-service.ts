@@ -191,6 +191,7 @@ export interface PlanFromAskInput {
   spaceId: string | null;
   locale: AppLocale;
   objective: string;
+  preserveAnswer?: boolean;
   ask: ReadOnlyAskResult;
   availableAgents?: readonly AvailableIntentAgent[];
   allowedActionKinds?: readonly IntentActionKind[];
@@ -305,6 +306,7 @@ export interface IntentExecutionPorts {
 }
 
 export interface IntentPlannerInput {
+  preserveAnswer?: boolean;
   objective: string;
   locale: AppLocale;
   ask: ReadOnlyAskResult;
@@ -1174,6 +1176,7 @@ function plannerPrompt(input: IntentPlannerInput, constrainedSchema = true): Rea
           "The objective is an instruction about the desired result, not the title of a resource. Never copy the whole objective into a title.",
           "If the objective specifies a title, use that exact title in the requested locale. Adapt the example's title, summary and body to the requested result while preserving the safety constraints.",
           "New Memory drafts must remain private unless the objective explicitly requests sharing. A Space selection alone is not consent to share.",
+          ...(input.preserveAnswer ? ["Memory body content will be bound by the server to the authorized Ask answer. Keep that answer unchanged; only plan its title and other metadata."] : []),
           "Use the example's defaults for unspecified fields. Include every required field, and do not add actions the objective excludes.",
           "Follow the response JSON Schema exactly. Do not move request fields onto the action object.",
           ...(constrainedSchema ? [] : [
@@ -1264,6 +1267,9 @@ function validateAskInput(input: PlanFromAskInput): void {
     throw new IntentServiceError("invalid_ask", "Plan locale is unsupported.");
   }
   assertNonBlank(input.objective, "Plan objective", 5_000);
+  if (input.preserveAnswer !== undefined && typeof input.preserveAnswer !== "boolean") {
+    throw new IntentServiceError("invalid_ask", "Memory answer preservation must be a boolean.");
+  }
   assertNonBlank(input.ask.query, "Ask query", 5_000);
   if (typeof input.ask.answer !== "string" || input.ask.answer.length > 100_000) {
     throw new IntentServiceError("invalid_ask", "Ask answer exceeds the Plan context limit.");
@@ -1585,6 +1591,7 @@ export class GuildIntentService {
       objective: input.objective,
       locale: input.locale,
       ask: input.ask,
+      preserveAnswer: input.preserveAnswer,
       spaceId: input.spaceId,
       allowedActionKinds: effectiveKinds,
       availableAgents: input.availableAgents ?? [],
@@ -1623,6 +1630,26 @@ export class GuildIntentService {
     }
     if (planned === null) {
       throw new IntentServiceError("planner_unavailable", "Planner returned no proposal.", true);
+    }
+    if (input.preserveAnswer) {
+      // The UI never supplies this answer: the adapter has freshly retrieved
+      // it with current authorization. Bind content before hashing and approval.
+      planned = planned.map((action) => action.kind === "memory.propose" ? {
+        ...action,
+        request: parseMemoryRequest({
+          ...action.request,
+          body: { [input.locale]: input.ask.answer || input.ask.query },
+          sourceIds: input.ask.evidence
+            .filter((evidence) => evidence.sourceType === "memory" && UUID_PATTERN.test(evidence.sourceId))
+            .slice(0, MAX_REFERENCES)
+            .map((evidence) => evidence.sourceId),
+          provenance: {
+            ...action.request.provenance,
+            contentSource: "authorized_ask_answer",
+            askQuery: input.ask.query.slice(0, 2_000),
+          },
+        }),
+      } : action);
     }
     const actions = await persistedActions(input.requestId, planned);
     for (const action of actions) {
@@ -1672,7 +1699,8 @@ export class GuildIntentService {
         input.requestId,
         input.spaceId,
         "intent.proposal.created",
-        { source, actionCount: actions.length, askIsReadOnlyContext: true, fallbackReason },
+        { source, actionCount: actions.length, askIsReadOnlyContext: true, fallbackReason,
+          preserveAnswer: input.preserveAnswer === true },
         now,
       ),
     });

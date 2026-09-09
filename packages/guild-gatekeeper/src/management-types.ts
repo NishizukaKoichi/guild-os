@@ -772,6 +772,7 @@ export interface CreateIntentPlanRequest {
   requestId: string;
   question: string;
   objective: string;
+  preserveAnswer?: boolean;
   locale: AppLocale;
   spaceId: string | null;
 }

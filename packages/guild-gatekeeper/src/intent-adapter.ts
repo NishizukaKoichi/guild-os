@@ -1322,6 +1322,7 @@ export class GuildIntentAdapter {
       spaceId: input.spaceId,
       locale: input.locale,
       objective: input.objective,
+      preserveAnswer: input.preserveAnswer,
       ask: {
         query: input.question,
         answer: askResponse.answer,

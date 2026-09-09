@@ -135,6 +135,7 @@ export interface AskSession {
   question: string;
   response: AskGuildResponse | null;
   objective: string;
+  preserveAnswer?: boolean;
 }
 
 export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRequestId }: {
@@ -149,6 +150,7 @@ export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRe
   const [question, setQuestion] = useState(session.question);
   const [response, setResponse] = useState<AskGuildResponse | null>(session.response);
   const [objective, setObjective] = useState(session.objective);
+  const [preserveAnswer, setPreserveAnswer] = useState(session.preserveAnswer ?? true);
   const [proposals, setProposals] = useState<readonly UiIntentProposal[]>([]);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [askBusy, setAskBusy] = useState(false);
@@ -163,8 +165,8 @@ export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRe
   const handledFocusRequest = useRef<number | null>(null);
 
   useEffect(() => {
-    Object.assign(session, { question, response, objective });
-  }, [session, question, response, objective]);
+    Object.assign(session, { question, response, objective, preserveAnswer });
+  }, [session, question, response, objective, preserveAnswer]);
 
   const selectedProposal = useMemo(
     () => proposals.find((proposal) => proposal.id === selectedProposalId) ?? null,
@@ -246,6 +248,7 @@ export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRe
         requestId: crypto.randomUUID(),
         question: question.trim(),
         objective: objective.trim(),
+        preserveAnswer,
         locale,
         spaceId: response.citations[0]?.spaceId ?? null,
       });
@@ -427,6 +430,11 @@ export function AskGuildPage({ api, session, onOpenCitation, onNavigate, focusRe
                   placeholder={t("ask.intent.objectivePlaceholder")}
                   onChange={(event) => setObjective(event.target.value)}
                 />
+              </label>
+              <label className="checkbox-field">
+                <input type="checkbox" checked={preserveAnswer}
+                  onChange={(event) => setPreserveAnswer(event.target.checked)} />
+                <span>{t("ask.intent.preserveAnswer")}</span>
               </label>
               <div className="ask-plan-boundary">
                 <ShieldCheck size={18} />

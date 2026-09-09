@@ -1848,6 +1848,9 @@ export class GuildManagementApiImpl extends RpcTarget implements GuildUiApi {
   }
 
   async createIntentPlan(input: CreateIntentPlanRequest): Promise<CreateIntentPlanResponse> {
+    if (input.preserveAnswer !== undefined && typeof input.preserveAnswer !== "boolean") {
+      throw new Error("Invalid Memory content option.");
+    }
     const ask = await new GuildKnowledgeService(this.#env, this.#accountId).ask({
       question: input.question,
       locale: input.locale,

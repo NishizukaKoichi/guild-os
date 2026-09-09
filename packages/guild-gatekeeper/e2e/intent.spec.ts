@@ -44,6 +44,11 @@ test("keeps Ask read-only and executes an inspectable Plan one durable action at
   await page.getByRole("button", { name: "Turn this answer into a plan", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Create an inspectable plan", exact: true })).toBeVisible();
   await expect(page.getByText("Authorized sources: 1", { exact: true })).toBeVisible();
+  const preserveAnswer = page.getByRole("checkbox", { name: "Keep the answer unchanged in Memory drafts", exact: true });
+  await expect(preserveAnswer).toBeChecked();
+  await preserveAnswer.uncheck();
+  await expect(preserveAnswer).not.toBeChecked();
+  await preserveAnswer.check();
   await page.locator("#ask-plan-objective")
     .fill("Create, verify, and route a governed research request");
   await page.getByRole("button", { name: "Create plan", exact: true }).click();
@@ -129,5 +134,30 @@ test("keeps Plan inspection and Act confirmation usable on a phone viewport", as
   await expect(page.getByRole("heading", { name: "检查、确认，然后逐项执行", exact: true })).toBeVisible();
   await expect(page.getByText("提议工作记忆", { exact: true })).toBeVisible();
   await expect(page.getByText("仅所有者", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("offers explicit answer preservation in all three languages at 320px", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("?standalone=root");
+  await openAsk(page);
+  await page.getByLabel("Question", { exact: true }).fill("What should a new member read?");
+  await page.getByRole("button", { name: "Get answer", exact: true }).click();
+  await page.getByRole("button", { name: "Turn this answer into a plan", exact: true }).click();
+  for (const [locale, label] of [
+    ["en", "Keep the answer unchanged in Memory drafts"],
+    ["ja", "記憶の下書きには回答をそのまま残す"],
+    ["zh-CN", "记忆草稿保留回答原文"],
+  ] as const) {
+    await page.getByRole("combobox", { name: /^(Language|言語|语言)$/ }).selectOption(locale);
+    const option = page.getByRole("checkbox", { name: label, exact: true });
+    await expect(option).toBeChecked();
+    await option.press("Space");
+    await expect(option).not.toBeChecked();
+    await option.press("Space");
+    const bounds = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    expect(bounds.scroll).toBe(bounds.width);
+  }
   expect(errors).toEqual([]);
 });

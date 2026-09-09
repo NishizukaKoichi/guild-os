@@ -32,6 +32,16 @@ instruction-as-title default and distinguishes the requested title from the
 objective in the model contract. Inference success alone is not semantic
 acceptance of the requested result.
 
+Release `2f73715ab6dfcd25c7b42227f7fb6be0fbe2b1ba` passed exact CI
+`34357163433`, 80 local E2E journeys and five-Worker live verification. Its
+model-generated Plan followed the short title and private audience, but its
+body contained an instruction instead of the Ask answer. No Act was executed.
+ADR 0052 adds an explicit answer-preservation option, binding Memory content
+to the freshly authorized server Ask result before proposal approval rather
+than relying on another prompt-only guarantee. Fresh live evidence is required
+for that successor. A deployment-time RPC reset recovered after an outer-page
+reload; it is not recorded as zero-error uninterrupted service.
+
 Rows below retain their historical implementation declarations, not a fresh attestation of every
 production boundary. On 2026-09-05 the clean baseline was `c7183f13219b47ab7bf00c2220e4976cb2dffa0f`;
 GitHub run `33397241955` was observed successful for that SHA. Distribution was separately observed

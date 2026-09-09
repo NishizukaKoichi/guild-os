@@ -695,6 +695,40 @@ describe("GuildIntentService", () => {
     expect(ports.agent.createGovernedRun).not.toHaveBeenCalled();
   });
 
+  it.each(["en", "ja", "zh-CN"] as const)("binds preserved Memory to the authorized answer in %s, not model instructions", async (locale) => {
+    const { service, ports } = harness({ plannerResult: { actions: [{
+      kind: "memory.propose", riskLevel: 1,
+      request: { ...memoryRequest("Requested title"),
+        title: { [locale]: "Requested title" }, summary: { [locale]: "Requested summary" },
+        body: { [locale]: "Incorrect instruction-as-content" } },
+    }] } });
+    const input = { ...planInput(), locale, preserveAnswer: true };
+    const result = await service.planFromAsk(input);
+    expect(result.source).toBe("model");
+    expect(result.proposal.actions[0]?.action.request).toMatchObject({
+      title: { [locale]: "Requested title" },
+      body: { [locale]: input.ask.answer },
+      provenance: { contentSource: "authorized_ask_answer" },
+    });
+    expect(ports.memory.propose).not.toHaveBeenCalled();
+    await service.actOnce(actInput());
+    expect(JSON.stringify(ports.memory.propose.mock.calls)).toContain(input.ask.answer);
+    expect(JSON.stringify(ports.memory.propose.mock.calls)).not.toContain("Incorrect instruction-as-content");
+  });
+
+  it("retains model-authored Memory drafts when answer preservation is not selected", async () => {
+    const { service } = harness({ plannerResult: memoryModelPlan(["New draft"]) });
+    const result = await service.planFromAsk({ ...planInput(), preserveAnswer: false });
+    expect(result.proposal.actions[0]?.action.request).toMatchObject({ body: { en: "Body for New draft" } });
+  });
+
+  it("rejects a malformed preservation option before contacting the planner", async () => {
+    const { service, planner } = harness();
+    await expect(service.planFromAsk({ ...planInput(), preserveAnswer: "true" as unknown as boolean }))
+      .rejects.toMatchObject({ code: "invalid_ask" });
+    expect(planner.plan).not.toHaveBeenCalled();
+  });
+
   it("uses a deterministic Memory proposal when the configured planner is unavailable", async () => {
     const { service, store, ports } = harness({ plannerFailure: new Error("model offline") });
 
